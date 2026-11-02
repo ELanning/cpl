@@ -177,3 +177,30 @@ comparisons under ASan/UBSan (including 2,000 seeded arbitrary-precision
 arithmetic cases), strict Clippy for all evaluator targets, formatting,
 and whitespace checks pass. New regressions cover immutable operands,
 256-bit integers, right-operand mutation, and division fault locations.
+
+## Follow-up: native loop checkpoints
+
+Optimized loops now inline the common checkpoint path. Every condition
+still polls host cancellation and the parallel failure index atomically;
+active deadlines and pending cancellation use the existing runtime helper
+for fault handling. Debug and coverage builds keep the original helper.
+
+With the evaluator optimization already applied, five warmed samples with
+four workers gave these native medians:
+
+| Workload | Before, ms | After, ms | Before / after |
+| - | -: | -: | -: |
+| `work` | 0.875 | 0.765 | 1.14× |
+| `batches` | 1.916 | 1.696 | 1.13× |
+
+Raw samples, including workloads without a measured improvement:
+[before](benchmarks/2026-11-01-checkpoint-before-4.json),
+[after](benchmarks/2026-11-01-checkpoint-after-4.json).
+
+Validation: all 34 runtime/emitter Rust test cases pass, including the
+generated C corpus and the C unit programs in debug, optimized, and
+ASan/UBSan configurations. The parallel C suite passes under TSan.
+Native/reference comparisons pass with one and four workers, including
+cancellation of infinite tasks without a deadline. Direct checkpoint
+regressions cover host cancellation, parallel failure ordering, and time
+exhaustion. Strict Clippy, formatting, and whitespace checks pass.

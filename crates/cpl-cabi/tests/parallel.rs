@@ -113,6 +113,14 @@ fn parallel_maps_match_the_interpreter_under_sanitizers() {
                 .unwrap_err();
             assert_eq!(fault.to_diagnostic(p).code.0, "division_by_zero");
         }
+        // Exercise optimized polling with no deadline as well: later infinite
+        // tasks must still observe the earlier task's failure on every loop.
+        native.reconfigure(&EvalConfig::default()).unwrap();
+        native.set_request_timeout(Some(std::time::Duration::from_secs(5)));
+        let fault = native
+            .call_checked(cancel_id, vec![list(&[0, 1, 1, 1, 1, 1, 1, 1])], vec![])
+            .unwrap_err();
+        assert_eq!(fault.to_diagnostic(p).code.0, "division_by_zero");
         assert!(
             start.elapsed() < std::time::Duration::from_secs(3),
             "later tasks must cancel before their five-second budget"

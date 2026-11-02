@@ -578,6 +578,18 @@ cpl_status CPLRT(api_busy)(cpl_runtime *rt, cpl_error **error);
 cpl_status CPLRT(api_cap_new_labeled)(cpl_runtime *rt, cpl_type capability, const cpl_cap_ops *ops, void *user,
                                       const char *label, cpl_cap *out, cpl_error **error);
 
+/* Poll at every loop condition without an out-of-line call when no deadline or cancellation needs handling.
+   The slow path retains the runtime's fault attribution. Atomic cancellation reads must never be hoisted out
+   of the loop, including when a parallel task inherits no time budget. */
+static inline int cplrt_fast_tick(cplrt_cx *cx, uint32_t site)
+{
+    if (cx->deadline_ns != 0 ||
+        (cx->parallel_failure != NULL && cx->parallel_index > atomic_load_explicit(cx->parallel_failure, memory_order_acquire)) ||
+        (cx->cancel != NULL && atomic_load_explicit(cx->cancel, memory_order_relaxed) != 0u))
+        return cplrt_tick(cx, site);
+    return CPLRT_OK;
+}
+
 /* Optimized lowering's fast paths preserve the arbitrary-precision fallback and its fault site. */
 static inline int cplrt_fast_add(cplrt_cx *cx, uint32_t site, cplrt_w a, cplrt_w b, cplrt_w *out)
 {

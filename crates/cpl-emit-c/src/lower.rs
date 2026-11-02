@@ -1401,7 +1401,12 @@ impl<'a, 'p> Lowerer<'a, 'p> {
         self.indent += 1;
         let site = self.site(cond.span);
         let f = self.fail.clone();
-        self.line(&format!("if (cplrt_tick(cx, {site}) != CPLRT_OK) {f}"));
+        let tick = if self.t.optimize {
+            "cplrt_fast_tick"
+        } else {
+            "cplrt_tick"
+        };
+        self.line(&format!("if ({tick}(cx, {site}) != CPLRT_OK) {f}"));
         let c = self.expr(cond);
         self.line(&format!("if (!cplrt_truth({})) break;", c.expr()));
         if let (Some(clause), Some(cl)) = (decreases, dec) {

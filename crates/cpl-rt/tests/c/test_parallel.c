@@ -41,11 +41,45 @@ static int nested(cplrt_cx *cx, cplrt_w item, const cplrt_w *captures, cplrt_w *
     return cplrt_parallel_map(cx, CPLRT_NO_SITE, captures[1], task, captures, out);
 }
 
+static void checkpoints(cplrt_runtime *rt)
+{
+    cplrt_cx cx;
+    cplrt_memory_record memory;
+    _Atomic uint32_t cancel = 0, failure = UINT32_MAX;
+    CHECK(CPLRT(cx_begin)(&cx, rt, &memory, 100, 1, 0, 0, &cancel) == CPLRT_OK);
+    CHECK(cplrt_fast_tick(&cx, CPLRT_NO_SITE) == CPLRT_OK);
+    cx.parallel_failure = &failure;
+    cx.parallel_index = 5;
+    atomic_store(&failure, 6);
+    CHECK(cplrt_fast_tick(&cx, CPLRT_NO_SITE) == CPLRT_OK);
+    atomic_store(&failure, 5);
+    CHECK(cplrt_fast_tick(&cx, CPLRT_NO_SITE) == CPLRT_OK);
+    atomic_store(&failure, 4);
+    CHECK(cplrt_fast_tick(&cx, CPLRT_NO_SITE) == CPLRT_FAULT);
+    CHECK(cx.cancelled && cx.fault == NULL);
+    CPLRT(cx_end)(&cx);
+
+    CHECK(CPLRT(cx_begin)(&cx, rt, &memory, 100, 1, 0, 0, &cancel) == CPLRT_OK);
+    CHECK(cplrt_fast_tick(&cx, CPLRT_NO_SITE) == CPLRT_OK);
+    atomic_store(&cancel, 1);
+    CHECK(cplrt_fast_tick(&cx, CPLRT_NO_SITE) == CPLRT_FAULT);
+    CHECK(cx.cancelled && cx.fault == NULL);
+    CPLRT(cx_end)(&cx);
+
+    CHECK(CPLRT(cx_begin)(&cx, rt, &memory, 100, 1, 0, 0, NULL) == CPLRT_OK);
+    CHECK(cplrt_fast_tick(&cx, CPLRT_NO_SITE) == CPLRT_OK);
+    cx.deadline_ns = 1; /* expired, without relying on a wall-clock sleep */
+    CHECK(cplrt_fast_tick(&cx, CPLRT_NO_SITE) == CPLRT_FAULT);
+    CHECK(!cx.cancelled && cx.fault != NULL && cx.fault->resource == CPLRT_RES_TIME);
+    CPLRT(cx_end)(&cx);
+}
+
 int main(void)
 {
     CHECK(setenv("CPL_PARALLELISM", "4", 1) == 0);
     cplrt_runtime rt;
     rttest_runtime_init(&rt, 0);
+    checkpoints(&rt);
     cplrt_w items[16], input = 0, original = 0;
     for (int i = 0; i < 16; i++) items[i] = cplrt_small(i);
     CHECK(CPLRT(node_make)(&rt, CPLRT_LIST, 0, 0, items, 16, &input) == CPLRT_OK);

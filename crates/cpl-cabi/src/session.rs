@@ -79,12 +79,75 @@ fn diagnostic_of(e: &cpl_diag::json::DiagnosticJson) -> Diagnostic {
 
 /// One response line read with serde_json's recursion limit disabled (T71): fault payloads can be as deep as the
 /// values they hold.
-fn parse_response(line: &str) -> Result<Response, serde_json::Error> {
+fn parse_json<T: serde::de::DeserializeOwned>(line: &str) -> Result<T, serde_json::Error> {
     let mut de = serde_json::Deserializer::from_str(line);
     de.disable_recursion_limit();
-    let r = Response::deserialize(&mut de)?;
+    let r = T::deserialize(&mut de)?;
     de.end()?;
     Ok(r)
+}
+
+fn parse_response(line: &str) -> Result<Response, serde_json::Error> {
+    parse_json(line)
+}
+
+/// Value-returning requests decode the flat nodes directly, avoiding the untagged response's temporary JSON tree.
+/// Faults and other answers retain the ordinary protocol parser, including arbitrary-precision diagnostic data.
+pub(crate) enum ValueResponse {
+    Value(wire::Nodes),
+    Other(Response),
+}
+
+fn parse_value_response(line: &str) -> Result<ValueResponse, serde_json::Error> {
+    #[derive(Deserialize)]
+    #[serde(deny_unknown_fields)]
+    struct Answer {
+        ok: wire::Nodes,
+    }
+    if let Ok(answer) = parse_json::<Answer>(line) {
+        return Ok(ValueResponse::Value(answer.ok));
+    }
+    match parse_response(line)? {
+        Response::Ok { ok } => serde_json::from_value(ok).map(ValueResponse::Value),
+        other => Ok(ValueResponse::Other(other)),
+    }
+}
+
+#[cfg(test)]
+mod response_tests {
+    use super::*;
+
+    #[test]
+    fn value_answers_stream_nodes_without_changing_response_precedence() {
+        for line in [
+            r#"{"ok":{"nodes":[["s","λ\u0000"],["l",0,0]]}}"#,
+            r#"{"extension":true,"ok":{"nodes":[["s","λ\u0000"],["l",0,0]]}}"#,
+        ] {
+            let ValueResponse::Value(actual) = parse_value_response(line).unwrap() else {
+                panic!("a value answer");
+            };
+            let Response::Ok { ok } = parse_response(line).unwrap() else {
+                panic!("an ok answer");
+            };
+            assert_eq!(actual, serde_json::from_value::<wire::Nodes>(ok).unwrap());
+        }
+        for line in [
+            r#"{"handle":7,"ok":{"nodes":[["t"]]}}"#,
+            r#"{"ok":{"nodes":[["t"]]},"handle":7}"#,
+        ] {
+            assert!(matches!(
+                parse_value_response(line).unwrap(),
+                ValueResponse::Other(Response::Handle { handle: 7 })
+            ));
+        }
+        for line in [
+            r#"{"ok":{"nodes":[["i","007"]]}}"#,
+            r#"{"ok":{"nodes":[["l",-1]]}}"#,
+            r#"{"ok":{"nodes":[["t"]]}} trailing"#,
+        ] {
+            assert!(parse_value_response(line).is_err(), "{line}");
+        }
+    }
 }
 
 impl<'p> NativeSession<'p> {
@@ -169,7 +232,11 @@ impl<'p> NativeSession<'p> {
     }
 
     fn request(&self, req: &Request) -> Result<Response, NativeError> {
-        request_on(&self.inner, req)
+        request_on(&self.inner, req, parse_response)
+    }
+
+    fn request_value(&self, req: &Request) -> Result<ValueResponse, NativeError> {
+        request_on(&self.inner, req, parse_value_response)
     }
 
     /// The driver connection without the program, for the evaluator's `CAdapter` (whose `CapabilityImpl` must not
@@ -188,8 +255,8 @@ pub(crate) struct RawSession {
 }
 
 impl RawSession {
-    pub(crate) fn request(&self, req: &Request) -> Result<Response, NativeError> {
-        request_on(&self.inner, req)
+    pub(crate) fn request_value(&self, req: &Request) -> Result<ValueResponse, NativeError> {
+        request_on(&self.inner, req, parse_value_response)
     }
 
     /// How the driver ended, when it has died (its exit status or signal).
@@ -198,7 +265,11 @@ impl RawSession {
     }
 }
 
-fn request_on(cell: &RefCell<Inner>, req: &Request) -> Result<Response, NativeError> {
+fn request_on<T>(
+    cell: &RefCell<Inner>,
+    req: &Request,
+    parse: fn(&str) -> Result<T, serde_json::Error>,
+) -> Result<T, NativeError> {
     {
         let mut inner = cell.borrow_mut();
         if inner.dead {
@@ -232,7 +303,7 @@ fn request_on(cell: &RefCell<Inner>, req: &Request) -> Result<Response, NativeEr
             let _ = done.send(());
         }
         match read {
-            Ok(n) if n > 0 => parse_response(answer.trim_end()).map_err(|e| {
+            Ok(n) if n > 0 => parse(answer.trim_end()).map_err(|e| {
                 NativeError::Protocol(internal(
                     "native_protocol",
                     format!("the driver's answer is malformed: {e}"),
@@ -354,18 +425,12 @@ impl<'p> NativeSession<'p> {
         }
     }
 
-    fn value_of(&self, ok: serde_json::Value) -> Result<Value, NativeError> {
-        let nodes: wire::Nodes = serde_json::from_value(ok).map_err(|e| {
-            NativeError::Protocol(internal(
-                "native_protocol",
-                format!("a value of the driver is malformed: {e}"),
-            ))
-        })?;
+    fn value_of(&self, nodes: wire::Nodes) -> Result<Value, NativeError> {
         let v = wire::from_nodes(self.p, &nodes)
             .map_err(|e| NativeError::Protocol(internal("native_protocol", format!("{e}"))))?;
         self.inner.borrow_mut().renderings = Some(Renderings {
-            json: nodes.json.clone(),
-            text: nodes.text.clone(),
+            json: nodes.json,
+            text: nodes.text,
             diagnostic: None,
         });
         Ok(v)
@@ -401,10 +466,12 @@ impl<'p> NativeSession<'p> {
             using: using.iter().map(|h| h.0).collect(),
             check_arguments,
         };
-        match self.request(&req)? {
-            Response::Ok { ok } => Ok(Ok(self.value_of(ok)?)),
-            Response::Fault(answer) => Ok(Err(self.fault_of(&answer))),
-            Response::Error { error } => Err(NativeError::Refused(diagnostic_of(&error))),
+        match self.request_value(&req)? {
+            ValueResponse::Value(nodes) => Ok(Ok(self.value_of(nodes)?)),
+            ValueResponse::Other(Response::Fault(answer)) => Ok(Err(self.fault_of(&answer))),
+            ValueResponse::Other(Response::Error { error }) => {
+                Err(NativeError::Refused(diagnostic_of(&error)))
+            }
             _ => Err(NativeError::Protocol(internal(
                 "native_protocol",
                 "call got an unexpected answer".into(),
@@ -432,14 +499,16 @@ impl<'p> NativeSession<'p> {
     /// The value with the C writer's renderings (the `render` request, `spec/cabi.md` 3.8): the value as the driver
     /// decoded it, and its value JSON and value text.
     pub fn render(&mut self, v: &Value) -> Result<(Value, Renderings), NativeError> {
-        match self.request(&Request::Render {
+        match self.request_value(&Request::Render {
             value: wire::to_nodes(v),
         })? {
-            Response::Ok { ok } => {
-                let value = self.value_of(ok)?;
+            ValueResponse::Value(nodes) => {
+                let value = self.value_of(nodes)?;
                 Ok((value, self.native_renderings().unwrap_or_default()))
             }
-            Response::Error { error } => Err(NativeError::Refused(diagnostic_of(&error))),
+            ValueResponse::Other(Response::Error { error }) => {
+                Err(NativeError::Refused(diagnostic_of(&error)))
+            }
             _ => Err(NativeError::Protocol(internal(
                 "native_protocol",
                 "render got an unexpected answer".into(),
@@ -454,15 +523,15 @@ impl<'p> NativeSession<'p> {
         ty: &str,
         json: &str,
     ) -> Result<Result<(Value, Renderings), Diagnostic>, NativeError> {
-        match self.request(&Request::FromJson {
+        match self.request_value(&Request::FromJson {
             ty: ty.to_string(),
             json: json.to_string(),
         })? {
-            Response::Ok { ok } => {
-                let value = self.value_of(ok)?;
+            ValueResponse::Value(nodes) => {
+                let value = self.value_of(nodes)?;
                 Ok(Ok((value, self.native_renderings().unwrap_or_default())))
             }
-            Response::Error { error } => Ok(Err(diagnostic_of(&error))),
+            ValueResponse::Other(Response::Error { error }) => Ok(Err(diagnostic_of(&error))),
             _ => Err(NativeError::Protocol(internal(
                 "native_protocol",
                 "from_json got an unexpected answer".into(),
@@ -692,10 +761,12 @@ impl<'p> TestEngine<'p> for NativeSession<'p> {
             },
             clause: clause_text.to_string(),
         };
-        match self.request(&req) {
-            Ok(Response::Ok { ok }) => self.value_of(ok).map_err(|e| self.engine_fault(e)),
-            Ok(Response::Fault(answer)) => Err(self.fault_of(&answer)),
-            Ok(Response::Error { error }) => {
+        match self.request_value(&req) {
+            Ok(ValueResponse::Value(nodes)) => {
+                self.value_of(nodes).map_err(|e| self.engine_fault(e))
+            }
+            Ok(ValueResponse::Other(Response::Fault(answer))) => Err(self.fault_of(&answer)),
+            Ok(ValueResponse::Other(Response::Error { error })) => {
                 Err(self.engine_fault(NativeError::Refused(diagnostic_of(&error))))
             }
             Ok(_) => Err(self.engine_fault(NativeError::Protocol(internal(

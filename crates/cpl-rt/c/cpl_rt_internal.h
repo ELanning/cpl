@@ -199,6 +199,10 @@ typedef struct cplrt_jv {
    runtime is: error objects, which outlive their runtime (4.3), are allocated by R3 so that they can be. */
 void *CPLRT(alloc)(cplrt_runtime *rt, size_t size);
 void CPLRT(free)(void *p);                                  /* NULL: nothing */
+size_t CPLRT(alloc_size)(const void *p);                     /* a live allocation, never an immortal static */
+
+/* The first byte subsequence, or NULL. The platform implementation also accepts empty needles and embedded NULs. */
+const char *CPLRT(find_bytes)(const char *hay, size_t hlen, const char *needle, size_t nlen);
 
 /* Heap objects (2.3). A new object of `size` bytes, its 16-byte header included, of `kind`, with `len` children or
    limbs, flags, variant, and def 0, and a count of 1; it counts in rt->live_objects until CPLRT(release_obj) frees it.

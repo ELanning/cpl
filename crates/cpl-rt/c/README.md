@@ -87,11 +87,15 @@ files of this directory (`spec/toolchain.md` 1.12).
 | `cpl_rt_list.c` | `CPLRT(bi_list_last)` | `cpl_eval::builtins::prelude::list_last` |
 | `cpl_rt_list.c` | `CPLRT(bi_list_reverse)` | `cpl_eval::builtins::prelude::list_reverse` |
 | `cpl_rt_list.c` | `CPLRT(bi_list_contains)` | `cpl_eval::builtins::prelude::list_contains` |
+| `cpl_rt_list.c` | `cplrt_list_push_owned` | `cpl_eval::interp::Interpreter::exec_stmt` |
+| `cpl_rt_list.c` | `cplrt_list_concat_owned` | `cpl_eval::interp::Interpreter::exec_stmt` |
 | `cpl_rt_parallel.c` | `cplrt_parallel_map` | `cpl_eval::interp::Interpreter::eval_parallel` |
 | `cpl_rt_render.c` | `CPLRT(sbuf_pointer_segment)` | `cpl_eval::json::escape_segment` |
 | `cpl_rt_render.c` | `render_bare_name` | `cpl_eval::types::bare_name` |
 | `cpl_rt_render.c` | `render_member` | `cpl_eval::json::field_name` |
 | `cpl_rt_render.c` | `CPLRT(write_value_text)` | `cpl_eval::json::value_text_untyped` |
+| `cpl_rt_text.c` | `CPLRT(text_concat_owned)` | `cpl_eval::value::Value::append` |
+| `cpl_rt_text.c` | `CPLRT(bytes_concat_owned)` | `cpl_eval::value::Value::append` |
 | `cpl_rt_text.c` | `CPLRT(text_concat)` | `cpl_eval::value::Value::concat` |
 | `cpl_rt_text.c` | `CPLRT(bytes_concat)` | `cpl_eval::value::Value::concat` |
 | `cpl_rt_text.c` | `CPLRT(bi_text_len)` | `cpl_eval::builtins::prelude::text_len` |

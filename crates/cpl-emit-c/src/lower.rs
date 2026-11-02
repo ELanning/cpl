@@ -115,6 +115,8 @@ pub(crate) struct Lowerer<'a, 'p> {
     indent: usize,
     temps: u32,
     slots: Vec<String>,
+    /// Slots already released by an inner block on every path that continues.
+    released_temps: BTreeSet<usize>,
     locals: HashMap<LocalId, LocalC>,
     generics: Vec<String>,
     /// the C of a fault's jump: `goto fail;`, or a claim before it inside a contract region
@@ -256,6 +258,7 @@ impl<'a, 'p> Lowerer<'a, 'p> {
             indent: 1,
             temps: 0,
             slots: Vec::new(),
+            released_temps: BTreeSet::new(),
             locals: HashMap::new(),
             generics: d.kind.generics().to_vec(),
             fail: "goto fail;".to_string(),
@@ -1064,6 +1067,8 @@ impl<'a, 'p> Lowerer<'a, 'p> {
                         BinaryOp::Add => "cplrt_fast_add",
                         BinaryOp::Sub => "cplrt_fast_sub",
                         BinaryOp::Mul => "cplrt_fast_mul",
+                        BinaryOp::Div => "cplrt_fast_div",
+                        BinaryOp::Rem => "cplrt_fast_rem",
                         _ => f,
                     }
                 } else {
@@ -1220,17 +1225,53 @@ impl<'a, 'p> Lowerer<'a, 'p> {
     // ---- blocks and statements --------------------------------------------------------------------------------------
 
     fn block(&mut self, b: &'p Block) -> Op {
+        self.block_result(b, false)
+    }
+
+    /// Discarded loop bodies still evaluate their tail, but need no Unit value
+    /// and keep none of the block's temporaries alive into the next iteration.
+    fn block_result(&mut self, b: &'p Block, discard: bool) -> Op {
+        let first_temp = self.slots.len();
         for s in &b.stmts {
             self.stmt(s);
         }
-        match &b.tail {
+        let value = match &b.tail {
             Some(e) => self.expr(e),
+            None if discard => Op::Imm("CPLRT_EMPTY".into()),
             None => {
                 let t = self.temp();
                 self.unit(&t);
                 Op::Slot(t)
             }
+        };
+        if !self.t.optimize {
+            return value;
         }
+        // The tail may borrow a local or a child of a temporary about to leave
+        // scope. Own it before releasing the block's locals and intermediates.
+        let value = if discard {
+            Op::Imm("CPLRT_EMPTY".into())
+        } else {
+            match value {
+                Op::Borrowed(_) => Op::Slot(self.temp_of(value)),
+                other => other,
+            }
+        };
+        for stmt in &b.stmts {
+            if let Stmt::Let { local, .. } = stmt {
+                let slot = self.slot_of(*local);
+                self.line(&format!("CPLRT_SET({slot}, CPLRT_EMPTY);"));
+            }
+        }
+        for i in first_temp..self.slots.len() {
+            let slot = self.slots[i].clone();
+            if !matches!(&value, Op::Slot(result) if result == &slot)
+                && self.released_temps.insert(i)
+            {
+                self.line(&format!("CPLRT_SET({slot}, CPLRT_EMPTY);"));
+            }
+        }
+        value
     }
 
     fn slot_of(&mut self, local: LocalId) -> String {
@@ -1244,6 +1285,27 @@ impl<'a, 'p> Lowerer<'a, 'p> {
         self.cov(stmt_kind(s));
         if self.t.optimize {
             if let Stmt::Assign { local, value } = s {
+                if let ExprKind::Binary {
+                    op: BinaryOp::Concat,
+                    lhs,
+                    rhs,
+                } = &value.kind
+                {
+                    if matches!(lhs.kind, ExprKind::Local(id) if id == *local)
+                        && matches!(value.ty, Ty::List(_) | Ty::Text | Ty::Bytes)
+                        && !self.later_may_reassign(rhs)
+                    {
+                        let other = self.expr(rhs);
+                        let slot = self.slot_of(*local);
+                        let helper = match value.ty {
+                            Ty::Text => "cplrt_text_concat_owned",
+                            Ty::Bytes => "cplrt_bytes_concat_owned",
+                            _ => "cplrt_list_concat_owned",
+                        };
+                        self.checked(&format!("{helper}(cx, &{slot}, {})", other.expr()));
+                        return;
+                    }
+                }
                 if let ExprKind::Call {
                     callee,
                     args,
@@ -1420,7 +1482,7 @@ impl<'a, 'p> Lowerer<'a, 'p> {
                 });
             });
         }
-        let _ = self.block(body);
+        let _ = self.block_result(body, self.t.optimize);
         self.line(&format!("{iter} += 1;"));
         for (i, c) in invariants.iter().enumerate() {
             let cl = inv[i];

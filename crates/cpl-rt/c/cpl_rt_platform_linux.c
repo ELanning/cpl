@@ -1,11 +1,17 @@
 /* cpl_rt_platform_linux.c: threads, the monotonic clock, and per-thread cached stack bounds on Linux (spec/cabi.md
    2.1, 3.4, 3.6, 3.8, 8). The only runtime file that uses what the prologue's _GNU_SOURCE enables
-   (pthread_getattr_np, spec/cabi.md 1.5). Track R1. */
+   (pthread_getattr_np and memmem, spec/cabi.md 1.5). Track R1. */
 #include "cpl_rt_internal.h"
 #include "cpl_rt_platform.h"
 #include <errno.h>
 #include <pthread.h>
+#include <string.h>
 #include <time.h>
+
+const char *CPLRT(find_bytes)(const char *hay, size_t hlen, const char *needle, size_t nlen)
+{
+    return (const char *)memmem(hay, hlen, needle, nlen);
+}
 
 /* The monotonic clock in nanoseconds (3.6): the time budget's deadline is computed and polled on it. */
 uint64_t CPLRT(clock_ns)(void)

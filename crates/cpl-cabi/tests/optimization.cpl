@@ -1,0 +1,238 @@
+module optimization
+
+struct Box {
+    items: List<Int>
+}
+
+pure fn build(n: Int) -> List<Int> {
+    var xs: List<Int> = []
+    var i = 0
+    while i < n {
+        if true {
+            let snapshot = xs
+            assert snapshot.len == i
+        }
+        xs = xs ++ [i]
+        i = i + 1
+    }
+    xs
+}
+
+pure fn aliases() -> List<List<Int>> {
+    var xs = [1, 2]
+    let original = xs
+    xs = xs ++ xs
+    let doubled = xs
+    xs = xs ++ [xs.len]
+    xs = xs ++ if true {
+        xs = [9]
+        [7]
+    } else {
+        []
+    }
+    xs = xs ++ if true {
+        xs = [3]
+        []
+    } else {
+        []
+    }
+    [original, doubled, xs]
+}
+
+pure fn escaped_values() -> List<Int> {
+    let a = if true {
+        let record = Box { items: [1, 2] }
+        record.items
+    } else {
+        []
+    }
+    let b = match Some([3, 4]) {
+        Some(items) => {
+            let local = items
+            local
+        }
+        None => []
+    }
+    a ++ b
+}
+
+pure fn early_return(n: Int) -> List<Int>
+    ensures result.len == 2
+{
+    while true {
+        let items = [n, n + 1]
+        if n >= 0 {
+            return items
+        }
+        return items.reverse()
+    }
+    [0, 0]
+}
+
+pure fn propagate(n: Int) -> Result<List<Int>, Int> {
+    let items = if n > 0 {
+        let result: Result<List<Int>, Int> = Ok([n])
+        result?
+    } else {
+        let result: Result<List<Int>, Int> = Err(n)
+        result?
+    }
+    Ok(items)
+}
+
+pure fn fault_bindings() -> List<Int> {
+    var xs = [1, 2]
+    xs = xs ++ if true {
+        xs = [9]
+        assert false
+        [0]
+    } else {
+        []
+    }
+    xs
+}
+
+pure fn builtin_order() -> List<Int> {
+    var xs = [1, 2]
+    let old = xs.push(if true {
+        xs = [9]
+        3
+    } else {
+        0
+    })
+    old ++ xs
+}
+
+pure fn builtin_fault(n: Int) -> List<Int> {
+    [1, 2].take(n)
+}
+
+pure fn text_lengths(a: Text, b: Text) -> Int {
+    var i = 0
+    var total = 0
+    while i < 20 {
+        total = total + a.len + b.len
+        i = i + 1
+    }
+    total
+}
+
+pure fn arithmetic(seed: Int, step: Int) -> List<Int> {
+    var a = seed
+    let before = a
+    a = a + step
+    a = a - 1
+    var b = step
+    b = b + a
+    a = a * b
+    let product = a
+    a = a + if true {
+        a = 9
+        2
+    } else {
+        0
+    }
+    a = a + a
+    [seed, step, before, product, b, a]
+}
+
+pure fn text_build(chunk: Text, n: Int) -> Text {
+    var text = ""
+    var i = 0
+    while i < n {
+        text = text ++ chunk
+        i = i + 1
+    }
+    text
+}
+
+pure fn bytes_build(chunk: Bytes, n: Int) -> Bytes {
+    var bytes = std.bytes.from_list([])
+    var i = 0
+    while i < n {
+        bytes = bytes ++ chunk
+        i = i + 1
+    }
+    bytes
+}
+
+pure fn text_aliases() -> List<Text> {
+    var text = "λ\u{0}🙂"
+    let original = text
+    text = text ++ text
+    let doubled = text
+    let old_length = text.len
+    text = text ++ if true {
+        text = "replaced"
+        "x"
+    } else {
+        ""
+    }
+    text = text ++ if true {
+        text = "lost"
+        ""
+    } else {
+        ""
+    }
+    assert doubled.len == old_length
+    [original, doubled, text]
+}
+
+pure fn bytes_aliases() -> List<Bytes> {
+    var bytes = std.bytes.from_list([0, 128, 255])
+    let original = bytes
+    bytes = bytes ++ bytes
+    let doubled = bytes
+    bytes = bytes ++ if true {
+        bytes = std.bytes.from_list([9])
+        std.bytes.from_list([3])
+    } else {
+        std.bytes.from_list([])
+    }
+    bytes = bytes ++ if true {
+        bytes = std.bytes.from_list([8])
+        std.bytes.from_list([])
+    } else {
+        std.bytes.from_list([])
+    }
+    [original, doubled, bytes]
+}
+
+pure fn text_fault() -> Text {
+    var text = "before"
+    text = text ++ if true {
+        text = "after"
+        assert false
+        "unreachable"
+    } else {
+        ""
+    }
+    text
+}
+
+pure fn division(a: Int, b: Int) -> List<Int> {
+    [a / b, a % b]
+}
+
+pure fn search(haystack: Text, needle: Text) -> List<Int> {
+    let found = if std.text.contains(haystack, needle) {
+        1
+    } else {
+        0
+    }
+    let parts = std.text.split(haystack, needle)
+    assert std.text.join(parts, needle) == haystack
+    [found, parts.len]
+}
+
+pure fn text_build_lengths(chunk: Text, n: Int) -> Int {
+    var text = ""
+    var total = 0
+    var i = 0
+    while i < n {
+        text = text ++ chunk
+        total = total + text.len
+        i = i + 1
+    }
+    total
+}

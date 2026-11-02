@@ -420,14 +420,18 @@ pub(crate) fn int_arg<'a>(id: &str, args: &'a [Value], i: usize) -> Result<&'a B
     }
 }
 
-pub(crate) fn text_arg<'a>(id: &str, args: &'a [Value], i: usize) -> Result<&'a Rc<str>, Fault> {
+pub(crate) fn text_arg<'a>(id: &str, args: &'a [Value], i: usize) -> Result<&'a Rc<String>, Fault> {
     match &args[i] {
         Value::Text(t) => Ok(t),
         other => Err(confusion(id, i, "a Text", other)),
     }
 }
 
-pub(crate) fn bytes_arg<'a>(id: &str, args: &'a [Value], i: usize) -> Result<&'a Rc<[u8]>, Fault> {
+pub(crate) fn bytes_arg<'a>(
+    id: &str,
+    args: &'a [Value],
+    i: usize,
+) -> Result<&'a Rc<Vec<u8>>, Fault> {
     match &args[i] {
         Value::Bytes(b) => Ok(b),
         other => Err(confusion(id, i, "a Bytes", other)),

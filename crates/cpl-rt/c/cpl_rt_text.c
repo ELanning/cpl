@@ -173,6 +173,66 @@ static uint32_t text_decode(const unsigned char *p, size_t *len)
 
 /* ---- `++` (2.6) ------------------------------------------------------------------------------------------------- */
 
+/* Append assignments retain spare allocation space without changing the Text/Bytes layout. The allocator's hidden
+   size header is only read for unique dynamic objects, never immortal statics. Copy both inputs before releasing
+   the old slot: other may be that slot itself. A failed allocation leaves it and every snapshot unchanged. */
+static int text_bytes_append_owned(cplrt_cx *cx, cplrt_w *slot, cplrt_w other, int is_text)
+{
+    cplrt_obj *x = cplrt_obj_of(*slot);
+    const cplrt_obj *y = cplrt_obj_of(other);
+    size_t nx = is_text ? ((const cplrt_text *)x)->bytes : ((const cplrt_bytes *)x)->len;
+    size_t ny = is_text ? ((const cplrt_text *)y)->bytes : ((const cplrt_bytes *)y)->len;
+    if (ny == 0)
+        return CPLRT_OK;
+    if (nx == 0) {
+        CPLRT_COPY(*slot, other);
+        return CPLRT_OK;
+    }
+    size_t prefix = is_text ? sizeof(cplrt_text) : sizeof(cplrt_bytes);
+    size_t overhead = prefix + (is_text ? 1u : 0u);
+    if (ny > SIZE_MAX - overhead || nx > SIZE_MAX - overhead - ny)
+        return CPLRT(oom)(cx);
+    size_t needed = nx + ny;
+    size_t scalars = is_text ? ((const cplrt_text *)x)->scalars + ((const cplrt_text *)y)->scalars : 0;
+    int unique = atomic_load_explicit(&x->u.live.rc, memory_order_acquire) == 1u;
+    cplrt_obj *out = x;
+    if (!unique || CPLRT(alloc_size)(x) - overhead < needed) {
+        size_t capacity = nx <= (SIZE_MAX - overhead) / 2u ? nx * 2u : needed;
+        if (capacity < 64u)
+            capacity = 64u;
+        if (capacity < needed)
+            capacity = needed;
+        out = CPLRT(obj_new)(cx->rt, x->kind, 0u, overhead + capacity);
+        if (out == NULL)
+            return CPLRT(oom)(cx);
+        memcpy((char *)out + prefix, (const char *)x + prefix, nx);
+    }
+    memcpy((char *)out + prefix + nx, (const char *)y + prefix, ny);
+    if (is_text) {
+        cplrt_text *t = (cplrt_text *)out;
+        t->bytes = needed;
+        t->scalars = scalars;
+        t->utf8[needed] = '\0';
+    } else {
+        ((cplrt_bytes *)out)->len = needed;
+    }
+    if (out != x)
+        CPLRT_SET(*slot, cplrt_word_of(out));
+    return CPLRT_OK;
+}
+
+/* mirrors cpl_eval::value::Value::append (Text) */
+int CPLRT(text_concat_owned)(cplrt_cx *cx, cplrt_w *slot, cplrt_w other)
+{
+    return text_bytes_append_owned(cx, slot, other, 1);
+}
+
+/* mirrors cpl_eval::value::Value::append (Bytes) */
+int CPLRT(bytes_concat_owned)(cplrt_cx *cx, cplrt_w *slot, cplrt_w other)
+{
+    return text_bytes_append_owned(cx, slot, other, 0);
+}
+
 /* mirrors cpl_eval::value::Value::concat (Text) */
 int CPLRT(text_concat)(cplrt_runtime *rt, cplrt_w a, cplrt_w b, cplrt_w *out)
 {
@@ -344,16 +404,10 @@ int CPLRT(bi_text_ends_with)(cplrt_cx *cx, uint32_t site, uint32_t stub, cplrt_w
 /* The first byte offset at or after `from` where needle (nlen > 0) occurs in hay, or SIZE_MAX. */
 static size_t text_find(const char *hay, size_t hlen, size_t from, const char *needle, size_t nlen)
 {
-    while (from < hlen && hlen - from >= nlen) {
-        const char *hit = (const char *)memchr(hay + from, needle[0], hlen - from - nlen + 1u);
-        if (hit == NULL)
-            return SIZE_MAX;
-        size_t at = (size_t)(hit - hay);
-        if (memcmp(hit, needle, nlen) == 0)
-            return at;
-        from = at + 1u;
-    }
-    return SIZE_MAX;
+    if (from > hlen || nlen > hlen - from)
+        return SIZE_MAX;
+    const char *hit = CPLRT(find_bytes)(hay + from, hlen - from, needle, nlen);
+    return hit == NULL ? SIZE_MAX : (size_t)(hit - hay);
 }
 
 /* mirrors cpl_eval::builtins::text::contains */
@@ -374,8 +428,14 @@ int CPLRT(bi_text_split)(cplrt_cx *cx, uint32_t site, uint32_t stub, cplrt_w a0,
         cplrt_w args[2] = { a0, a1 };
         return CPLRT(builtin_leave)(cx, site, stub, CPLRT(raise_builtin_requires)(cx, stub, "text_split", 0, args, 2));
     }
+    size_t first = text_find(t->utf8, t->bytes, 0, sep->utf8, sep->bytes);
+    if (first == SIZE_MAX) {
+        if (CPLRT(node_make)(cx->rt, CPLRT_LIST, 0u, 0u, &a0, 1u, out) != CPLRT_OK)
+            return text_oom(cx, site, stub);
+        return CPLRT_OK;
+    }
     size_t pieces = 1;
-    for (size_t at = text_find(t->utf8, t->bytes, 0, sep->utf8, sep->bytes); at != SIZE_MAX;
+    for (size_t at = first; at != SIZE_MAX;
          at = text_find(t->utf8, t->bytes, at + sep->bytes, sep->utf8, sep->bytes))
         pieces++;
     if (pieces > UINT32_MAX)
@@ -386,7 +446,7 @@ int CPLRT(bi_text_split)(cplrt_cx *cx, uint32_t site, uint32_t stub, cplrt_w a0,
     size_t start = 0;
     uint32_t i = 0;
     for (;;) {
-        size_t at = text_find(t->utf8, t->bytes, start, sep->utf8, sep->bytes);
+        size_t at = start == 0 ? first : text_find(t->utf8, t->bytes, start, sep->utf8, sep->bytes);
         size_t stop = at == SIZE_MAX ? t->bytes : at;
         if (CPLRT(text_make)(cx->rt, t->utf8 + start, stop - start, &list->item[i]) != CPLRT_OK) {
             cplrt_release(cplrt_word_of(&list->hdr));
@@ -406,6 +466,10 @@ int CPLRT(bi_text_join)(cplrt_cx *cx, uint32_t site, uint32_t stub, cplrt_w a0, 
 {
     uint32_t n = cplrt_len(a0);
     const cplrt_text *sep = cplrt_text_of(a1);
+    if (n == 1u) {
+        CPLRT_COPY(*out, cplrt_item(a0, 0));
+        return CPLRT_OK;
+    }
     size_t bytes = 0, scalars = 0;
     for (uint32_t i = 0; i < n; i++) {
         const cplrt_text *part = cplrt_text_of(cplrt_item(a0, i));

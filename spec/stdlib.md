@@ -767,7 +767,7 @@ Decision: [D-197] S15. A `List<T>` value must support `len`, `is_empty()`, and
 `get(i)` in O(1); every other operation in this section must run in time
 linear in the sizes of its inputs and output. The reference evaluator
 represents a list as a shared, immutable, contiguous buffer
-(`Value::List(Rc<[Value]>)`, `toolchain.md` 1.7): `len` and `get` index
+(`Value::List(Rc<Vec<Value>>)`, `toolchain.md` 1.7): `len` and `get` index
 it directly, `push`, `++`, `take`, `drop`, and `drop_last` copy
 (O(result)). An implementation may instead keep (offset, length) views so
 that `take`, `drop`, and `drop_last` are O(1), or make `push` O(1)
@@ -2067,9 +2067,9 @@ Milestone 2 is `cabi.md` Section 2, which meets S15 as this one does.
 | - | - | - |
 | `Int` | `num_bigint::BigInt` | `len`, indices, counts convert from `BigInt` only after clamping |
 | `Bool` | `bool` | |
-| `Text` | `Rc<str>` (UTF-8) | `len` is `chars().count()`, O(n); an implementation may cache the count |
-| `Bytes` | `Rc<[u8]>` | |
-| `List<T>` | `Value::List(Rc<[Value]>)` | S15; views are permitted, not required |
+| `Text` | `Rc<String>` (UTF-8) | Unicode scalar counts are cached by weak buffer identity and carried forward through append assignments |
+| `Bytes` | `Rc<Vec<u8>>` | Unique append assignments retain capacity; snapshots copy on write |
+| `List<T>` | `Value::List(Rc<Vec<Value>>)` | S15; unique appends retain capacity and snapshots copy on write; views are permitted, not required |
 | `Unit`, `Option`, `Result`, user enums | `Value::Enum { def, variant, payload: Rc<[Value]> }` | the prelude enums need no special variant |
 | structs, wrappers | `Value::Struct { def, fields }`, `Value::Wrapper { def, inner }` | |
 | refinements | the base value; the type is static only | `check` returns the same value |

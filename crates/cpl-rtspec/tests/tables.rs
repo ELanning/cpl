@@ -1173,6 +1173,32 @@ fn div_rem_is_s37() {
     let (q, r) = arith::div_rem(&huge, &d).unwrap();
     assert_eq!(&q * &d + &r, huge);
     assert!(r <= BigInt::from(0) && -&r < d);
+    // Both sides of the unsigned single-limb fast path, including values outside i64 and its signed overflow pair.
+    let magnitudes: Vec<BigInt> = [
+        0,
+        1,
+        3,
+        (1u128 << 63) - 1,
+        1u128 << 63,
+        u64::MAX as u128,
+        1u128 << 64,
+        (1u128 << 64) + 1,
+        1u128 << 127,
+    ]
+    .into_iter()
+    .map(BigInt::from)
+    .collect();
+    for a in magnitudes.iter().flat_map(|n| [n.clone(), -n]) {
+        for b in magnitudes
+            .iter()
+            .filter(|n| n.sign() != num_bigint::Sign::NoSign)
+            .flat_map(|n| [n.clone(), -n])
+        {
+            let q = &a / &b;
+            let r = &a - &q * &b;
+            assert_eq!(arith::div_rem(&a, &b), Some((q, r)), "{a} / {b}");
+        }
+    }
 }
 
 #[test]

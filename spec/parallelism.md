@@ -109,10 +109,13 @@ Optimized native builds enable the following lowering passes:
 3. Algebraic identity reduction that preserves evaluation of all
    potentially faulting operands (`x * 0` still evaluates `x`).
 4. Elimination of concatenation with literal empty text/lists.
-5. Inline small-integer addition, subtraction, multiplication, and
-   comparisons, with arbitrary-precision fallback on overflow.
+5. Inline small-integer addition, subtraction, multiplication, division,
+   remainder, and comparisons, with arbitrary-precision fallback on overflow
+   and the ordinary fault path for a zero divisor.
 6. Ownership-aware `xs = xs.push(item)`: geometric buffer growth when
    uniquely owned and copying when another snapshot shares the list.
+7. Reuse of list, text, and byte capacity for `x = x ++ rhs`, preserving
+   snapshots and left-to-right evaluation when the right operand mutates locals.
 
 Folding uses a 256-node work budget per attempt, a 4,096-bit integer
 operand budget, and a 65,536-byte text bound. Division by zero remains a
@@ -127,12 +130,14 @@ it. `cpl build --profile debug` retains the straightforward lowering.
 Native `run`, `test`, and `replay` now use cached optimized drivers; the
 reference evaluator remains the default engine.
 
-The evaluator also reuses uniquely owned local list capacity and caches
-one retained text's Unicode scalar count (at most 1 MiB retained). Shared
-list snapshots remain immutable. Its public `Value::List` payload is now
-`Rc<Vec<Value>>`; embedders should use `Value::list` and `as_list` rather
-than depending on the previous slice representation. Deep value teardown
-remains iterative.
+The evaluator also reuses uniquely owned local list, text, and byte capacity.
+Its eight-entry Unicode-length cache uses weak buffer identities, retains no
+string contents, and carries known counts forward through text appends.
+Shared snapshots remain immutable. The public payloads are `Rc<Vec<Value>>`
+for `Value::List`, `Rc<String>` for `Value::Text`, and `Rc<Vec<u8>>` for
+`Value::Bytes`; embedders should use the `Value` constructors and accessors
+rather than depending on the previous slice representations. Deep value
+teardown remains iterative.
 
 Machine results now pass the existing iterative structural/boundary walk
 directly, avoiding a JSON encode/decode cycle before validation. Receipts

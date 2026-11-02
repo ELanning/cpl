@@ -35,5 +35,12 @@ protocol and result transfer, so large returned lists have a transfer cost.
 integer. `equality_scan` compares two 10,000-element lists that differ at
 their first element 1,000 times; `equality_equal` compares equal, separately
 allocated lists 100 times. These also expose interpreter equality costs.
+Additional [benchmark kernels](../../crates/cpl-cabi/examples/performance.cpl)
+exercise counter loops, small function calls, scoped snapshots, repeated
+list/text/byte concatenation, alternating and incremental Unicode-length
+reads, division, text search/split/join, and flattening. Separate wire
+cases measure 20 node-list encodes or decodes per sample.
+The buffer-growth kernels return lengths to separate computation from
+driver transfer costs; `build` still returns the complete list.
 See the [language amendment](../../spec/parallelism.md) for purity,
 cancellation, and bounded application mailboxes.

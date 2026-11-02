@@ -67,6 +67,11 @@ void CPLRT(free)(void *p)
     atomic_fetch_sub_explicit(&rt->live_bytes, (uint64_t)total, memory_order_relaxed);
 }
 
+size_t CPLRT(alloc_size)(const void *p)
+{
+    return ((const value_block *)(const void *)((const char *)p - sizeof(value_block)))->size;
+}
+
 static cplrt_runtime *value_runtime_of(const void *p)
 {
     return ((const value_block *)(const void *)((const char *)p - sizeof(value_block)))->rt;

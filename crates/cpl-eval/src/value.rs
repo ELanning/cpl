@@ -1,7 +1,7 @@
 //! Runtime values (`spec/toolchain.md` 1.7 and T8; semantics 6.1, 6.4, 6.5;
 //! stdlib 10.5).
 //!
-//! Values are immutable and share structure through [`Rc`] (T8): a uniquely owned local list may reuse its buffer; shared snapshots copy on write, so no value is ever
+//! Values are immutable and share structure through [`Rc`] (T8): uniquely owned local text, bytes, and lists may reuse their buffers; shared snapshots copy on write, so no value is ever
 //! observed to change (semantics 6.1) and sharing is never visible.
 //! Refinements are erased: a `Positive` is a [`Value::Int`] (semantics 6.1,
 //! stdlib 10.5). `Unit`, `Option`, and `Result` are the prelude's ordinary
@@ -27,10 +27,10 @@ pub enum Value {
     Int(BigInt),
     /// `Bool`.
     Bool(bool),
-    /// `Text`: a sequence of Unicode scalar values, stored as UTF-8.
-    Text(Rc<str>),
-    /// `Bytes`.
-    Bytes(Rc<[u8]>),
+    /// `Text`: UTF-8 with capacity retained for uniquely owned local appends.
+    Text(Rc<String>),
+    /// `Bytes`, with capacity retained for uniquely owned local appends.
+    Bytes(Rc<Vec<u8>>),
     /// `List<T>`: shared immutable values with capacity retained for uniquely owned local appends.
     List(Rc<Vec<Value>>),
     /// A struct value; `fields` in declaration order.
@@ -74,12 +74,12 @@ impl Value {
 
     /// A `Text`.
     pub fn text(s: &str) -> Value {
-        Value::Text(Rc::from(s))
+        Value::Text(Rc::new(s.to_owned()))
     }
 
     /// A `Bytes`.
     pub fn bytes(b: &[u8]) -> Value {
-        Value::Bytes(Rc::from(b))
+        Value::Bytes(Rc::new(b.to_vec()))
     }
 
     /// A `List`.
@@ -388,6 +388,45 @@ impl Value {
             }),
             _ => None,
         }
+    }
+
+    /// Whether two sequence values share their backing allocation, for assigning `x = x ++ rhs` after rhs runs.
+    pub(crate) fn same_buffer(&self, other: &Value) -> bool {
+        match (self, other) {
+            (Value::Text(a), Value::Text(b)) => Rc::ptr_eq(a, b),
+            (Value::Bytes(a), Value::Bytes(b)) => Rc::ptr_eq(a, b),
+            (Value::List(a), Value::List(b)) => Rc::ptr_eq(a, b),
+            _ => false,
+        }
+    }
+
+    /// Append into an owned sequence, preserving every other reference through copy on write.
+    pub(crate) fn append(&mut self, other: &Value) -> bool {
+        match (self, other) {
+            (Value::Text(a), Value::Text(b)) => {
+                if a.is_empty() {
+                    *a = Rc::clone(b);
+                } else if !b.is_empty() {
+                    Rc::make_mut(a).push_str(b);
+                }
+            }
+            (Value::Bytes(a), Value::Bytes(b)) => {
+                if a.is_empty() {
+                    *a = Rc::clone(b);
+                } else if !b.is_empty() {
+                    Rc::make_mut(a).extend_from_slice(b);
+                }
+            }
+            (Value::List(a), Value::List(b)) => {
+                if a.is_empty() {
+                    *a = Rc::clone(b);
+                } else if !b.is_empty() {
+                    Rc::make_mut(a).extend(b.iter().cloned());
+                }
+            }
+            _ => return false,
+        }
+        true
     }
 }
 

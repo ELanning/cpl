@@ -1,0 +1,139 @@
+module kernels
+
+pure fn counter(n: Int) -> Int {
+    var i = 0
+    while i < n {
+        i = i + 1
+    }
+    i
+}
+
+pure fn step(n: Int) -> Int {
+    n + 1
+}
+
+pure fn calls(n: Int) -> Int {
+    var i = 0
+    while i < n {
+        i = step(i)
+    }
+    i
+}
+
+pure fn scoped_build(n: Int) -> Int {
+    var xs: List<Int> = []
+    var i = 0
+    while i < n {
+        if true {
+            let snapshot = xs
+            assert snapshot.len == i
+        }
+        xs = xs.push(i)
+        i = i + 1
+    }
+    xs.len
+}
+
+pure fn concat_build(n: Int) -> Int {
+    var xs: List<Int> = []
+    var i = 0
+    while i < n {
+        xs = xs ++ [i]
+        i = i + 1
+    }
+    xs.len
+}
+
+pure fn alternating_text(a: Text, b: Text, n: Int) -> Int {
+    var i = 0
+    var total = 0
+    while i < n {
+        total = total + a.len + b.len
+        i = i + 1
+    }
+    total
+}
+
+pure fn divide_loop(a: Int, b: Int, n: Int) -> Int {
+    var i = 0
+    var total = 0
+    while i < n {
+        total = total + a / b + a % b
+        i = i + 1
+    }
+    total
+}
+
+pure fn text_build(chunk: Text, n: Int) -> Int {
+    var text = ""
+    var i = 0
+    while i < n {
+        text = text ++ chunk
+        i = i + 1
+    }
+    text.len
+}
+
+pure fn text_build_lengths(chunk: Text, n: Int) -> Int {
+    var text = ""
+    var total = 0
+    var i = 0
+    while i < n {
+        text = text ++ chunk
+        total = total + text.len
+        i = i + 1
+    }
+    total
+}
+
+pure fn bytes_build(chunk: Bytes, n: Int) -> Int {
+    var bytes = std.bytes.from_list([])
+    var i = 0
+    while i < n {
+        bytes = bytes ++ chunk
+        i = i + 1
+    }
+    bytes.len
+}
+
+pure fn text_contains(haystack: Text, needle: Text, n: Int) -> Int {
+    var found = 0
+    var i = 0
+    while i < n {
+        if std.text.contains(haystack, needle) {
+            found = found + 1
+        }
+        i = i + 1
+    }
+    found
+}
+
+pure fn text_split(haystack: Text, needle: Text, n: Int) -> Int {
+    var total = 0
+    var i = 0
+    while i < n {
+        total = total + std.text.split(haystack, needle).len
+        i = i + 1
+    }
+    total
+}
+
+pure fn text_join(parts: List<Text>, separator: Text, n: Int) -> Int {
+    var total = 0
+    var i = 0
+    while i < n {
+        total = total + std.text.join(parts, separator).len
+        i = i + 1
+    }
+    total
+}
+
+pure fn flatten_lists(parts: List<List<Int>>, n: Int) -> Int {
+    var total = 0
+    var i = 0
+    while i < n {
+        total = total + flatten(parts).len
+        i = i + 1
+    }
+    total
+}

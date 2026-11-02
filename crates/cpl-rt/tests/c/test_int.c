@@ -613,12 +613,19 @@ static void test_division_signs(void)
         cplrt_w q = 0, r = 0;
         CHECK(cplrt_int_divrem(&cx, 0, cplrt_small(cases[i][0]), cplrt_small(cases[i][1]), &q, &r) == CPLRT_OK);
         CHECK(q == cplrt_small(cases[i][2]) && r == cplrt_small(cases[i][3]));
+        CHECK(cplrt_fast_div(&cx, 0, cplrt_small(cases[i][0]), cplrt_small(cases[i][1]), &q) == CPLRT_OK);
+        CHECK(cplrt_fast_rem(&cx, 0, cplrt_small(cases[i][0]), cplrt_small(cases[i][1]), &r) == CPLRT_OK);
+        CHECK(q == cplrt_small(cases[i][2]) && r == cplrt_small(cases[i][3]));
     }
     /* -2^62 / -1 leaves the small range */
     cplrt_w q = 0, r = 0;
     CHECK(cplrt_int_divrem(&cx, 0, cplrt_small(CPLRT_SMALL_MIN), cplrt_small(-1), &q, &r) == CPLRT_OK);
     EXPECT(q, "4611686018427387904");
     CHECK(r == cplrt_small(0) && !cplrt_is_small(q));
+    CHECK(cplrt_fast_div(&cx, 0, cplrt_small(CPLRT_SMALL_MIN), cplrt_small(-1), &q) == CPLRT_OK);
+    EXPECT(q, "4611686018427387904");
+    CHECK(cplrt_fast_rem(&cx, 0, cplrt_small(CPLRT_SMALL_MIN), cplrt_small(-1), &r) == CPLRT_OK);
+    CHECK(r == cplrt_small(0));
     cplrt_release(q);
     q = 0;
     /* one output only: -10^23 == 7 * -14285714285714285714285 - 5 */

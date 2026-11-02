@@ -619,7 +619,29 @@ static inline int cplrt_fast_mul(cplrt_cx *cx, uint32_t site, cplrt_w a, cplrt_w
 #endif
     return cplrt_int_mul(cx, site, a, b, out);
 }
+static inline int cplrt_fast_div(cplrt_cx *cx, uint32_t site, cplrt_w a, cplrt_w b, cplrt_w *out)
+{
+    if (cplrt_is_small(a) && cplrt_is_small(b) && cplrt_small_value(b) != 0) {
+        /* Small operands cannot overflow int64_t division; MIN / -1 can exceed the small representation. */
+        int64_t n = cplrt_small_value(a) / cplrt_small_value(b);
+        if (n <= CPLRT_SMALL_MAX) { CPLRT_SET(*out, cplrt_small(n)); return CPLRT_OK; }
+    }
+    return cplrt_int_div(cx, site, a, b, out);
+}
+static inline int cplrt_fast_rem(cplrt_cx *cx, uint32_t site, cplrt_w a, cplrt_w b, cplrt_w *out)
+{
+    if (cplrt_is_small(a) && cplrt_is_small(b) && cplrt_small_value(b) != 0) {
+        CPLRT_SET(*out, cplrt_small(cplrt_small_value(a) % cplrt_small_value(b))); return CPLRT_OK;
+    }
+    return cplrt_int_rem(cx, site, a, b, out);
+}
 #define cplrt_list_push_owned CPLRT(list_push_owned)
 int cplrt_list_push_owned(cplrt_cx *, uint32_t, uint32_t, cplrt_w *, cplrt_w);
+#define cplrt_list_concat_owned CPLRT(list_concat_owned)
+int cplrt_list_concat_owned(cplrt_cx *, cplrt_w *, cplrt_w);
+#define cplrt_text_concat_owned CPLRT(text_concat_owned)
+int cplrt_text_concat_owned(cplrt_cx *, cplrt_w *, cplrt_w);
+#define cplrt_bytes_concat_owned CPLRT(bytes_concat_owned)
+int cplrt_bytes_concat_owned(cplrt_cx *, cplrt_w *, cplrt_w);
 
 #endif

@@ -50,18 +50,12 @@ impl CapabilityImpl for CAdapter {
             operation: index,
             args: args.iter().map(crate::wire::to_nodes).collect(),
         };
-        match self.session.request(&req) {
-            Ok(Response::Ok { ok }) => {
-                let nodes: crate::wire::Nodes = serde_json::from_value(ok).map_err(|e| {
-                    Fault::internal(
-                        "native_protocol",
-                        format!("a value of the driver is malformed: {e}"),
-                    )
-                })?;
-                crate::wire::from_nodes(p, &nodes)
-                    .map_err(|e| Fault::internal("native_protocol", e.message))
-            }
-            Ok(Response::ForeignError { foreign_error: f }) => cpl_eval::boundary::foreign_failure(
+        match self.session.request_value(&req) {
+            Ok(crate::session::ValueResponse::Value(nodes)) => crate::wire::from_nodes(p, &nodes)
+                .map_err(|e| Fault::internal("native_protocol", e.message)),
+            Ok(crate::session::ValueResponse::Other(Response::ForeignError {
+                foreign_error: f,
+            })) => cpl_eval::boundary::foreign_failure(
                 p,
                 self.capability,
                 index,
@@ -70,8 +64,10 @@ impl CapabilityImpl for CAdapter {
                 &f.message,
                 &f.details,
             ),
-            Ok(Response::Fault(answer)) => Err(crate::fault_from_record(p, &answer.fault)),
-            Ok(Response::Error { error }) => {
+            Ok(crate::session::ValueResponse::Other(Response::Fault(answer))) => {
+                Err(crate::fault_from_record(p, &answer.fault))
+            }
+            Ok(crate::session::ValueResponse::Other(Response::Error { error })) => {
                 Err(Fault::internal("native_protocol", error.message.clone()))
             }
             Ok(_) => Err(Fault::internal(

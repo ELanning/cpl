@@ -264,35 +264,68 @@ int CPLRT(bi_list_contains)(cplrt_cx *cx, uint32_t site, uint32_t stub, cplrt_w 
 /* An owned local's xs = xs.push(item). Unique lists grow geometrically; snapshots still share immutable values.
    The spare-capacity flag and def word are list-internal: lists have no nominal definition id. */
 #define LIST_CAPACITY 0x04u
-int cplrt_list_push_owned(cplrt_cx *cx, uint32_t site, uint32_t stub, cplrt_w *xs, cplrt_w item)
+static int list_reserve_owned(cplrt_runtime *rt, cplrt_w *xs, uint32_t extra)
 {
     cplrt_obj *old = cplrt_obj_of(*xs);
     uint32_t len = old->len;
+    if (len > UINT32_MAX - extra)
+        return CPLRT_NOMEM;
+    uint32_t needed = len + extra;
     int unique = atomic_load_explicit(&old->u.live.rc, memory_order_acquire) == 1u;
     uint32_t cap = (old->flags & LIST_CAPACITY) ? old->u.live.def : len;
-    if (unique && len < cap) {
-        cplrt_retain(item);
-        ((cplrt_node *)old)->item[len] = item;
-        old->len = len + 1u;
+    if (unique && needed <= cap)
         return CPLRT_OK;
-    }
-    if (len == UINT32_MAX)
-        return list_oom(cx, site, stub);
     uint32_t next = len < 8u ? 8u : (len <= UINT32_MAX / 2u ? len * 2u : UINT32_MAX);
-    cplrt_node *list = CPLRT(list_alloc)(cx->rt, next);
+    if (next < needed) next = needed;
+    cplrt_node *list = CPLRT(list_alloc)(rt, next);
     if (list == NULL)
-        return list_oom(cx, site, stub);
+        return CPLRT_NOMEM;
     list->hdr.flags |= LIST_CAPACITY;
     list->hdr.u.live.def = next;
-    list->hdr.len = len + 1u;
+    list->hdr.len = len;
     for (uint32_t i = 0; i < len; i++) {
         cplrt_w v = ((cplrt_node *)old)->item[i];
         if (!unique) cplrt_retain(v);
         list->item[i] = v;
     }
-    cplrt_retain(item);
-    list->item[len] = item;
     if (unique) old->len = 0u; /* children moved; release only the old buffer */
     CPLRT_SET(*xs, cplrt_word_of(&list->hdr));
+    return CPLRT_OK;
+}
+
+/* mirrors cpl_eval::interp::Interpreter::exec_stmt: reuse uniquely owned list capacity for a push assignment. */
+int cplrt_list_push_owned(cplrt_cx *cx, uint32_t site, uint32_t stub, cplrt_w *xs, cplrt_w item)
+{
+    /* An argument may alias the old buffer or one of its children. Own it before reserve can release that buffer. */
+    cplrt_retain(item);
+    if (list_reserve_owned(cx->rt, xs, 1u) != CPLRT_OK) {
+        cplrt_release(item);
+        return list_oom(cx, site, stub);
+    }
+    cplrt_node *list = (cplrt_node *)cplrt_obj_of(*xs);
+    list->item[list->hdr.len++] = item;
+    return CPLRT_OK;
+}
+
+/* mirrors cpl_eval::interp::Interpreter::exec_stmt: xs = xs ++ other, after other has evaluated without
+   reassigning xs. Shared snapshots still copy. */
+int cplrt_list_concat_owned(cplrt_cx *cx, cplrt_w *xs, cplrt_w other)
+{
+    uint32_t n = cplrt_len(other);
+    if (n == 0u) return CPLRT_OK;
+    cplrt_retain(other); /* includes xs ++ xs and a borrowed child of xs */
+    if (list_reserve_owned(cx->rt, xs, n) != CPLRT_OK) {
+        cplrt_release(other);
+        return CPLRT(oom)(cx);
+    }
+    cplrt_node *list = (cplrt_node *)cplrt_obj_of(*xs);
+    uint32_t len = list->hdr.len;
+    for (uint32_t i = 0; i < n; i++) {
+        cplrt_w item = list_items(other)[i];
+        cplrt_retain(item);
+        list->item[len + i] = item;
+    }
+    list->hdr.len = len + n;
+    cplrt_release(other);
     return CPLRT_OK;
 }

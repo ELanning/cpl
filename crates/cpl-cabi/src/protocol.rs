@@ -48,7 +48,9 @@
 use cpl_diag::json::DiagnosticJson;
 use cpl_diag::{Facet, StableId};
 use num_bigint::BigInt;
-use serde::{Deserialize, Serialize};
+use serde::de::{self, SeqAccess, Visitor};
+use serde::ser::SerializeSeq;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::{Map, Value as Json};
 use std::collections::BTreeMap;
 
@@ -408,8 +410,7 @@ pub struct Nodes {
 }
 
 /// One node of a [`Nodes`] list. Children are indices of earlier nodes; `def` is a `DefId.0`.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(try_from = "Vec<Json>", into = "Vec<Json>")]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Node {
     /// `["i", "<canonical decimal>"]`: an optional `-`, then digits without leading zeros, `0` for zero.
     Int(BigInt),
@@ -435,6 +436,184 @@ pub enum Node {
     Wrapper { def: u32, inner: u32 },
     /// `["c", def, handle]`: a capability handle, in outputs only.
     Capability { def: u32, handle: u32 },
+}
+
+// Stream the flat wire arrays directly. Going through Vec<Json> clones the entire node when writing and builds
+// a temporary JSON tree when reading; neither is needed to preserve the protocol's tagged-array representation.
+impl Serialize for Node {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        let (tag, len) = match self {
+            Node::Int(_) => ("i", 2),
+            Node::True => ("t", 1),
+            Node::False => ("f", 1),
+            Node::Text(_) => ("s", 2),
+            Node::Bytes(_) => ("y", 2),
+            Node::List(items) => ("l", 1 + items.len()),
+            Node::Struct { fields, .. } => ("r", 2 + fields.len()),
+            Node::Enum { payload, .. } => ("e", 3 + payload.len()),
+            Node::Wrapper { .. } => ("w", 3),
+            Node::Capability { .. } => ("c", 3),
+        };
+        let mut seq = serializer.serialize_seq(Some(len))?;
+        seq.serialize_element(tag)?;
+        match self {
+            Node::Int(n) => seq.serialize_element(&n.to_string())?,
+            Node::True | Node::False => {}
+            Node::Text(s) => seq.serialize_element(s)?,
+            Node::Bytes(bytes) => seq.serialize_element(&encode_hex(bytes))?,
+            Node::List(items) => {
+                for item in items {
+                    seq.serialize_element(item)?;
+                }
+            }
+            Node::Struct { def, fields } => {
+                seq.serialize_element(def)?;
+                for field in fields {
+                    seq.serialize_element(field)?;
+                }
+            }
+            Node::Enum {
+                def,
+                variant,
+                payload,
+            } => {
+                seq.serialize_element(def)?;
+                seq.serialize_element(variant)?;
+                for item in payload {
+                    seq.serialize_element(item)?;
+                }
+            }
+            Node::Wrapper { def, inner } => {
+                seq.serialize_element(def)?;
+                seq.serialize_element(inner)?;
+            }
+            Node::Capability { def, handle } => {
+                seq.serialize_element(def)?;
+                seq.serialize_element(handle)?;
+            }
+        }
+        seq.end()
+    }
+}
+
+enum NodeTag {
+    Int,
+    True,
+    False,
+    Text,
+    Bytes,
+    List,
+    Struct,
+    Enum,
+    Wrapper,
+    Capability,
+}
+
+impl<'de> Deserialize<'de> for NodeTag {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        struct TagVisitor;
+        impl Visitor<'_> for TagVisitor {
+            type Value = NodeTag;
+            fn expecting(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                f.write_str("a node tag string")
+            }
+            fn visit_str<E: de::Error>(self, tag: &str) -> Result<NodeTag, E> {
+                match tag {
+                    "i" => Ok(NodeTag::Int),
+                    "t" => Ok(NodeTag::True),
+                    "f" => Ok(NodeTag::False),
+                    "s" => Ok(NodeTag::Text),
+                    "y" => Ok(NodeTag::Bytes),
+                    "l" => Ok(NodeTag::List),
+                    "r" => Ok(NodeTag::Struct),
+                    "e" => Ok(NodeTag::Enum),
+                    "w" => Ok(NodeTag::Wrapper),
+                    "c" => Ok(NodeTag::Capability),
+                    _ => Err(E::custom(format!("unknown node tag `{tag}`"))),
+                }
+            }
+        }
+        deserializer.deserialize_str(TagVisitor)
+    }
+}
+
+impl<'de> Deserialize<'de> for Node {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        struct NodeVisitor;
+        impl<'de> Visitor<'de> for NodeVisitor {
+            type Value = Node;
+
+            fn expecting(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                f.write_str("a tagged node array")
+            }
+
+            fn visit_seq<A: SeqAccess<'de>>(self, mut seq: A) -> Result<Node, A::Error> {
+                fn required<'de, T: Deserialize<'de>, A: SeqAccess<'de>>(
+                    seq: &mut A,
+                ) -> Result<T, A::Error> {
+                    seq.next_element()?
+                        .ok_or_else(|| de::Error::custom("missing node operand"))
+                }
+                fn indices<'de, A: SeqAccess<'de>>(seq: &mut A) -> Result<Vec<u32>, A::Error> {
+                    let mut items = Vec::with_capacity(seq.size_hint().unwrap_or(0).min(4096));
+                    while let Some(item) = seq.next_element()? {
+                        items.push(item);
+                    }
+                    Ok(items)
+                }
+                let node = match required::<NodeTag, _>(&mut seq)? {
+                    NodeTag::Int => Node::Int(
+                        canonical_int(&required::<String, _>(&mut seq)?)
+                            .map_err(de::Error::custom)?,
+                    ),
+                    NodeTag::True => Node::True,
+                    NodeTag::False => Node::False,
+                    NodeTag::Text => Node::Text(required(&mut seq)?),
+                    NodeTag::Bytes => Node::Bytes(
+                        lowercase_hex(&required::<String, _>(&mut seq)?)
+                            .map_err(de::Error::custom)?,
+                    ),
+                    NodeTag::List => return Ok(Node::List(indices(&mut seq)?)),
+                    NodeTag::Struct => {
+                        return Ok(Node::Struct {
+                            def: required(&mut seq)?,
+                            fields: indices(&mut seq)?,
+                        })
+                    }
+                    NodeTag::Enum => {
+                        return Ok(Node::Enum {
+                            def: required(&mut seq)?,
+                            variant: required(&mut seq)?,
+                            payload: indices(&mut seq)?,
+                        })
+                    }
+                    NodeTag::Wrapper => Node::Wrapper {
+                        def: required(&mut seq)?,
+                        inner: required(&mut seq)?,
+                    },
+                    NodeTag::Capability => Node::Capability {
+                        def: required(&mut seq)?,
+                        handle: required(&mut seq)?,
+                    },
+                };
+                if seq.next_element::<de::IgnoredAny>()?.is_some() {
+                    return Err(de::Error::custom("extra node operand"));
+                }
+                Ok(node)
+            }
+        }
+        deserializer.deserialize_seq(NodeVisitor)
+    }
+}
+
+fn encode_hex(bytes: &[u8]) -> String {
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    let mut out = String::with_capacity(bytes.len() * 2);
+    for &byte in bytes {
+        out.push(HEX[usize::from(byte >> 4)] as char);
+        out.push(HEX[usize::from(byte & 15)] as char);
+    }
+    out
 }
 
 /// The canonical decimal of an `Int`, or why `text` is not one.
@@ -530,7 +709,7 @@ impl From<Node> for Vec<Json> {
             Node::False => tagged("f", Vec::new()),
             Node::Text(s) => tagged("s", vec![Json::String(s)]),
             Node::Bytes(b) => {
-                let hex: String = b.iter().map(|byte| format!("{byte:02x}")).collect();
+                let hex = encode_hex(&b);
                 tagged("y", vec![Json::String(hex)])
             }
             Node::List(items) => tagged("l", numbers(items)),
@@ -844,6 +1023,11 @@ mod tests {
             ),
         );
         exact(&Nodes::default(), r#"{"nodes":[]}"#);
+        for node in all.nodes {
+            let json = Json::Array(Vec::<Json>::from(node.clone()));
+            assert_eq!(serde_json::to_value(&node).unwrap(), json);
+            assert_eq!(serde_json::from_value::<Node>(json).unwrap(), node);
+        }
     }
 
     #[test]
@@ -851,6 +1035,8 @@ mod tests {
         for bad in [
             r#"[]"#,
             r#"[1]"#,
+            r#"[{"i":null}, "0"]"#,
+            r#"[{"t":null}]"#,
             r#"["i"]"#,
             r#"["i", 5]"#,
             r#"["i", "007"]"#,
@@ -868,6 +1054,7 @@ mod tests {
             r#"["l", -1]"#,
             r#"["l", 4294967296]"#,
             r#"["l", "0"]"#,
+            r#"["l", 1.0]"#,
             r#"["r"]"#,
             r#"["e", 1]"#,
             r#"["w", 1]"#,

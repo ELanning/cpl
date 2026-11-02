@@ -19,7 +19,7 @@ use std::rc::Rc;
 type Out = Result<Value, Fault>;
 
 /// The result text, sharing the argument's buffer when nothing changed.
-fn same_or_new(original: &Rc<str>, result: &str) -> Value {
+fn same_or_new(original: &Rc<String>, result: &str) -> Value {
     if result.len() == original.len() {
         Value::Text(Rc::clone(original))
     } else {
@@ -84,7 +84,17 @@ pub(super) fn split(it: &mut Interpreter<'_>, args: &[Value]) -> Out {
     if sep.is_empty() {
         return Err(requires_violation(it, ID, 0, args));
     }
-    Ok(Value::list(t.split(&**sep).map(Value::text).collect()))
+    let mut parts = t.split(&**sep);
+    let first = parts.next().expect("split always has a first piece");
+    if first.len() == t.len() {
+        return Ok(Value::list(vec![args[0].clone()]));
+    }
+    Ok(Value::list(
+        std::iter::once(first)
+            .chain(parts)
+            .map(Value::text)
+            .collect(),
+    ))
 }
 
 /// `join(parts, sep)`: the parts with `sep` between consecutive ones;
@@ -94,17 +104,30 @@ pub(super) fn join(_it: &mut Interpreter<'_>, args: &[Value]) -> Out {
     arity(ID, args, 2)?;
     let parts = list_arg(ID, args, 0)?;
     let sep = text_arg(ID, args, 1)?;
-    let mut out = String::new();
-    for (i, part) in parts.iter().enumerate() {
+    let mut bytes = sep
+        .len()
+        .checked_mul(parts.len().saturating_sub(1))
+        .expect("join length overflow");
+    for part in parts.iter() {
         let Value::Text(s) = part else {
             return Err(confusion(ID, 0, "a List of Text", part));
+        };
+        bytes = bytes.checked_add(s.len()).expect("join length overflow");
+    }
+    if parts.len() == 1 {
+        return Ok(parts[0].clone());
+    }
+    let mut out = String::with_capacity(bytes);
+    for (i, part) in parts.iter().enumerate() {
+        let Value::Text(s) = part else {
+            unreachable!("validated above")
         };
         if i > 0 {
             out.push_str(sep);
         }
         out.push_str(s);
     }
-    Ok(Value::text(&out))
+    Ok(Value::Text(Rc::new(out)))
 }
 
 /// `to_upper(t)`: ASCII `a`-`z` to upper case, every other scalar
@@ -113,7 +136,7 @@ pub(super) fn to_upper(_it: &mut Interpreter<'_>, args: &[Value]) -> Out {
     arity("text_to_upper", args, 1)?;
     let t = text_arg("text_to_upper", args, 0)?;
     Ok(if t.bytes().any(|b| b.is_ascii_lowercase()) {
-        Value::text(&t.to_ascii_uppercase())
+        Value::Text(Rc::new(t.to_ascii_uppercase()))
     } else {
         Value::Text(Rc::clone(t))
     })
@@ -125,7 +148,7 @@ pub(super) fn to_lower(_it: &mut Interpreter<'_>, args: &[Value]) -> Out {
     arity("text_to_lower", args, 1)?;
     let t = text_arg("text_to_lower", args, 0)?;
     Ok(if t.bytes().any(|b| b.is_ascii_uppercase()) {
-        Value::text(&t.to_ascii_lowercase())
+        Value::Text(Rc::new(t.to_ascii_lowercase()))
     } else {
         Value::Text(Rc::clone(t))
     })

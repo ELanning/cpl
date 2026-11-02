@@ -239,3 +239,246 @@ path; rebuilding those packages resolved the missing-file failures. The
 syntax golden now includes the two added benchmark functions. The example
 passes its locked release check, and strict workspace Clippy, Rust/CPL
 formatting, and whitespace checks pass.
+
+## Follow-up: scope lifetimes and allocation reuse
+
+This pass removes repeated allocations and unnecessary collection copies
+in both engines:
+
+- The evaluator releases locals when their scope ends and reuses empty
+  activation buffers. The pool holds at most 16 environments, each with
+  capacity for at most 1,024 locals and scope entries; values are dropped
+  before an environment enters the pool.
+- Optimized native blocks release their locals and intermediate values
+  when the block ends. A borrowed result is retained before cleanup, and
+  nested blocks emit each temporary's cleanup once. Both engines avoid
+  constructing an unused `Unit` for a loop body without a tail.
+- `xs = xs ++ other` grows a uniquely owned list geometrically. Shared
+  snapshots still copy. The evaluator retains the left operand until the
+  right operand finishes, including when it reassigns `xs`; native
+  lowering uses this path only when the right operand cannot reassign it.
+  Native push and concatenation share a capacity reservation helper, with
+  borrowed arguments retained before replacing the old buffer.
+- Integer assignments with a local left operand and literal/local right
+  operand reuse the destination's limb buffer for addition, subtraction,
+  and multiplication. Expressions that can execute code use the ordinary
+  evaluation path. Division and remainder are unchanged.
+- Builtin implementations are resolved lazily and cached by declaration.
+  Calls with up to three arguments use stack storage, preserving argument
+  order and fault attribution.
+- The evaluator's Unicode-length cache holds eight strings rather than
+  one, so alternating between strings does not rescan them every time.
+  Each cached string remains limited to 1 MiB, bounding retained text
+  storage at 8 MiB per interpreter.
+
+The benchmark now loads an in-memory project containing the existing
+parallel example and
+[`performance.cpl`](../crates/cpl-cabi/examples/performance.cpl). Added
+kernels cover 100,000 counter increments, 50,000 small function calls,
+5,000 list appends after a scoped snapshot, 5,000 singleton list
+concatenations, alternating length reads of two 20,000-scalar strings,
+and 20,000 quotient/remainder iterations. List-building kernels return a
+length so their native timings measure computation without transferring
+the whole list. The existing `build` kernel still returns its full list.
+
+The new native/reference regression runs in debug and optimized profiles
+under ASan/UBSan. It covers capacity boundaries, self-concatenation,
+immutable aliases, right-operand mutations, values escaping blocks,
+early returns and propagation, builtin argument order and faults, cache
+eviction, and 256-bit arithmetic. Direct C regressions also check borrowed
+heap children, self-append, reuse with no remaining heap budget, and
+unchanged inputs/reference counts after allocation failure.
+
+Baseline: `117c9d8` with the expanded benchmark driver and kernels.
+The final comparison uses the same machine described above, release Rust,
+optimized native code without sanitizers, five warmed samples per row,
+and no competing test or build jobs. Selected four-worker medians:
+
+| Workload | Engine | Before, ms | After, ms | Before / after |
+| - | - | -: | -: | -: |
+| `counter` | eval | 7.878 | 3.120 | 2.52× |
+| `counter` | native | 0.524 | 0.247 | 2.12× |
+| `calls` | eval | 7.940 | 6.010 | 1.32× |
+| `calls` | native | 0.566 | 0.374 | 1.51× |
+| `scoped_build` | eval | 143.358 | 0.843 | 170.02× |
+| `scoped_build` | native | 11.801 | 0.107 | 110.48× |
+| `concat_build` | eval | 131.950 | 0.493 | 267.82× |
+| `concat_build` | native | 9.191 | 0.161 | 57.01× |
+| `alternating_text` | eval | 21.883 | 1.402 | 15.61× |
+| `alternating_text` | native | 0.335 | 0.301 | 1.11× |
+| `work` | eval | 25.553 | 18.906 | 1.35× |
+| `work` | native | 0.882 | 0.522 | 1.69× |
+| `build` | eval | 0.982 | 0.444 | 2.21× |
+| `build` | native | 5.932 | 5.821 | 1.02× |
+| `batches` | eval | 54.866 | 45.274 | 1.21× |
+| `batches` | native | 1.885 | 1.275 | 1.48× |
+
+Raw samples for every workload: [before, four workers](benchmarks/2026-11-01-ownership-before-4.json),
+[after, four workers](benchmarks/2026-11-01-ownership-after-4.json),
+[before, one worker](benchmarks/2026-11-01-ownership-before-1.json), and
+[after, one worker](benchmarks/2026-11-01-ownership-after-1.json).
+
+The largest gains remove quadratic copying in these particular list-building
+patterns. Full equal-list comparison and native list-result transfer show
+no meaningful gain. Small native calls and first-mismatch comparisons are
+noisy across runs, including some slower samples; these are workload
+measurements, not a universal speedup claim. Checking and driver startup
+are reported separately and are not included in these speedup claims.
+
+Validation: **3,304 workspace tests pass across the main run and a targeted
+rerun**, plus **108,544 optimized native/reference comparisons under
+ASan/UBSan, zero divergences**. The campaign runs 97 harvested programs;
+15 snippets that cannot check independently remain excluded. Its 473
+resource-limited sweep skips are below the existing 2% gate (0.44%).
+C, Python, ASan/UBSan, and TSan were required in the workspace run.
+Strict workspace Clippy, rustdoc, Rust/CPL formatting, and whitespace checks
+pass. The separate debug differential coverage campaign and D7 runtime
+fuzz campaign were not rerun in this pass.
+
+The workspace run caught one source-embedding mismatch because explanatory
+C comments were added after its test binary compiled. The embedded/runtime
+diff contained only those comments; rebuilding and rerunning the complete
+header and mirror suites passed.
+
+Commands used for the final regression run:
+
+```sh
+CPL_REQUIRE_CC=1 CPL_REQUIRE_SANITIZERS=1 CPL_REQUIRE_TSAN=1 CPL_REQUIRE_PYTHON=1 \
+  cargo test --workspace --locked --no-fail-fast -- \
+  --skip differential_suites_with_the_coverage_gate \
+  --skip d8_sanitized_suites --skip d7_runtime_fuzz
+CPL_REQUIRE_CC=1 cargo test --locked -p cpl-rt --test headers --test mirrors
+CPL_REQUIRE_CC=1 CPL_REQUIRE_SANITIZERS=1 \
+  cargo test --locked -p cpl-cabi --test differential d8_sanitized_suites
+```
+
+
+## Follow-up: text/byte growth, searches, and value transfer (2026-11-02)
+
+A second pass extends buffer reuse to text and bytes, reduces wire-protocol
+allocation, and measures text processing and ordinary division. The baseline
+is the completed ownership pass above with the additional benchmark kernels,
+before the changes in this section. The machine and compilers are unchanged.
+
+Changes:
+
+- Both engines grow uniquely owned text and byte buffers geometrically for
+  `x = x ++ rhs`. Snapshots and self-concatenation remain immutable; the
+  evaluator retains the original left operand while the right operand runs.
+  Native lowering uses the owned helper only when the right operand cannot
+  reassign locals. The native runtime discovers spare capacity through its
+  existing allocation header, with no public C ABI or object-layout change.
+- The evaluator's eight-entry text-length cache now holds weak identities,
+  so it retains no text contents and does not create copy-on-write snapshots.
+  Known scalar counts are updated by the appended text's count. This avoids
+  rescanning a growing text, including texts above the previous 1 MiB cache
+  limit. Weak identities prevent address reuse; host `Rc::make_mut` detaches
+  them, so host edits cannot produce stale hits.
+- Native substring search uses Linux `memmem` through the platform layer.
+  Splitting a text with no separator occurrence shares its original buffer
+  in both engines and searches only once. Unicode and embedded NULs remain
+  byte-exact, with scalar-aligned matches for valid UTF-8.
+- Single-part joins share that part. Multi-part evaluator joins reserve the
+  required bytes once, and flattening validates and sizes its result without
+  intermediate vectors. Evaluator text concatenation and case conversion
+  also avoid copying a completed `String` into a second backing allocation.
+- `Node` serialization/deserialization streams tagged arrays directly,
+  retaining the protocol's shape, canonical decimal/hex rules, and strict
+  indices. Byte encoding uses one output allocation instead of formatting
+  each byte separately. Native value-returning calls parse nodes directly;
+  faults and other responses preserve the general parser and its variant
+  precedence. Native renderings move into their destination without cloning.
+- Shared Rust division uses unsigned machine-word magnitudes when both
+  operands fit, restoring the signs specified by S37 and retaining the
+  arbitrary-precision fallback. Native optimized division/remainder inline
+  the small-integer path, including overflow and zero-divisor fallbacks.
+
+Rust embedding compatibility: `Value::Text` now contains `Rc<String>` and
+`Value::Bytes` contains `Rc<Vec<u8>>`, replacing their slice payloads.
+The stable constructor/accessor usage (`Value::text`/`as_text`,
+`Value::bytes`/`as_bytes`) is unchanged. Code directly constructing those
+payloads needs adjustment. The public C ABI, CPL values, and driver wire
+format are unchanged. Growth can reserve spare capacity; heap-budget failures
+leave native inputs and their reference counts unchanged.
+
+The expanded benchmark includes 20,000 appends of a 72-byte Unicode text
+chunk or a 64-byte byte chunk; repetitive-prefix search/split; joins;
+flattening; and encoding/decoding 10,000 integer nodes plus 8 KiB of bytes.
+Language calls warm up and compare engine results before measurement. Every
+row reports five samples and their median; each wire sample contains 20
+operations. Checking/startup is separate, and native times include protocol
+and result transfer. No competing test/build jobs ran during measurement.
+
+Selected medians with four workers:
+
+| Workload | Engine | Before, ms | After, ms | Before / after |
+| - | - | -: | -: | -: |
+| `text_build` | eval | 1351.382 | 1.260 | 1072.60× |
+| `text_build` | native | 659.401 | 0.408 | 1616.27× |
+| `bytes_build` | eval | 949.801 | 1.129 | 841.59× |
+| `bytes_build` | native | 471.691 | 0.397 | 1189.38× |
+| `text_build_lengths` | eval | 630.417 | 2.585 | 243.88× |
+| `text_contains_prefix` | native | 23.980 | 4.294 | 5.58× |
+| `text_split_prefix` | native | 48.032 | 4.303 | 11.16× |
+| `text_join_single` | eval | 3.860 | 0.159 | 24.33× |
+| `text_join_single` | native | 1.169 | 0.192 | 6.10× |
+| `flatten_lists` | eval | 19.499 | 12.718 | 1.53× |
+| `divide_loop` | eval | 3.919 | 3.011 | 1.30× |
+| `build` | native | 5.484 | 2.325 | 2.36× |
+| `wire_encode_nodes` | wire | 32.438 | 10.337 | 3.14× |
+| `wire_decode_nodes` | wire | 39.625 | 20.537 | 1.93× |
+
+Raw results: [before](benchmarks/2026-11-02-buffers-before-4.json) and
+[after](benchmarks/2026-11-02-buffers-after-4.json). The
+`text_build_lengths` baseline is a separate
+[intermediate run](benchmarks/2026-11-02-length-before-4.json), after buffer
+reuse but before the weak/incremental length-cache change. That kernel reads
+the text length after every append and returns their sum.
+
+The largest gains remove quadratic buffer copying and rescanning in these
+patterns. Other workloads show smaller gains or slower samples. The generalized
+append path initially added cleanup overhead to list snapshots.
+Keeping the existing `Rc` path for list snapshots reduced `concat_build`
+from 0.473 ms to 0.445 ms in a consecutive comparison, close to the 0.436 ms
+baseline. The [general-path run](benchmarks/2026-11-02-append-general-4.json)
+and final after report retain all samples, including the remaining small
+workload variations.
+
+Validation completed:
+
+- **3,305 workspace tests passed**, with C, Python, ASan/UBSan, and TSan
+  required. The separate final reruns passed all 697 evaluator tests and
+  11 protocol/optimization tests, including both native profiles under
+  ASan/UBSan after the list-path correction.
+- **240,000 D7 randomized comparisons passed**, including integers through
+  2,000 decimal digits, Unicode, invalid UTF-8, rendering, and damaged JSON.
+- **108,556 D8 comparisons passed under ASan/UBSan**, with no divergences or
+  sanitizer failures. The D5 sweep skipped 461 resource-limited cases (0.43%).
+- **108,557 debug/coverage comparisons passed**, with zero divergences and
+  the full coverage gate satisfied. Its sweep skipped 460 resource-limited
+  cases (0.42%). Both campaigns ran 97 harvested programs; 15 snippets that
+  cannot check independently and seven undrawable functions remain the
+  existing exclusions. Both skip rates are below the 2% gate.
+- Strict workspace Clippy, rustdoc, Rust/CPL formatting, and whitespace
+  checks passed. The release CLI was rebuilt and its version command ran.
+
+The three differential campaigns compared **457,113 cases in total**. Direct
+C tests check self-appends, preserved snapshots, cached Unicode scalar counts,
+embedded NULs, reuse with no remaining heap budget, and failure without
+changing the slot or reference counts. Protocol tests check exact wire shapes,
+malformed tags/operands, and response precedence. Regression tests also check
+host mutation after a weak-cache lookup and lengths beyond 1 MiB.
+
+Commands (in addition to the workspace command above):
+
+```sh
+CPL_REQUIRE_CC=1 CPL_REQUIRE_SANITIZERS=1 CPL_DIFF_VERBOSE=1 \
+  cargo test --locked -p cpl-cabi --test differential -- --nocapture --test-threads=1
+cargo test --locked -p cpl-eval
+CPL_REQUIRE_CC=1 CPL_REQUIRE_SANITIZERS=1 \
+  cargo test --locked -p cpl-cabi --lib --test optimization
+cargo clippy --workspace --all-targets --locked -- -D warnings
+RUSTDOCFLAGS=-Dwarnings cargo doc --workspace --no-deps --locked
+cargo build --release --locked -p cpl-cli
+CPL_PARALLELISM=4 cargo run --release --locked -p cpl-cabi --example performance
+```

@@ -364,6 +364,51 @@ static void test_memory(void)
     CHECK(atomic_load(&rt.live_objects) == objects);
 }
 
+static void test_owned_growth(void)
+{
+    uint64_t objects = atomic_load(&rt.live_objects);
+    begin();
+    cplrt_w xs = CPLRT(empty_list)();
+    CHECK(cplrt_list_push_owned(&cx, SITE_CALL, CPLRT_NONE, &xs, cplrt_small(1)) == CPLRT_OK);
+    cplrt_w buffer = xs;
+    rt.max_heap_bytes = atomic_load(&rt.live_bytes);
+    /* Unique spare capacity works even when no further heap allocation is permitted. */
+    CHECK(cplrt_list_push_owned(&cx, SITE_CALL, CPLRT_NONE, &xs, cplrt_small(2)) == CPLRT_OK && xs == buffer);
+    rt.max_heap_bytes = 0;
+    cplrt_w snapshot = xs;
+    cplrt_retain(snapshot);
+    cplrt_w tail = ints(3, 2);
+    CHECK(cplrt_list_concat_owned(&cx, &xs, tail) == CPLRT_OK);
+    CHECK(renders(snapshot, "[1, 2]") && renders(xs, "[1, 2, 3, 4]"));
+    CHECK(cplrt_list_concat_owned(&cx, &xs, xs) == CPLRT_OK);
+    CHECK(renders(xs, "[1, 2, 3, 4, 1, 2, 3, 4]"));
+    CHECK(cplrt_list_concat_owned(&cx, &xs, CPLRT(empty_list)()) == CPLRT_OK);
+    buffer = xs;
+    uint32_t refs = rc(tail);
+    rt.max_heap_bytes = atomic_load(&rt.live_bytes);
+    CHECK(memory_fault(cplrt_list_concat_owned(&cx, &xs, tail)) && xs == buffer && rc(tail) == refs);
+    restart();
+    CHECK(memory_fault(cplrt_list_push_owned(&cx, SITE_CALL, CPLRT_NONE, &xs, tail)) && xs == buffer && rc(tail) == refs);
+    rt.max_heap_bytes = 0;
+    restart();
+    CHECK(renders(xs, "[1, 2, 3, 4, 1, 2, 3, 4]"));
+    cplrt_release(xs);
+    cplrt_release(snapshot);
+    cplrt_release(tail);
+
+    /* Borrowed heap children and the old list itself survive a buffer replacement. */
+    cplrt_w label = text("kept");
+    xs = list(&label, 1);
+    cplrt_release(label);
+    CHECK(cplrt_list_push_owned(&cx, SITE_CALL, CPLRT_NONE, &xs, cplrt_item(xs, 0)) == CPLRT_OK);
+    CHECK(renders(xs, "[\"kept\", \"kept\"]"));
+    CHECK(cplrt_list_push_owned(&cx, SITE_CALL, CPLRT_NONE, &xs, xs) == CPLRT_OK);
+    CHECK(renders(xs, "[\"kept\", \"kept\", [\"kept\", \"kept\"]]"));
+    cplrt_release(xs);
+    end();
+    CHECK(atomic_load(&rt.live_objects) == objects);
+}
+
 int main(void)
 {
     rttest_runtime_init(&rt, 0);
@@ -372,6 +417,7 @@ int main(void)
     test_counts();
     test_elements();
     test_memory();
+    test_owned_growth();
     uint64_t left = rttest_runtime_fini(&rt);
     CHECK(left == 0);
     printf("test_list: %d checks, %d failed\n", checks, failures);

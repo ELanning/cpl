@@ -20,19 +20,36 @@ pub(super) fn flatten(_it: &mut Interpreter<'_>, args: &[Value]) -> Out {
     const ID: &str = "flatten";
     arity(ID, args, 1)?;
     let outer = list_arg(ID, args, 0)?;
-    let mut inner = Vec::with_capacity(outer.len());
+    let mut total = 0usize;
+    let mut nonempty = 0usize;
+    let mut only = None;
     for x in outer.iter() {
         match x {
-            Value::List(xs) => inner.push(xs),
+            Value::List(xs) => {
+                total = total
+                    .checked_add(xs.len())
+                    .expect("flatten length overflow");
+                if !xs.is_empty() {
+                    nonempty += 1;
+                    only = Some(xs);
+                }
+            }
             other => return Err(confusion(ID, 0, "a List of Lists", other)),
         }
     }
-    let non_empty: Vec<&Rc<Vec<Value>>> = inner.into_iter().filter(|xs| !xs.is_empty()).collect();
-    Ok(match non_empty.as_slice() {
-        [] => Value::empty_list(),
-        [only] => Value::List(Rc::clone(only)),
-        many => Value::list(many.iter().flat_map(|xs| xs.iter().cloned()).collect()),
-    })
+    if nonempty == 0 {
+        return Ok(Value::empty_list());
+    }
+    if nonempty == 1 {
+        return Ok(Value::List(Rc::clone(only.expect("one nonempty list"))));
+    }
+    let mut out = Vec::with_capacity(total);
+    for x in outer.iter() {
+        if let Value::List(xs) = x {
+            out.extend(xs.iter().cloned());
+        }
+    }
+    Ok(Value::list(out))
 }
 
 // ---- Int -----------------------------------------------------------------------

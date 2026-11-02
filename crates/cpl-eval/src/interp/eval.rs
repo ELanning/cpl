@@ -556,6 +556,23 @@ impl<'p> Interpreter<'p> {
         }
     }
 
+    /// A loop consumes its body's effects and control flow, but not its value.
+    /// In particular an absent tail need not allocate a Unit payload each iteration.
+    fn eval_block_discard(&mut self, b: &'p Block) -> Eval<()> {
+        let mark = self.scope_mark();
+        let outcome = (|| {
+            for s in &b.stmts {
+                self.exec_stmt(s)?;
+            }
+            if let Some(tail) = &b.tail {
+                self.eval_expr(tail)?;
+            }
+            Ok(())
+        })();
+        self.restore_scope(mark);
+        outcome
+    }
+
     fn exec_stmt(&mut self, s: &'p Stmt) -> Eval<()> {
         match s {
             Stmt::Let { local, value } => {
@@ -565,6 +582,82 @@ impl<'p> Interpreter<'p> {
             }
             Stmt::Discard(e) | Stmt::Expr(e) => self.eval_expr(e).map(drop),
             Stmt::Assign { local, value } => {
+                if self.assign_int_leaf(*local, value) {
+                    return Ok(());
+                }
+                if let ExprKind::Binary {
+                    op: BinaryOp::Concat,
+                    lhs,
+                    rhs,
+                } = &value.kind
+                {
+                    if matches!(lhs.kind, ExprKind::Local(id) if id == *local) {
+                        // A list snapshot needs only an Rc count, not Value's general deep-drop path. Keep this
+                        // common case specialized while preserving the left operand across right-hand effects.
+                        if let Some(Some(Value::List(xs))) = self.env().values.get(local.0 as usize)
+                        {
+                            let mut left = Rc::clone(xs);
+                            let right = self.eval_expr(rhs)?;
+                            if let Value::List(ys) = &right {
+                                if let Some(Some(Value::List(current))) =
+                                    self.env_mut().values.get_mut(local.0 as usize)
+                                {
+                                    if Rc::ptr_eq(current, &left) {
+                                        drop(left);
+                                        if !ys.is_empty() {
+                                            Rc::make_mut(current).extend(ys.iter().cloned());
+                                        }
+                                        return Ok(());
+                                    }
+                                }
+                                if !ys.is_empty() {
+                                    Rc::make_mut(&mut left).extend(ys.iter().cloned());
+                                }
+                                return self.assign(*local, Value::List(left), value.span);
+                            }
+                            return self.confusion("a List", &right, value.span);
+                        }
+                        if let Some(Some(left)) = self.env().values.get(local.0 as usize) {
+                            // Keep the left snapshot until the right operand has finished: it may
+                            // reassign the same local, return early, or fault with visible bindings.
+                            let mut left = left.clone();
+                            let right = self.eval_expr(rhs)?;
+                            let length = match (&left, &right) {
+                                (Value::Text(text), Value::Text(suffix)) => self
+                                    .take_text_length(text)
+                                    .map(|n| n + self.text_length(suffix)),
+                                _ => None,
+                            };
+                            if let Some(Some(current)) =
+                                self.env_mut().values.get_mut(local.0 as usize)
+                            {
+                                if current.same_buffer(&left) {
+                                    drop(left);
+                                    if current.append(&right) {
+                                        if let (Some(length), Value::Text(text)) = (length, current)
+                                        {
+                                            let text = Rc::clone(text);
+                                            self.remember_text_length(&text, length);
+                                        }
+                                        return Ok(());
+                                    }
+                                    return self.confusion(
+                                        "matching sequences",
+                                        &right,
+                                        value.span,
+                                    );
+                                }
+                            }
+                            if left.append(&right) {
+                                if let (Some(length), Value::Text(text)) = (length, &left) {
+                                    self.remember_text_length(text, length);
+                                }
+                                return self.assign(*local, left, value.span);
+                            }
+                            return self.confusion("matching sequences", &right, value.span);
+                        }
+                    }
+                }
                 if let ExprKind::Call {
                     callee,
                     args,
@@ -624,6 +717,65 @@ impl<'p> Interpreter<'p> {
         }
     }
 
+    /// Reuse a local integer's limbs for `x = x + y` (also subtraction and multiplication) only when
+    /// both operands are leaves. No code can observe a partially updated
+    /// binding, and all other expressions retain left-to-right evaluation.
+    fn assign_int_leaf(&mut self, local: LocalId, value: &Expr) -> bool {
+        fn leaf(mut e: &Expr) -> &Expr {
+            while let ExprKind::Widen { expr, .. } = &e.kind {
+                e = expr;
+            }
+            e
+        }
+        fn update(op: BinaryOp, target: &mut Option<Value>, operand: &BigInt) -> bool {
+            let Some(Value::Int(n)) = target else {
+                return false;
+            };
+            match op {
+                BinaryOp::Add => *n += operand,
+                BinaryOp::Sub => *n -= operand,
+                BinaryOp::Mul => *n *= operand,
+                _ => unreachable!(),
+            }
+            true
+        }
+        let ExprKind::Binary { op, lhs, rhs } = &value.kind else {
+            return false;
+        };
+        if !matches!(op, BinaryOp::Add | BinaryOp::Sub | BinaryOp::Mul)
+            || !matches!(leaf(lhs).kind, ExprKind::Local(id) if id == local)
+        {
+            return false;
+        }
+        let index = local.0 as usize;
+        match &leaf(rhs).kind {
+            ExprKind::Lit(Lit::Int(n)) => self
+                .env_mut()
+                .values
+                .get_mut(index)
+                .is_some_and(|slot| update(*op, slot, n)),
+            ExprKind::Local(other) if *other != local => {
+                let other = other.0 as usize;
+                let values = &mut self.env_mut().values;
+                if index.max(other) >= values.len() {
+                    return false;
+                }
+                let (target, source) = if index < other {
+                    let (left, right) = values.split_at_mut(other);
+                    (&mut left[index], &right[0])
+                } else {
+                    let (left, right) = values.split_at_mut(index);
+                    (&mut right[0], &left[other])
+                };
+                match source {
+                    Some(Value::Int(n)) => update(*op, target, n),
+                    _ => false,
+                }
+            }
+            _ => false,
+        }
+    }
+
     /// `while` with its clauses, exactly semantics 5.3: the invariants
     /// before the first test of the condition (iteration 0); then, each
     /// time around, the condition, the measure (only after the condition
@@ -668,7 +820,7 @@ impl<'p> Interpreter<'p> {
                 }
                 previous = Some(measure);
             }
-            self.eval_block(body)?;
+            self.eval_block_discard(body)?;
             iteration += 1;
             if check {
                 self.check_invariants(invariants, iteration, owner.as_ref())?;
@@ -813,6 +965,22 @@ impl<'p> Interpreter<'p> {
         using: &'p [Expr],
         span: Span,
     ) -> Eval<Value> {
+        // Builtins have at most a few arguments. Evaluate them in order into
+        // stack slots, avoiding a heap argument vector on every length/get/etc.
+        if let (true, Some(FnBody::Builtin(id))) = (
+            using.is_empty() && args.len() <= 3,
+            self.program
+                .defs
+                .get(callee.0 as usize)
+                .and_then(|d| d.kind.as_fn())
+                .map(|f| &f.body),
+        ) {
+            let mut values = [Value::Bool(false), Value::Bool(false), Value::Bool(false)];
+            for (slot, expr) in values.iter_mut().zip(args) {
+                *slot = self.eval_expr(expr)?;
+            }
+            return self.call_builtin(callee, id, &values[..args.len()], Some(span));
+        }
         let values = self.eval_all(args)?;
         let mut handles = Vec::with_capacity(using.len());
         for u in using {
@@ -844,7 +1012,7 @@ impl<'p> Interpreter<'p> {
             );
         };
         if let FnBody::Builtin(id) = &fd.body {
-            return self.call_builtin(f, id, args, span);
+            return self.call_builtin(f, id, &args, span);
         }
         if args.len() != fd.params.len() || using.len() != fd.using.len() {
             return self.internal(
@@ -1014,17 +1182,30 @@ impl<'p> Interpreter<'p> {
         &mut self,
         stub: DefId,
         id: &str,
-        args: Vec<Value>,
+        args: &[Value],
         span: Option<Span>,
     ) -> Eval<Value> {
-        let Some(imp) = builtins::lookup(id) else {
+        let imp = self
+            .builtin_functions
+            .get(stub.0 as usize)
+            .copied()
+            .flatten()
+            .or_else(|| {
+                let imp = builtins::lookup(id)?;
+                if self.builtin_functions.len() <= stub.0 as usize {
+                    self.builtin_functions.resize(stub.0 as usize + 1, None);
+                }
+                self.builtin_functions[stub.0 as usize] = Some(imp);
+                Some(imp)
+            });
+        let Some(imp) = imp else {
             return self.internal(
                 "unknown_builtin",
                 render(&messages::DETAIL_UNKNOWN_BUILTIN, &[("id", id)]),
                 span,
             );
         };
-        imp(self, &args).map_err(|mut fault| {
+        imp(self, args).map_err(|mut fault| {
             if fault.span.is_none() {
                 fault.span = span;
             }
@@ -1088,7 +1269,7 @@ impl<'p> Interpreter<'p> {
                 self.bind(param.local, v.clone());
             }
             let outcome = self.check_op_requires(opdef, &identity);
-            self.envs.pop();
+            self.pop_env();
             outcome?;
         }
         if self.config.trace_effects {
@@ -1144,7 +1325,7 @@ impl<'p> Interpreter<'p> {
                 self.bind(r, result.clone());
             }
             let outcome = self.check_op_ensures(opdef, &identity, &result);
-            self.envs.pop();
+            self.pop_env();
             outcome?;
         }
         Ok(result)
@@ -1233,7 +1414,7 @@ fn matches(pattern: &Pattern, value: &Value, binds: &mut Vec<(LocalId, Value)>) 
             true
         }
         (PatternKind::Int(n), Value::Int(v)) => n == v,
-        (PatternKind::Text(t), Value::Text(v)) => t.as_str() == &**v,
+        (PatternKind::Text(t), Value::Text(v)) => t.as_str() == v.as_str(),
         (PatternKind::Bool(b), Value::Bool(v)) => b == v,
         (
             PatternKind::Ctor { def, variant, args },

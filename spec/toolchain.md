@@ -1316,9 +1316,9 @@ use std::rc::Rc;
 pub enum Value {
     Int(num_bigint::BigInt),
     Bool(bool),
-    Text(Rc<str>),
-    Bytes(Rc<[u8]>),
-    List(Rc<[Value]>),
+    Text(Rc<String>),
+    Bytes(Rc<Vec<u8>>),
+    List(Rc<Vec<Value>>),
     Struct { def: DefId, fields: Rc<[Value]> },           // fields in declaration order
     Enum { def: DefId, variant: u32, payload: Rc<[Value]> },
     Wrapper { def: DefId, inner: Rc<Value> },             // nominal wrapper, e.g. PageId("x")
@@ -1342,6 +1342,11 @@ impl Value {
 // recurses on the host stack (semantics S38, S72); a consequence is that a pattern cannot move a field out of an owned
 // Value (E0509): match on a reference and clone the part (an Rc clone).
 ```
+
+Text, byte, and list buffers retain capacity for uniquely owned local
+append assignments. Other references remain immutable snapshots through
+copy on write. Embedders should use the constructors and accessors above;
+the earlier `Rc<str>` and `Rc<[T]>` payload representations have changed.
 
 Refined values (`Positive`) have the representation of their base type; a
 refinement is a static fact, not a runtime wrapper (semantics 6.1).

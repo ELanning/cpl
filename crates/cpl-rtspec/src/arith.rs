@@ -14,6 +14,28 @@ pub fn div_rem(a: &BigInt, b: &BigInt) -> Option<(BigInt, BigInt)> {
     if b.sign() == Sign::NoSign {
         return None;
     }
+    if a.bits() <= 64 && b.bits() <= 64 {
+        // Divide unsigned magnitudes and restore the signs from S37. This also handles +/-u64::MAX without a
+        // signed machine-division overflow, and avoids bigint multiplication/subtraction for ordinary loop values.
+        let x = a.iter_u64_digits().next().unwrap_or(0);
+        let y = b.iter_u64_digits().next().expect("a nonzero divisor");
+        let q = x / y;
+        let r = x - q * y; // q * y <= x, so neither multiplication nor subtraction can overflow.
+        let quotient = BigInt::from(q);
+        let remainder = BigInt::from(r);
+        return Some((
+            if a.sign() != b.sign() {
+                -quotient
+            } else {
+                quotient
+            },
+            if a.sign() == Sign::Minus {
+                -remainder
+            } else {
+                remainder
+            },
+        ));
+    }
     // num-bigint's `/` truncates toward zero; the remainder is derived from the quotient by the definition of S37
     // rather than taken from the host's `%`, so the two can never disagree.
     let quotient = a / b;

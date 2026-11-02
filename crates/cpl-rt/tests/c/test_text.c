@@ -733,6 +733,42 @@ static void test_memory(void)
     CHECK(atomic_load(&rt.live_objects) == objects);
 }
 
+static void test_owned_append(void)
+{
+    uint64_t objects = atomic_load(&rt.live_objects);
+    const char chunk[] = { 'a', 0, (char)0xce, (char)0xbb };
+    char expected[128];
+    for (size_t i = 0; i < sizeof expected; i++)
+        expected[i] = chunk[i % sizeof chunk];
+    for (int is_text = 0; is_text <= 1; is_text++) {
+        begin();
+        cplrt_w value = is_text ? textn(chunk, sizeof chunk) : bytes(chunk, sizeof chunk);
+        cplrt_w empty = is_text ? CPLRT(empty_text)() : CPLRT(empty_bytes)();
+        int (*append)(cplrt_cx *, cplrt_w *, cplrt_w) =
+            is_text ? cplrt_text_concat_owned : cplrt_bytes_concat_owned;
+        CHECK(append(&cx, &value, value) == CPLRT_OK);
+        cplrt_w saved = 0;
+        CPLRT_COPY(saved, value);
+        CHECK(append(&cx, &value, value) == CPLRT_OK && value != saved);
+        CHECK(is_text ? is_textn(saved, expected, 8) : is_bytes(saved, expected, 8));
+        CHECK(is_text ? is_textn(value, expected, 16) : is_bytes(value, expected, 16));
+        cplrt_w same = value;
+        rt.max_heap_bytes = atomic_load(&rt.live_bytes);
+        CHECK(append(&cx, &value, value) == CPLRT_OK && value == same);
+        CHECK(append(&cx, &value, value) == CPLRT_OK && value == same);
+        CHECK(is_text ? is_textn(value, expected, 64) : is_bytes(value, expected, 64));
+        CHECK(append(&cx, &value, empty) == CPLRT_OK && value == same);
+        CHECK(memory_fault(append(&cx, &value, value)) && value == same);
+        CHECK(is_text ? is_textn(value, expected, 64) : is_bytes(value, expected, 64));
+        CHECK(atomic_load(&cplrt_obj_of(value)->u.live.rc) == 1u);
+        rt.max_heap_bytes = 0;
+        end();
+        cplrt_release(value);
+        cplrt_release(saved);
+        CHECK(atomic_load(&rt.live_objects) == objects);
+    }
+}
+
 int main(void)
 {
     rttest_runtime_init(&rt, 0);
@@ -746,6 +782,7 @@ int main(void)
     test_parse_from_chars();
     test_bytes();
     test_memory();
+    test_owned_append();
     uint64_t left = rttest_runtime_fini(&rt);
     CHECK(left == 0);
     printf("test_text: %d checks, %d failed\n", checks, failures);

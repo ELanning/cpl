@@ -235,6 +235,9 @@ pub struct Interpreter<'p> {
     /// The environment stack: one per activation, plus one while a
     /// capability operation's clauses are evaluated.
     envs: Vec<Env>,
+    /// Empty activation buffers, bounded so a large/deep call does not pin its working set.
+    spare_envs: Vec<Env>,
+    builtin_functions: Vec<Option<crate::builtins::BuiltinFn>>,
     /// Index = `HandleId.0`.
     handles: Vec<Binding<'p>>,
     effects: Vec<EffectEvent>,
@@ -255,7 +258,10 @@ pub struct Interpreter<'p> {
     site_probe: Option<SiteProbe<'p>>,
     parallel_depth: usize,
     parallel_cancel: Option<(std::sync::Arc<std::sync::atomic::AtomicUsize>, usize)>,
-    text_length_cache: Option<(std::rc::Rc<str>, usize)>,
+    // Weak identities keep neither old string contents nor an extra immutable snapshot alive. A weak reference
+    // prevents address reuse; Rc::make_mut detaches it, so a host mutation cannot leave a stale cache hit.
+    text_length_cache: [Option<(std::rc::Weak<String>, usize)>; 8],
+    next_text_length: usize,
 }
 
 impl<'p> Interpreter<'p> {
@@ -266,6 +272,8 @@ impl<'p> Interpreter<'p> {
             frames: Vec::new(),
             measures: Vec::new(),
             envs: Vec::new(),
+            spare_envs: Vec::new(),
+            builtin_functions: Vec::new(),
             handles: Vec::new(),
             effects: Vec::new(),
             deadline: None,
@@ -275,7 +283,8 @@ impl<'p> Interpreter<'p> {
             site_probe: None,
             parallel_depth: 0,
             parallel_cancel: None,
-            text_length_cache: None,
+            text_length_cache: std::array::from_fn(|_| None),
+            next_text_length: 0,
         }
     }
 
@@ -285,17 +294,41 @@ impl<'p> Interpreter<'p> {
         self.program
     }
 
-    pub(crate) fn text_length(&mut self, text: &std::rc::Rc<str>) -> usize {
-        if let Some((previous, length)) = &self.text_length_cache {
-            if std::rc::Rc::ptr_eq(previous, text) {
+    pub(crate) fn text_length(&mut self, text: &std::rc::Rc<String>) -> usize {
+        for (previous, length) in self.text_length_cache.iter().flatten() {
+            if previous.as_ptr() == std::rc::Rc::as_ptr(text) {
                 return *length;
             }
         }
         let length = text.chars().count();
-        if text.len() <= 1_048_576 {
-            self.text_length_cache = Some((text.clone(), length));
-        }
+        self.remember_text_length(text, length);
         length
+    }
+
+    fn remember_text_length(&mut self, text: &std::rc::Rc<String>, length: usize) {
+        for (previous, cached) in self.text_length_cache.iter_mut().flatten() {
+            if previous.as_ptr() == std::rc::Rc::as_ptr(text) {
+                *cached = length;
+                return;
+            }
+        }
+        self.text_length_cache[self.next_text_length] =
+            Some((std::rc::Rc::downgrade(text), length));
+        self.next_text_length = (self.next_text_length + 1) % self.text_length_cache.len();
+    }
+
+    /// Remove the weak identity before an append, allowing a unique Rc to mutate without detaching its allocation.
+    /// The caller carries the scalar count forward by adding the appended text's count.
+    fn take_text_length(&mut self, text: &std::rc::Rc<String>) -> Option<usize> {
+        for entry in &mut self.text_length_cache {
+            if entry
+                .as_ref()
+                .is_some_and(|(previous, _)| previous.as_ptr() == std::rc::Rc::as_ptr(text))
+            {
+                return entry.take().map(|(_, length)| length);
+            }
+        }
+        None
     }
 
     pub fn config(&self) -> &EvalConfig {
@@ -648,7 +681,7 @@ impl<'p> Interpreter<'p> {
     }
 
     fn leave_activation(&mut self) {
-        self.envs.pop();
+        self.pop_env();
         self.measures.pop();
         self.frames.pop();
     }
@@ -696,11 +729,28 @@ impl<'p> Interpreter<'p> {
 
     fn push_env(&mut self, table: Table) {
         let len = self.locals_of(table).len();
-        self.envs.push(Env {
+        let mut env = self.spare_envs.pop().unwrap_or_else(|| Env {
             table,
-            values: vec![None; len],
+            values: Vec::new(),
             scope: Vec::new(),
         });
+        env.table = table;
+        env.values.resize_with(len, || None);
+        self.envs.push(env);
+    }
+
+    fn pop_env(&mut self) {
+        if let Some(mut env) = self.envs.pop() {
+            // Drop every value immediately, including parameters and hidden locals.
+            env.values.clear();
+            env.scope.clear();
+            if self.spare_envs.len() < 16
+                && env.values.capacity() <= 1024
+                && env.scope.capacity() <= 1024
+            {
+                self.spare_envs.push(env);
+            }
+        }
     }
 
     /// The local table `table` indexes.
@@ -784,7 +834,10 @@ impl<'p> Interpreter<'p> {
     }
 
     fn restore_scope(&mut self, mark: usize) {
-        self.env_mut().scope.truncate(mark);
+        let env = self.env_mut();
+        for local in env.scope.drain(mark..) {
+            env.values[local.0 as usize] = None;
+        }
     }
 
     /// Every binding visible in the current environment, innermost first,

@@ -1,0 +1,13 @@
+module cases.lib
+
+// Directory case: an `[interop.c] exports` target that names nothing
+// (toolchain 11.1, resolved by the rows of 6.1).
+// expect-error(global): project_export_unknown
+
+pub struct Point {
+    x: Int
+}
+
+pub fn one() -> Int {
+    1
+}

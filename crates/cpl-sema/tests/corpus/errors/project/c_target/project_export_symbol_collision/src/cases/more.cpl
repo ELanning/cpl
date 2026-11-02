@@ -1,0 +1,5 @@
+module cases.more
+
+pub fn size() -> Int {
+    2
+}

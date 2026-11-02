@@ -1,0 +1,32 @@
+module negative.type_mismatch_if_branches
+
+// With an expected type both branches check against it (S19); without one
+// the first branch sets the type and later branches check against it (S20).
+// An `if` without `else` has type `Unit`.
+
+fn a(c: Bool) -> Int {
+    if c { 1 } else { "two" } // expect-error: type_mismatch
+}
+
+fn b(c: Bool) -> Int {
+    let _ = if c { 1 } else { "two" } // expect-error: type_mismatch
+    1
+}
+
+fn c(c: Bool) -> Text {
+    if c {
+        "one"
+    } else if c {
+        2 // expect-error: type_mismatch
+    } else {
+        "three"
+    }
+}
+
+fn d(c: Bool) -> Int {
+    if c { 1 } // expect-error: type_mismatch
+}
+
+fn e(c: Bool) -> Int {
+    if 1 { 2 } else { 3 } // expect-error: type_mismatch
+}

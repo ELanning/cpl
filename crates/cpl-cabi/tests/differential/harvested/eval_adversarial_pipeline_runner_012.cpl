@@ -1,0 +1,45 @@
+module tests.sizes
+
+property "case zero"
+    for xs in gen.list(gen.int)
+    for t in gen.text
+    for x in gen.int
+    for n in gen.positive_int
+    for o in gen.option(gen.int)
+    for r in gen.range(-3, 3)
+    for b in gen.bool
+{
+    assert false
+}
+
+property "length one hundred"
+    for xs in gen.list(gen.bool)
+{
+    assert xs.len < 100
+}
+
+property "never longer than one hundred"
+    for xs in gen.list(gen.bool)
+    for t in gen.text
+{
+    assert xs.len <= 100 and t.len <= 100
+}
+
+property "empty list at case zero"
+    for xs in gen.list(gen.int)
+{
+    assert false
+}
+
+property "empty text at case zero"
+    for t in gen.text
+{
+    assert false
+}
+
+property "fixed and flag"
+    for x in gen.range(4, 4)
+    for b in gen.bool
+{
+    assert false
+}

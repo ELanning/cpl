@@ -1,0 +1,17 @@
+module negative.duplicate_identity
+
+// Two `@id` arguments may not be equal (S2). The later declaration is the
+// primary span; the other is in `notes`. Ruling: S63 (3) lists
+// `duplicate_identity` among the diagnostics about a declaration as a whole,
+// which span the declaration's name token, so the marker is on the `fn`
+// line of the later declaration, not on its `@id` annotation.
+
+@id("fn_shared2mb9ptx4ve")
+fn first(n: Int) -> Int {
+    n
+}
+
+@id("fn_shared2mb9ptx4ve")
+fn second(n: Int) -> Int { // expect-error: duplicate_identity
+    n + 1
+}

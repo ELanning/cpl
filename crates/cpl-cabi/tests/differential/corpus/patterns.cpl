@@ -1,0 +1,32 @@
+module patterns.cases
+
+// D4 (spec/toolchain.md 12.6): the pattern forms of literals, and refinements of literals.
+
+pub type Positive = Int where self > 0
+
+pub fn word(t: Text) -> Int {
+    match t {
+        "one" => 1
+        "two" => 2
+        _ => 0
+    }
+}
+
+pub fn flag(b: Bool) -> Int {
+    match b {
+        true => 1
+        false => 0
+    }
+}
+
+pub fn five() -> Positive {
+    5
+}
+
+pub fn pick(o: Option<Positive>) -> Int {
+    match o {
+        Some(1) => 100
+        Some(p) => p
+        None => 0
+    }
+}

@@ -1,0 +1,37 @@
+module negative.shadowed_binding_nested
+
+// Enclosing-scope locals, match-arm bindings, and `forall` binders may not
+// reuse a name bound in an enclosing scope (S8); sibling scopes may.
+
+fn nested(flag: Bool) -> Int {
+    let total = 1
+    if flag {
+        let total = 2 // expect-error: shadowed_binding
+        return total
+    }
+    total
+}
+
+fn arm(o: Option<Int>) -> Int {
+    let value = 0
+    match o {
+        Some(value) => value // expect-error: shadowed_binding
+        None => value
+    }
+}
+
+fn quantified(xs: List<Int>) -> Bool {
+    let x = 1
+    let _ = x
+    forall x in xs: x > 0 // expect-error: shadowed_binding
+}
+
+fn siblings(flag: Bool) -> Int {
+    if flag {
+        let inner = 1
+        return inner
+    } else {
+        let inner = 2
+        return inner
+    }
+}

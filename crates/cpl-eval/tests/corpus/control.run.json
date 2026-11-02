@@ -1,0 +1,7 @@
+[
+  {"function": "corpus.control.sum_to", "args": [4], "expect": {"value": 10}},
+  {"function": "corpus.control.find_index", "args": [[5, 6, 7], 6], "expect": {"value": 1}},
+  {"function": "corpus.control.clamp_pos", "args": [5], "expect": {"value": 5}},
+  {"function": "corpus.control.clamp_pos", "args": [-2], "expect": {"fault": "contract_violation"}},
+  {"function": "corpus.control.rebind", "args": [[]], "expect": {"value": [[], [1]]}}
+]

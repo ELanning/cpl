@@ -1,0 +1,36 @@
+module negative.using_argument_not_capability
+
+// A `using` argument must be a bare LOWER_IDENT naming a `using` parameter
+// of the enclosing function (S28): a positional parameter, a literal, or an
+// expression is `using_argument_not_capability`.
+
+pub capability Store {
+    fn get(key: Text) -> Int
+}
+
+fn read(key: Text, using s: Store) -> Int
+    effects { s.get }
+{
+    s.get(key)
+}
+
+fn a(key: Text, using db: Store) -> Int
+    effects { db.get }
+{
+    let _ = db.get(key)
+    read(key, using key) // expect-error: using_argument_not_capability
+}
+
+fn b(key: Text, using db: Store) -> Int
+    effects { db.get }
+{
+    let _ = db.get(key)
+    read(key, using 5) // expect-error: using_argument_not_capability
+}
+
+fn c(key: Text, using db: Store) -> Int
+    effects { db.get }
+{
+    let _ = db.get(key)
+    read(key, using db.get) // expect-error: using_argument_not_capability
+}

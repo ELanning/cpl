@@ -1,0 +1,15 @@
+module m
+
+fn f(a: Int, s: Text, xs: List<Int>, o: Option<Int>) -> Int
+    requires a > 0
+{
+    a
+}
+
+fn g() -> Int {
+    f(0, "\u{e9}\n", [1], None)
+}
+
+test "calls f" {
+    let _ = f(0, "\u{e9}\n", [1], None)
+}

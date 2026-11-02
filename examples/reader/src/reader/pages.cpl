@@ -1,0 +1,111 @@
+module reader.pages
+
+use std.text.{trim}
+// glue: parse_int is the standard-library decimal parser
+// (Text -> Result<Int, ConstraintError>) that parse_size delegates to.
+use std.text.{parse_int}
+
+pub type PageId(Text)
+pub type Positive = Int where self > 0
+
+pub struct Page {
+    id: PageId
+    text: Text
+}
+
+pub enum StoreError {
+    Missing(PageId)
+    Unavailable
+}
+
+fn clean(page: Page) -> Page {
+    Page { ..page, text: trim(page.text) }
+}
+
+fn label(result: Result<Page, StoreError>) -> Text {
+    match result {
+        Ok(page) => page.text
+        Err(Missing(_)) => "Missing page"
+        Err(Unavailable) => "Storage unavailable"
+    }
+}
+
+// glue: the design doc assumes parse_size returns Result<Int, ConstraintError>.
+fn parse_size(text: Text) -> Result<Int, ConstraintError> {
+    parse_int(trim(text))
+}
+
+fn positive_size(text: Text) -> Result<Positive, ConstraintError> {
+    let n = parse_size(text)?
+    check<Positive>(n)
+}
+
+@id("pgn_7c2d")
+@prove
+pub fn paginate<T>(items: List<T>, size: Positive) -> List<List<T>>
+    ensures flatten(result) == items
+    ensures forall page in result: page.len > 0 and page.len <= size
+    ensures forall page in result.drop_last(): page.len == size
+{
+    var pages: List<List<T>> = []
+    var rest = items
+
+    while rest.len > size
+        invariant flatten(pages) ++ rest == items
+        invariant forall page in pages: page.len == size
+        decreases rest.len
+    {
+        pages = pages.push(rest.take(size))
+        rest = rest.drop(size)
+    }
+
+    if not rest.is_empty() {
+        pages = pages.push(rest)
+    }
+
+    pages
+}
+
+pub fn paginate_ints(
+    items: List<Int>,
+    size: Int,
+) -> Result<List<List<Int>>, ConstraintError>
+{
+    let checked_size = check<Positive>(size)?
+    Ok(paginate(items, checked_size))
+}
+
+pub capability PageRead {
+    fn get(id: PageId) -> Result<Page, StoreError>
+}
+
+pub capability PageWrite {
+    fn put(page: Page) -> Result<Unit, StoreError>
+}
+
+pub fn load_page(
+    id: PageId,
+    using db: PageRead,
+) -> Result<Page, StoreError>
+    effects { db.get }
+{
+    db.get(id)
+}
+
+pub fn load_text(
+    id: PageId,
+    using db: PageRead,
+) -> Result<Text, StoreError>
+    effects { db.get }
+{
+    let page = load_page(id, using db)?
+    Ok(page.text)
+}
+
+fn divide_exactly(a: Int, b: Int) -> Int
+    requires b != 0
+    requires a % b == 0
+    ensures result * b == a
+{
+    a / b
+}

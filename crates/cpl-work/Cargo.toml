@@ -1,0 +1,22 @@
+[package]
+name = "cpl-work"
+version.workspace = true
+edition.workspace = true
+
+[lints]
+workspace = true
+
+# `cpl-sema` (Section 1.2) is needed by the checker-dependent half of this
+# crate, `validate_work_file` and `resolve_patches`, which resolve selectors
+# against a checked `Program`; everything else works on a loaded `Project`
+# (`cpl-project`, re-exported by the checker as `cpl_sema::project`) and on
+# the syntactic facet maps of `cpl-index`.
+[dependencies]
+cpl-diag.workspace = true
+cpl-syntax.workspace = true
+cpl-project.workspace = true
+cpl-sema.workspace = true
+cpl-index.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true

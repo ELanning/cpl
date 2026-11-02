@@ -1,0 +1,36 @@
+module negative.using_arity_mismatch
+
+// `using` arguments are matched by position and their count must equal the
+// callee's `using` parameter count, in both directions (S28).
+
+pub capability PageRead {
+    fn get(key: Text) -> Int
+}
+
+fn read(key: Text, using db: PageRead) -> Int
+    effects { db.get }
+{
+    db.get(key)
+}
+
+fn pure(key: Text) -> Int {
+    key.len
+}
+
+fn a(key: Text, using db: PageRead) -> Int
+    effects { db.get }
+{
+    read(key) // expect-error: using_arity_mismatch
+}
+
+fn b(key: Text, using db: PageRead) -> Int
+    effects { db.get }
+{
+    pure(key, using db) // expect-error: using_arity_mismatch
+}
+
+fn c(key: Text, using db: PageRead) -> Int
+    effects { db.get }
+{
+    read(key, using db, using db) // expect-error: using_arity_mismatch
+}

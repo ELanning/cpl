@@ -1,0 +1,27 @@
+module negative.undeclared_effect_direct
+
+// An operation call outside the enclosing function's bound (S26, 4.4): a
+// pure function (no clause), an empty clause, and a bound that names a
+// different operation of the same handle.
+
+pub capability Store {
+    fn get(key: Text) -> Int
+    fn put(key: Text) -> Int
+}
+
+fn a(key: Text, using db: Store) -> Int {
+    db.get(key) // expect-error: undeclared_effect
+}
+
+fn b(key: Text, using db: Store) -> Int
+    effects {}
+{
+    db.get(key) // expect-error: undeclared_effect
+}
+
+fn c(key: Text, using db: Store) -> Int
+    effects { db.get }
+{
+    let _ = db.get(key)
+    db.put(key) // expect-error: undeclared_effect
+}

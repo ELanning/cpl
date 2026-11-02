@@ -1,0 +1,15 @@
+module negative.annotation_misplaced
+
+// `@prove` is permitted on `fn` only (semantics 1.8); on any other
+// declaration it is a known annotation in the wrong position (D17).
+
+@prove // expect-error: annotation_misplaced
+pub struct Point {
+    x: Int
+    y: Int
+}
+
+@prove // expect-error: annotation_misplaced
+test "nothing to prove here" {
+    assert true
+}

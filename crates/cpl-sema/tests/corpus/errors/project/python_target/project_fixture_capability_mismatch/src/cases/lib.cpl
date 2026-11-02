@@ -1,0 +1,12 @@
+module cases.lib
+
+// Directory case (Milestone 3, spec/python.md, toolchain 11.1): a `[test.fixtures]` entry whose binding supplies another capability.
+// expect-error(global): project_fixture_capability_mismatch
+
+pub capability Codec {
+    fn size(image: Bytes) -> Int
+}
+
+pub capability Other {
+    fn size(image: Bytes) -> Int
+}

@@ -1,0 +1,56 @@
+module positive.std_foreign
+
+// The std.foreign types (stdlib 7): the design's adapter example, matching
+// on ForeignErrorKind exhaustively, and constructing a ForeignError.
+
+use std.foreign.{ForeignError, ForeignErrorKind, ForeignDetail}
+
+pub type Positive = Int where self > 0
+
+pub struct Dimensions {
+    width: Positive
+    height: Positive
+}
+
+pub capability ImageCodec {
+    fn dimensions(image: Bytes) -> Result<Dimensions, ForeignError>
+}
+
+pub fn image_width(
+    image: Bytes,
+    using codec: ImageCodec,
+) -> Result<Positive, ForeignError>
+    effects { codec.dimensions }
+{
+    let dimensions = codec.dimensions(image)?
+    Ok(dimensions.width)
+}
+
+fn classify(e: ForeignError) -> Int {
+    match e.kind {
+        ForeignErrorKind.Exception => 1
+        InvalidArgument => 2
+        InvalidResult => 3
+        Transport => 4
+        Timeout => 5
+        Cancelled => 6
+        Unavailable => 7
+    }
+}
+
+fn construct(message: Text) -> ForeignError {
+    ForeignError {
+        kind: Timeout,
+        message: message,
+        details: [ForeignDetail { key: "adapter", value: "images" }],
+    }
+}
+
+fn describe(e: ForeignError) -> Text {
+    let n = classify(e)
+    let first = e.details.first()
+    match first {
+        Some(d) => d.key ++ "=" ++ d.value ++ n.to_text()
+        None => e.message
+    }
+}

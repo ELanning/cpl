@@ -1,0 +1,67 @@
+module tests.setup_calls
+
+fn crash() -> Int {
+    1 / 0
+}
+
+fn todo_bound() -> Int {
+    ?bound
+}
+
+fn asserting() -> Int {
+    let n = 2
+    assert n == 3
+    n
+}
+
+property "a body fault in a called function"
+    for x in gen.range(0, crash())
+{
+    assert x == x
+}
+
+property "a hole in a called function"
+    for x in gen.range(0, todo_bound())
+{
+    assert x == x
+}
+
+property "an assert in a called function"
+    for x in gen.range(asserting(), 5)
+{
+    assert x == x
+}
+
+property "a text literal"
+    for x in gen.range("a\nb".len / 0, 5)
+{
+    assert x == x
+}
+
+property "a comment"
+    for x in gen.range(0, match 0 {
+        // the zero arm divides by zero
+        0 => 1 / 0
+        _ => 1
+    })
+{
+    assert x == x
+}
+
+property "a block with a let"
+    for x in gen.range(0, if true {
+        let m = 1
+        m / 0
+    } else {
+        0
+    })
+{
+    assert x == x
+}
+
+property "line breaks"
+    for x in gen.range(1
+        / 0, 5)
+{
+    assert x == x
+}

@@ -1,0 +1,16 @@
+module negative.unknown_field
+
+// A struct literal may name only fields of its struct (semantics 3.8).
+
+pub struct Size {
+    width: Int
+    height: Int
+}
+
+fn make() -> Size {
+    Size { width: 1, height: 2, depth: 3 } // expect-error: unknown_field
+}
+
+fn spread(s: Size) -> Size {
+    Size { ..s, depth: 3 } // expect-error: unknown_field
+}

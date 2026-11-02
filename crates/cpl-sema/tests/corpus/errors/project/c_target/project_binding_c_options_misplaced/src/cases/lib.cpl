@@ -1,0 +1,9 @@
+module cases.lib
+
+// Directory case: a `[bindings.codec.c]` subtable on a binding whose
+// backend is python (toolchain 11.1).
+// expect-error(global): project_binding_c_options_misplaced
+
+pub capability Codec {
+    fn size(image: Bytes) -> Int
+}

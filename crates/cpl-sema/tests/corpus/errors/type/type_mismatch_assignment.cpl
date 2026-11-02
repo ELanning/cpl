@@ -1,0 +1,16 @@
+module negative.type_mismatch_assignment
+
+// The right-hand side of an assignment checks against the var's type
+// (semantics 3.11).
+
+fn a(n: Int) -> Int {
+    var total = n
+    total = "many" // expect-error: type_mismatch
+    total
+}
+
+fn b() -> List<Int> {
+    var pages: List<Int> = []
+    pages = pages.push(1).len // expect-error: type_mismatch
+    pages
+}

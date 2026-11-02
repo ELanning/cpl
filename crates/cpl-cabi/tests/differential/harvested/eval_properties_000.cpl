@@ -1,0 +1,87 @@
+module tests.props
+
+property "ints below ten"
+    for x in gen.int
+{
+    assert x < 10
+}
+
+@id("prop_ints")
+property "ints below ten again"
+    for x in gen.int
+{
+    assert x < 10
+}
+
+property "short lists"
+    for xs in gen.list(gen.int)
+{
+    assert xs.len < 3
+}
+
+property "small positives"
+    for n in gen.positive_int
+{
+    assert n < 5
+}
+
+property "short texts"
+    for t in gen.text
+{
+    assert t.len < 2
+}
+
+property "options are none"
+    for o in gen.option(gen.int)
+{
+    assert o.is_none()
+}
+
+property "range below a hundred"
+    for r in gen.range(5, 1000)
+{
+    assert r < 100
+}
+
+property "same code"
+    for x in gen.range(0, 1000)
+{
+    if x >= 20 {
+        assert false
+    } else {
+        let _ = 1 / 0
+    }
+}
+
+property "empty range"
+    for x in gen.range(5, 1)
+{
+    assert x == x
+}
+
+property "faulting bound"
+    for x in gen.range(1 / 0, 5)
+{
+    assert x == x
+}
+
+property "always"
+    for x in gen.int
+    for flag in gen.bool
+    for t in gen.text
+{
+    assert x == x
+}
+
+property "pair"
+    for a in gen.int
+    for b in gen.int
+{
+    assert a < 10 or b < 10
+}
+
+property "positive draws"
+    for ns in gen.list(gen.positive_int)
+{
+    assert ns.len >= 0
+}

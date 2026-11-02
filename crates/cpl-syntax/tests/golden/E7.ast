@@ -1,0 +1,6 @@
+(module holes.pages
+  (fn summarize
+    (params (param page (ty Page)))
+    (ret (ty Text))
+    (block (tail (hole summary)))
+    (trivia blank)))

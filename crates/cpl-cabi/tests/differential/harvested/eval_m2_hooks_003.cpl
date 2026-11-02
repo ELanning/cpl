@@ -1,0 +1,95 @@
+module scopes.main
+
+pub capability Db {
+    fn get(id: Int) -> Int
+}
+
+pub enum Pair {
+    Two(Int, Option<Int>)
+    One(Int)
+}
+
+pub fn shapes(n: Int, xs: List<Int>, using db: Db) -> Int
+    effects { db.get }
+{
+    let a = db.get(n)
+    var total = 0
+    var i = 0
+    while i < xs.len
+        invariant i >= 0
+    {
+        let x = xs.get(i)
+        match x {
+            Some(v) => {
+                let doubled = v * 2
+                total = total + doubled
+                assert doubled == v + v
+            }
+            None => {}
+        }
+        i = i + 1
+    }
+    assert forall y in xs: y == y
+    if total >= 0 {
+        let big = total
+        assert big >= 0
+    } else {
+        let small = total
+        assert small < 0
+    }
+    total + a
+}
+
+pub fn pairs(p: Pair) -> Int {
+    match p {
+        Two(a, Some(b)) => {
+            assert a == a
+            var s = a + b
+            while s < 0
+                invariant s <= 0
+            {
+                assert s == s
+                s = s + 1
+            }
+            s
+        }
+        Two(a, None) => a
+        One(c) => {
+            let d = c
+            assert d == c
+            d
+        }
+    }
+}
+
+pub fn hole_in_arm(p: Pair) -> Int {
+    let k = 1
+    match p {
+        One(c) => ?inside
+        _ => k
+    }
+}
+
+pub fn hole_in_forall(xs: List<Int>) -> Bool {
+    let t = 0
+    forall z in xs: ?pred
+}
+
+test "a test" {
+    let x = 1
+    assert x == 1
+    let y = x + 1
+    while y < 0 {
+        let w = y
+        assert w < 0
+    }
+    assert y == 2
+}
+
+property "a property"
+    for a in gen.int
+    for b in gen.bool
+{
+    let c = a
+    assert c == a or b
+}

@@ -1,0 +1,133 @@
+module compute
+
+pure fn work(n: Int) -> Int {
+    var i = 0
+    var total = 0
+    while i < n {
+        total = total + ((17 * 23 + 19) * 11) + (i + 0) * 1
+        i = i + 1
+    }
+    total
+}
+
+pure fn batches(items: List<Int>) -> List<Int> {
+    parallel for n in items: work(n)
+}
+
+pure fn captured(items: List<Int>, offset: Int) -> List<Int> {
+    parallel for n in items: if n > 0 {
+        let twice = n * 2
+        twice + offset
+    } else {
+        offset
+    }
+}
+
+pure fn nested(items: List<Int>) -> List<List<Int>> {
+    parallel for n in items: (parallel for m in [1, 2, 3]: n + m)
+}
+
+pure fn divide(n: Int) -> Int {
+    100 / n
+}
+
+pure fn failures(items: List<Int>) -> List<Int> {
+    parallel for n in items: divide(n)
+}
+
+pure fn recursive(n: Int) -> Int {
+    if n == 0 {
+        0
+    } else {
+        recursive(n - 1)
+    }
+}
+
+pure fn depths(items: List<Int>) -> List<Int> {
+    parallel for n in items: recursive(n)
+}
+
+pure fn build(n: Int) -> List<Int> {
+    var result: List<Int> = []
+    var i = 0
+    while i < n {
+        result = result.push(i)
+        i = i + 1
+    }
+    result
+}
+
+pure fn text_scan(text: Text, n: Int) -> Int {
+    var i = 0
+    var total = 0
+    while i < n {
+        total = total + text.len
+        i = i + 1
+    }
+    total
+}
+
+test "parallel maps retain input order" {
+    assert captured([3, 0, 2], 7) == [13, 7, 11]
+    assert nested([10, 20]) == [[11, 12, 13], [21, 22, 23]]
+    assert batches([]) == []
+}
+
+pure fn snapshots(n: Int) -> List<List<Int>> {
+    var xs: List<Int> = []
+    var i = 0
+    while i < n {
+        xs = xs.push(i)
+        i = i + 1
+    }
+    let old = xs
+    xs = xs.push(n)
+    [old, xs]
+}
+
+pure fn alias_argument() -> List<List<Int>> {
+    var xs: List<List<Int>> = [[1]]
+    let old = xs
+    xs = xs.push(xs.first().unwrap_or([]))
+    xs = xs.push([3])
+    [flatten(old), flatten(xs)]
+}
+
+pure fn numbers(a: Int, b: Int) -> List<Int> {
+    [a + b, a - b, a * b, a / b, a % b, (a + 0) * 1, (17 * 23 + 19) * 11]
+}
+
+pure fn fail_preserved(n: Int) -> Int {
+    (100 / n) * 0
+}
+
+pure fn task_contract(n: Int) -> Int
+    requires n > 0
+{
+    n
+}
+
+pure fn contracts(items: List<Int>) -> List<Int> {
+    parallel for n in items: task_contract(n)
+}
+
+pure fn infinite(n: Int) -> Int {
+    while n >= 0 {}
+    n
+}
+
+pure fn deadlines(items: List<Int>) -> List<Int> {
+    parallel for n in items: infinite(n)
+}
+
+pure fn cancelled_task(n: Int) -> Int {
+    if n == 0 {
+        1 / n
+    } else {
+        infinite(n)
+    }
+}
+
+pure fn cancel_later(items: List<Int>) -> List<Int> {
+    parallel for n in items: cancelled_task(n)
+}

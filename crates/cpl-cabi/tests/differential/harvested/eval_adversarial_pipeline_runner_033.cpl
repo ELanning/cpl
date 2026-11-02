@@ -1,0 +1,8 @@
+module tests.bad
+
+property "later"
+    for xs in gen.range(0, m)
+    for m in gen.int
+{
+    assert true
+}

@@ -1,0 +1,18 @@
+module m
+
+use reader.pages.{Positive}
+
+pub type Small = Positive where self < 10
+
+test "a chain names the first predicate that fails" {
+    let root = match check<Small>(0) {
+        Err(e) => e.type_name
+        Ok(_) => ""
+    }
+    let own = match check<Small>(20) {
+        Err(e) => e.type_name
+        Ok(_) => ""
+    }
+    assert root == "reader.pages.Positive"
+    assert own == "m.Small"
+}

@@ -1,0 +1,6 @@
+module dup.two
+
+@id("fn_iiiiiiiiiiiiiiii")
+pub fn copy() -> Int {
+    1
+}

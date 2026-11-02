@@ -1,0 +1,30 @@
+[project]
+name = "pyshop"
+edition = "0.1"
+
+[interop]
+targets = ["c", "python"]
+
+[interop.c]
+prefix = "pyshop"
+
+[interop.python]
+package = "pyshop_cpl"
+paths = ["adapters"]
+
+[bindings.catalog]
+capability = "pyshop.store.Catalog"
+backend = "python"
+adapter = "shop_adapters.catalog"
+
+[bindings.tally]
+capability = "pyshop.tally.Tally"
+backend = "python"
+adapter = "shop_adapters.tally"
+isolation = "in_process"
+
+[bindings.checksum]
+capability = "pyshop.codes.Checksum"
+backend = "c"
+adapter = "adapters/checksum.c"
+isolation = "worker"

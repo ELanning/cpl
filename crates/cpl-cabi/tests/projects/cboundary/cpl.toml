@@ -1,0 +1,34 @@
+[project]
+name = "cboundary"
+edition = "0.1"
+
+[interop]
+targets = ["c"]
+
+[interop.c]
+prefix = "cboundary"
+abi = 1
+artifacts = ["shared", "static", "executable"]
+exports = [
+    "reader.pages.paginate_ints",
+    { function = "reader.pages.paginate_ints", symbol = "cboundary_paginate_ints_i64", int = "int64" },
+    "reader.pages.divide_exactly",
+    "reader.pages.positive_size",
+    "reader.pages.clean",
+    "reader.pages.label",
+    "reader.pages.load_page",
+    "reader.pages.load_text",
+    "reader.images.image_width",
+]
+
+[bindings.image_codec]
+capability = "reader.images.ImageCodec"
+backend = "c"
+adapter = "adapters/image_codec.c"
+isolation = "in_process"
+
+[bindings.image_codec.c]
+sources = ["vendor/imgtest/imgtest.c"]
+include_dirs = ["vendor/imgtest"]
+libraries = ["extra"]
+library_dirs = ["vendor/libextra"]

@@ -1,0 +1,8 @@
+module cases.lib // expect-warning: module_file_misplaced
+
+// Directory case: this file lives at src/wrong_place.cpl, but `module
+// cases.lib` belongs at src/cases/lib.cpl (toolchain 3.7, semantics 1.2).
+
+pub fn one() -> Int {
+    1
+}

@@ -1,0 +1,8 @@
+[
+  {"function": "corpus.enums.describe", "args": [{"$type": "Result", "$variant": "Ok", "$payload": [{"$type": "Option", "$variant": "Some", "$payload": [3]}]}], "expect": {"value": "3"}},
+  {"function": "corpus.enums.word", "args": [-1], "expect": {"value": "minus one"}},
+  {"function": "corpus.enums.sign", "args": [0], "expect": {"value": 0}},
+  {"function": "corpus.enums.bump", "args": [true, 1], "expect": {"value": 2}},
+  {"function": "corpus.enums.early", "args": [-1, 0], "expect": {"value": {"$type": "Result", "$variant": "Err", "$payload": ["not positive"]}}},
+  {"function": "corpus.enums.early", "args": [1, 0], "expect": {"fault": "division_by_zero"}}
+]

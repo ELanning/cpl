@@ -1,0 +1,45 @@
+module negative.unreachable_statement
+
+// A statement after a diverging statement in the same block is a warning,
+// once per block (S24), the tail expression included: it is an expression
+// statement too (3.10).
+
+fn a(n: Int) -> Int {
+    return n
+    let _ = n + 1 // expect-warning: unreachable_statement
+    n
+}
+
+fn b(c: Bool) -> Int {
+    if c {
+        return 1
+    } else {
+        return 2
+    }
+    let _ = 3 // expect-warning: unreachable_statement
+    4
+}
+
+fn c(o: Option<Int>) -> Int {
+    match o {
+        Some(v) => { return v }
+        None => { return 0 }
+    }
+    assert true // expect-warning: unreachable_statement
+    1
+}
+
+fn d(n: Int) -> Int {
+    return n
+    n + 1 // expect-warning: unreachable_statement
+}
+
+fn e(o: Option<Int>) -> Int {
+    match o {
+        Some(v) => {
+            return v
+            0 // expect-warning: unreachable_statement
+        }
+        None => 1
+    }
+}

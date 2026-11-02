@@ -1,0 +1,28 @@
+module reader.pages
+
+pub capability PageRead {
+    fn get(id: PageId) -> Result<Page, StoreError>
+}
+
+pub capability PageWrite {
+    fn put(page: Page) -> Result<Unit, StoreError>
+}
+
+pub fn load_page(
+    id: PageId,
+    using db: PageRead,
+) -> Result<Page, StoreError>
+    effects { db.get }
+{
+    db.get(id)
+}
+
+pub fn load_text(
+    id: PageId,
+    using db: PageRead,
+) -> Result<Text, StoreError>
+    effects { db.get }
+{
+    let page = load_page(id, using db)?
+    Ok(page.text)
+}

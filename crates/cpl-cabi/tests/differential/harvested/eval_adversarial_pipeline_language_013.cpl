@@ -1,0 +1,159 @@
+module pl.contracts
+
+type Even = Int where is_even(self)
+type Taken = Int where [1].take(self) == [1]
+type Checked = Int where bad_id(self) == self
+
+pub struct Account {
+    owner: Text
+    balance: Int
+}
+
+fn is_even(n: Int) -> Bool
+    requires n >= 0
+{
+    n % 2 == 0
+}
+
+fn bad_id(n: Int) -> Int
+    ensures result == n
+{
+    n + 1
+}
+
+fn recip(n: Int) -> Int
+    requires n != 0
+{
+    100 / n
+}
+
+fn calls_recip(n: Int) -> Int {
+    recip(n) + 1
+}
+
+fn post(n: Int) -> Int
+    ensures recip(result) > 0
+{
+    n
+}
+
+fn pre(n: Int) -> Int
+    requires bad_id(n) == n
+{
+    n
+}
+
+fn to_even(n: Int) -> Result<Even, ConstraintError> {
+    check<Even>(n)
+}
+
+fn to_taken(n: Int) -> Result<Taken, ConstraintError> {
+    check<Taken>(n)
+}
+
+fn to_checked(n: Int) -> Result<Checked, ConstraintError> {
+    check<Checked>(n)
+}
+
+fn take_even(e: Even) -> Int {
+    e
+}
+
+fn clause_text(n: Int, t: Text, xs: List<Int>) -> Int
+    requires   n>=0
+    requires ((n)) > 0
+    requires n != 1_000
+    requires t != "a\u{9}b"
+    requires t != "\u{e9}"
+    requires t != "\u{1}\u{7f}"
+    requires not(n == 5)
+    requires (if n > 3 { true } else { false })
+    requires xs != [
+        1,
+        2,
+    ]
+    requires (n > 6
+        and n < 100)
+    requires forall x in xs:x>0
+{
+    n
+}
+
+fn asserting(n: Int, xs: List<Int>) -> Int {
+    var total = 0
+    let first = xs.get(0)
+    match first {
+        Some(head) => {
+            total = head
+            assert  total+n==  (if n > 0 {
+                1
+            } else {
+                2
+            })
+        }
+        None => {}
+    }
+    total
+}
+
+fn unfinished(n: Int) -> Bool {
+    ?decide
+}
+
+fn uses_unfinished(n: Int) -> Int
+    requires unfinished(n)
+{
+    n
+}
+
+fn checked_positive(n: Int) -> Bool {
+    assert n > 0
+    true
+}
+
+fn uses_assert(n: Int) -> Int
+    ensures checked_positive(result)
+{
+    n
+}
+
+fn take_n(xs: List<Int>, n: Int) -> List<Int> {
+    xs.take(n)
+}
+
+fn deposit(a: Account, amount: Int) -> Account
+    requires amount >= 0
+    ensures result.balance == a.balance + amount
+{
+    Account { ..a, balance: a.balance + amount + 1 }
+}
+
+fn ratio(a: Int, b: Int) -> Int
+    requires b != 0 and a / b > 1
+{
+    a / b
+}
+
+test "a test calls recip with zero" {
+    let z = 0
+    assert recip(z) > 0
+}
+
+property "a property calls recip"
+    for n in gen.int
+{
+    assert recip(n) >= -100
+}
+
+test "a test finds a broken ensures" {
+    assert bad_id(1) == 2
+}
+
+test "a test calls pre" {
+    assert pre(3) == 3
+}
+
+test "a test takes minus one" {
+    let xs = [1, 2]
+    assert xs.take(-1) == []
+}

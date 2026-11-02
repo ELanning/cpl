@@ -1,0 +1,32 @@
+module negative.contract_call_with_using_argument
+
+// Ruling [D-229] (semantics S62, 4.5, 5.1): a call with a `using` argument
+// inside a contract is `capability_as_value` at the argument; the rejected
+// argument leaves no substitution for the effect check, so the call is not
+// also `undeclared_effect`. In a contract this is the only report for a
+// `using` argument, whatever its form (5.1): `using (db)` is not also
+// `using_argument_not_capability`.
+
+pub capability Store {
+    fn get(key: Text) -> Int
+}
+
+fn read(key: Text, using s: Store) -> Int
+    effects { s.get }
+{
+    s.get(key)
+}
+
+fn a(key: Text, using db: Store) -> Int
+    requires read(key, using db) > 0 // expect-error: capability_as_value
+    effects { db.get }
+{
+    db.get(key)
+}
+
+fn b(key: Text, using db: Store) -> Int
+    requires read(key, using (db)) > 0 // expect-error: capability_as_value
+    effects { db.get }
+{
+    db.get(key)
+}

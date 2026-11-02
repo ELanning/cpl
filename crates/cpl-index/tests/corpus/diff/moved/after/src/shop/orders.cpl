@@ -1,0 +1,11 @@
+module shop.orders
+
+@id("ty_bbbbbbbbbbbbbbbb")
+pub struct Item {
+    price: Int
+}
+
+@id("fn_cccccccccccccccc")
+pub fn order_total(items: List<Item>) -> Int {
+    0
+}

@@ -1,0 +1,9 @@
+[project]
+name = "project_export_symbol_collision"
+edition = "0.1"
+
+[interop]
+targets = ["c"]
+
+[interop.c]
+prefix = "cases"

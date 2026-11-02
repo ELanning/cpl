@@ -1,0 +1,27 @@
+/// Byte sequences. There is no Bytes literal; build values here.
+module std.bytes
+
+/// The bytes with the given values, each in 0..255.
+@builtin("bytes_from_list")
+pub fn from_list(values: List<Int>) -> Bytes
+    requires forall v in values: v >= 0 and v <= 255
+    ensures result.len == values.len
+    ensures to_list(result) == values
+
+/// The byte values as Ints.
+@builtin("bytes_to_list")
+pub fn to_list(bytes: Bytes) -> List<Int>
+    ensures result.len == bytes.len
+    ensures forall v in result: v >= 0 and v <= 255
+    ensures from_list(result) == bytes
+
+/// Extension: UTF-8 encoding of a text.
+@builtin("bytes_from_text")
+pub fn from_text(text: Text) -> Bytes
+    ensures result.len >= text.len
+    ensures result.len <= 4 * text.len
+    ensures to_text(result) == Ok(text)
+
+/// Extension: strict UTF-8 decoding; Err carries type_name "Text".
+@builtin("bytes_to_text")
+pub fn to_text(bytes: Bytes) -> Result<Text, ConstraintError>

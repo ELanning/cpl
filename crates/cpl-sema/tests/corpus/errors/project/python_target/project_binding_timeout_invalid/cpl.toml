@@ -1,0 +1,22 @@
+[project]
+name = "project_binding_timeout_invalid"
+edition = "0.1"
+
+[interop]
+targets = ["c", "python"]
+
+[interop.c]
+prefix = "cases"
+
+[bindings.codec]
+capability = "cases.lib.Codec"
+backend = "python"
+adapter = "adapters.codec"
+timeout_ms = 0
+
+[bindings.codec_c]
+capability = "cases.lib.Other"
+backend = "c"
+adapter = "adapters/codec.c"
+isolation = "in_process"
+timeout_ms = 100

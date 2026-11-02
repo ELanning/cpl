@@ -1,0 +1,6 @@
+[
+  {"function": "corpus.text.concat_len", "args": ["\u00e9", "\ud83d\ude00"], "expect": {"value": 2}},
+  {"function": "corpus.text.length", "args": ["h\u00e9llo"], "expect": {"value": 5}},
+  {"function": "corpus.text.length", "args": ["e\u0301"], "expect": {"value": 2}},
+  {"function": "corpus.text.same", "args": ["\u00e9", "e\u0301"], "expect": {"value": false}}
+]

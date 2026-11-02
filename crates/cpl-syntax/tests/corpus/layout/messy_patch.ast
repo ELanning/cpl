@@ -1,0 +1,3 @@
+(patch-file
+  (patch paginate.body (expect paginate.body) (block (tail (name pages))))
+  (patch reader.pages.clean.body (expect reader.pages.clean.body) (block (tail (name page)))))

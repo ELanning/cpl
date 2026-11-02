@@ -1,0 +1,15 @@
+module corpus.faults
+
+// `assert` is a statement in any body, functions included (semantics.md 7.1,
+// grammar.md 3.11 assert_stmt), and its failure is the fault assertion_failed.
+
+// why: checked_div(6, 3) == 2: the assertion holds and the body continues.
+// why: checked_div(1, 0) is the fault assertion_failed, not division_by_zero:
+// the assert runs first and stops evaluation. Expected fields (S41):
+// clause "b != 0", symbol "corpus.faults.checked_div",
+// bindings [{"name": "b", "type": "Int", "value": 0}, {"name": "a", ...}]
+// innermost first, facet "body".
+fn checked_div(a: Int, b: Int) -> Int {
+    assert b != 0
+    a / b
+}

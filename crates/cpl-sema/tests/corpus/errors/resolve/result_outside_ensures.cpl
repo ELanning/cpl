@@ -1,0 +1,28 @@
+module negative.result_outside_ensures
+
+// `result` is bound only inside `ensures` clauses (S9); elsewhere, with no
+// parameter or local of that name, it is `result_outside_ensures`.
+
+fn a(n: Int) -> Int
+    requires result > 0 // expect-error: result_outside_ensures
+{
+    n
+}
+
+fn b(n: Int) -> Int {
+    result + n // expect-error: result_outside_ensures
+}
+
+fn d(n: Int) -> Int {
+    var i = n
+    while i > 0
+        invariant result >= 0 // expect-error: result_outside_ensures
+    {
+        i = i - 1
+    }
+    i
+}
+
+test "result in a test" {
+    assert result == 1 // expect-error: result_outside_ensures
+}

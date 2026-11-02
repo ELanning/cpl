@@ -1,0 +1,38 @@
+{
+  "command": "fmt",
+  "toolchain": {
+    "version": "0.1.0",
+    "edition": "0.1",
+    "json_schema": 1
+  },
+  "revision": {
+    "commit": "<commit>",
+    "state": "clean",
+    "digest": "<digest>"
+  },
+  "status": "ok",
+  "diagnostics": [],
+  "check": true,
+  "files": [
+    {
+      "path": "src/reader/images.cpl",
+      "result": "unchanged"
+    },
+    {
+      "path": "src/reader/pages.cpl",
+      "result": "unchanged"
+    },
+    {
+      "path": "src/tests/pagination.cpl",
+      "result": "unchanged"
+    },
+    {
+      "path": "work/pagination.patch",
+      "result": "unchanged"
+    },
+    {
+      "path": "work/pagination.work",
+      "result": "unchanged"
+    }
+  ]
+}

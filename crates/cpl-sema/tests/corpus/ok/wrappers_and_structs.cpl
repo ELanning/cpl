@@ -1,0 +1,64 @@
+module positive.wrappers_and_structs
+
+// Nominal wrappers (construct with the type's name, unwrap only by match,
+// S23), struct literals, spread (D29), zero-field structs, nested values,
+// and structural equality (6.5).
+
+pub type PageId(Text)
+pub type Count(Int)
+
+pub struct Page {
+    id: PageId
+    text: Text
+}
+
+pub struct Empty {}
+
+pub struct Document {
+    pages: List<Page>
+    title: Option<Text>
+    count: Count
+}
+
+fn make(id: Text) -> Page {
+    Page { id: PageId(id), text: "" }
+}
+
+fn unwrap(id: PageId) -> Text {
+    match id {
+        PageId(text) => text
+    }
+}
+
+fn clean(page: Page) -> Page {
+    Page { ..page, text: std.text.trim(page.text) }
+}
+
+fn relabel(page: Page, id: PageId) -> Page {
+    Page { ..page, id: id, text: page.text }
+}
+
+fn same_page(a: Page, b: Page) -> Bool {
+    a == b and a.id == b.id and a.text == b.text
+}
+
+fn document(pages: List<Page>) -> Document {
+    let d = Document {
+        pages: pages,
+        title: None,
+        count: Count(pages.len),
+    }
+    let e = Empty {}
+    let n = match d.count {
+        Count(c) => c
+    }
+    if e == (Empty {}) and n >= 0 { d } else { Document { ..d, title: Some("untitled") } }
+}
+
+test "wrapper and struct values" {
+    assert PageId("a") == PageId("a")
+    assert PageId("a") != PageId("b")
+    assert make("p").id == PageId("p")
+    assert clean(Page { id: PageId("p"), text: " t " }).text == "t"
+    assert unwrap(PageId("x")) == "x"
+}

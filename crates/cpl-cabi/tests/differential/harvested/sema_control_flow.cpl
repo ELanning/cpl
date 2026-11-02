@@ -1,0 +1,124 @@
+module positive.control_flow
+
+// Statements (3.11): let/var, assignment from nested blocks, `let _`
+// discards, `return` with and without a value, `assert`, `while` with
+// invariants and `decreases`, and syntactic divergence (S24).
+
+pub type Positive = Int where self > 0
+
+fn sum(xs: List<Int>) -> Int {
+    var total = 0
+    var rest = xs
+    while not rest.is_empty()
+        invariant total >= 0 or total < 0
+        decreases rest.len
+    {
+        total = total + rest.first().unwrap_or(0)
+        rest = rest.drop(1)
+    }
+    total
+}
+
+fn paginate(items: List<Int>, size: Positive) -> List<List<Int>> {
+    var pages: List<List<Int>> = []
+    var rest = items
+
+    while rest.len > size
+        invariant flatten(pages) ++ rest == items
+        invariant forall page in pages: page.len == size
+        decreases rest.len
+    {
+        pages = pages.push(rest.take(size))
+        rest = rest.drop(size)
+    }
+
+    if not rest.is_empty() {
+        pages = pages.push(rest)
+    }
+
+    pages
+}
+
+fn early(n: Int) -> Int {
+    if n < 0 {
+        return 0
+    }
+    let _ = n.to_text()
+    n
+}
+
+fn both_branches_return(n: Int) -> Int {
+    if n < 0 {
+        return -1
+    } else {
+        return 1
+    }
+}
+
+fn arms_return(o: Option<Int>) -> Int {
+    match o {
+        Some(v) => { return v }
+        None => { return 0 }
+    }
+}
+
+fn nothing(n: Int) -> Unit {
+    if n > 0 {
+        return
+    }
+    assert n <= 0
+}
+
+fn also_nothing(xs: List<Int>) -> Unit {
+    let _ = xs.len
+}
+
+fn explicit_unit() -> Unit {
+    Unit
+}
+
+fn call_unit_statement(n: Int) -> Int {
+    nothing(n)
+    also_nothing([n])
+    let u = explicit_unit()
+    if u == Unit { n } else { 0 }
+}
+
+fn nested_assignment(c: Bool) -> Int {
+    var count = 0
+    var i = 0
+    while i < 3 {
+        if c {
+            count = count + 1
+        } else {
+            match i {
+                0 => { count = count + 10 }
+                _ => { count = count - 1 }
+            }
+        }
+        i = i + 1
+    }
+    count
+}
+
+fn annotated_bindings() -> Int {
+    let a: Int = 1
+    var b: Int = 2
+    let _: Text = "ignored"
+    b = b + a
+    b
+}
+
+fn empty_while(n: Int) -> Int {
+    while false {}
+    n
+}
+
+fn loop_without_clauses_then_body_on_next_line(n: Int) -> Int {
+    var i = n
+    while i > 0
+    {
+        i = i - 1
+    }
+    i
+}

@@ -1,0 +1,66 @@
+module positive.literals_and_operators
+
+// Every literal form and operator of semantics 3.8 typed successfully:
+// arithmetic, unary minus, `not`/`and`/`or`, ordering on Int, equality on
+// value types, `++` on lists and texts, precedence (`not` binds tighter than
+// comparison), method calls on literals and parenthesized operands (S11).
+
+fn arithmetic(a: Int, b: Int) -> Int {
+    let sum = a + b
+    let difference = a - b
+    let product = a * b
+    let quotient = (a + 1) / (b * b + 1)
+    let remainder = a % (b * b + 1)
+    let negated = -a
+    let doubled = - -a
+    let big = 1_000_000 * 12345678901234567890
+    sum + difference + product + quotient + remainder + negated + doubled + big
+}
+
+fn logic(p: Bool, q: Bool, n: Int) -> Bool {
+    let both = p and q
+    let either = p or q
+    let neither = not p and not q
+    let ordered = n < 10 and n <= 10 and n > -10 and n >= -10
+    let equal = n == 3 or n != 3
+    let precedence = not p == q
+    both or either or neither or ordered or equal or precedence
+}
+
+fn concatenation(xs: List<Int>, t: Text) -> Int {
+    let longer = xs ++ [4, 5] ++ []
+    let text = t ++ "!" ++ ""
+    let nested = [[1], [2]] ++ [[3]]
+    longer.len + text.len + nested.len
+}
+
+fn equality(xs: List<Int>, t: Text, o: Option<Int>) -> Bool {
+    let lists = xs == [1, 2] or xs != []
+    let texts = t == "a" and t != ""
+    let options = o == None or o == Some(1)
+    let units = Unit == Unit
+    let bools = true != false
+    lists and texts and options and units and bools
+}
+
+fn on_literals() -> Int {
+    let a = (-5).abs()
+    let b = [1, 2, 3].take(2).len
+    let c = "héllo".len
+    let d = 3.min(5) + (-3).max(0) + 4.min(4)
+    a + b + c + d
+}
+
+fn grouping(a: Int, b: Int) -> Int {
+    (a
+        + b) * (a
+        - b)
+}
+
+test "literal evaluation values" {
+    assert 7 / 2 == 3
+    assert -7 % 2 == -1
+    assert "a" ++ "b" == "ab"
+    assert [1] ++ [2, 3] == [1, 2, 3]
+    assert not (1 == 2)
+}

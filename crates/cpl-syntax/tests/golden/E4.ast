@@ -1,0 +1,9 @@
+(module reader.pages
+  (fn divide_exactly
+    (params (param a (ty Int)) (param b (ty Int)))
+    (ret (ty Int))
+    (requires (!= (name b) (int 0)))
+    (requires (== (% (name a) (name b)) (int 0)))
+    (ensures (== (* (name result) (name b)) (name a)))
+    (block (tail (/ (name a) (name b))))
+    (trivia blank)))

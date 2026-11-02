@@ -1,0 +1,10 @@
+module negative.propagate_outside_function
+
+// `?` is permitted only in a `fn` body (semantics 3.8, 3.14).
+
+use std.text.{parse_int}
+
+test "no propagation in tests" {
+    let n = parse_int("3")? // expect-error: propagate_outside_function
+    assert n == 3
+}

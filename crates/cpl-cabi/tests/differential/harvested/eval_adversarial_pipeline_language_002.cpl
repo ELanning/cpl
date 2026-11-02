@@ -1,0 +1,51 @@
+module pl.lists
+
+pub type Positive = Int where self > 0
+
+fn ops(xs: List<Int>, n: Int) -> List<List<Int>>
+    requires n >= 0
+{
+    [xs.take(n), xs.drop(n), xs.drop_last(), xs.push(n), xs ++ xs.reverse()]
+}
+
+fn accessors(xs: List<Int>, i: Int) -> List<Option<Int>> {
+    [xs.get(i), xs.first(), xs.last()]
+}
+
+fn has(xss: List<List<Int>>, v: List<Int>) -> List<Bool> {
+    [xss.contains(v), xss.is_empty(), flatten(xss).contains(0)]
+}
+
+fn chained() -> List<Int> {
+    [1, 2, 3].drop(1).take(-1)
+}
+
+fn mixed(size: Positive) -> List<Bool> {
+    let ps: List<Positive> = [size, 3]
+    let is: List<Int> = [1, 3]
+    [ps == [1, 3], ps == is, [size] == [1], ps.len == is.len]
+}
+
+fn all_big(xs: List<Int>) -> Bool {
+    forall x in xs: 100 / x > 10
+}
+
+fn all_rows(xss: List<List<Int>>) -> Bool {
+    forall row in xss: forall x in row: x > 0
+}
+
+fn snapshots(n: Int) -> List<List<Int>>
+    requires n >= 0
+{
+    var xs: List<Int> = []
+    var all: List<List<Int>> = []
+    var i = 0
+    while i < n
+        decreases n - i
+    {
+        all = all.push(xs)
+        xs = xs.push(i)
+        i = i + 1
+    }
+    all.push(xs)
+}

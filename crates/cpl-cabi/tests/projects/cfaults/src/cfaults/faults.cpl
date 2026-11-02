@@ -1,0 +1,145 @@
+module cfaults.faults
+
+// The fault cases of host_failures (spec/toolchain.md 12.7): one pub function per fault of semantics 6.7 that a
+// checked program can raise, and the parameters of the boundary refusals.
+
+pub type Positive = Int where self > 0
+
+// glue: a copy of holes.pages.summarize, made pub, with the types it needs
+pub type PageId(Text)
+
+pub struct Page {
+    id: PageId
+    text: Text
+}
+
+pub fn summarize(page: Page) -> Text {
+    ?summary
+}
+
+// requires, without a caller: divide_exactly(7, 0) and (7, 2)
+pub fn divide_exactly(a: Int, b: Int) -> Int
+    requires b != 0
+    requires a % b == 0
+    ensures result * b == a
+{
+    a / b
+}
+
+// an ensures: half(5)
+pub fn half(n: Int) -> Int
+    ensures result * 2 == n
+{
+    n / 2
+}
+
+// an invariant: bad_loop(3)
+pub fn bad_loop(n: Int) -> Int
+    requires n >= 0
+{
+    var i = 0
+    while i < n
+        invariant i < 3
+        decreases n - i
+    {
+        i = i + 1
+    }
+    i
+}
+
+// a loop decreases: stuck(2)
+pub fn stuck(n: Int) -> Int
+    requires n >= 0
+{
+    var i = 0
+    while i < n
+        invariant i >= 0
+        decreases n
+    {
+        i = i + 1
+    }
+    i
+}
+
+// a header decreases: bad_rec(1)
+pub fn bad_rec(n: Int) -> Int
+    decreases n
+{
+    if n == 0 { 0 } else { bad_rec(n) }
+}
+
+// division_by_zero: ratio(1, 0)
+pub fn ratio(a: Int, b: Int) -> Int {
+    a / b
+}
+
+// assertion_failed in a called body, claimed by the clause that called it (semantics S70): guarded(0)
+pub fn asserting(n: Int) -> Bool {
+    assert n > 0
+    true
+}
+
+pub fn guarded(n: Int) -> Int
+    requires asserting(n)
+{
+    n
+}
+
+// the refinement_violation of a Positive parameter: twice(0)
+pub fn twice(n: Positive) -> Int {
+    n * 2
+}
+
+// a deep recursion: resource_exhaustion at max_call_depth, and the stack guard
+pub fn depth(n: Int) -> Int
+    requires n >= 0
+{
+    if n == 0 { 0 } else { depth(n - 1) + 1 }
+}
+
+// a loop that never ends: a time budget, and cancellation
+pub fn spin(n: Int) -> Int {
+    var i = n
+    while i >= 0 {
+        i = i + 1
+    }
+    i
+}
+
+// interop_argument_type_mismatch with a pointer: total([1, "x"])
+pub fn total(items: List<Int>) -> Int {
+    items.len
+}
+
+// interop_bool_out_of_range and interop_utf8_invalid: choose(2, ...) and choose(true, <not UTF-8>)
+pub fn choose(flag: Bool, text: Text) -> Text {
+    if flag { text } else { "" }
+}
+
+// an operation clause, and interop_capability_mismatch (an Other where a Counter is due)
+pub capability Counter {
+    fn next(limit: Int) -> Int
+        requires limit > 0
+        ensures result >= 0 and result < limit
+}
+
+pub capability Other {
+    fn ping() -> Int
+}
+
+pub fn draw(limit: Int, using c: Counter) -> Int
+    effects { c.next }
+{
+    c.next(limit)
+}
+
+pub fn ping_other(using o: Other) -> Int
+    effects { o.ping }
+{
+    o.ping()
+}
+
+// CPL_E_RANGE from an _i64 export: cube(3000000) does not fit int64
+pub fn cube(n: Int) -> Int {
+    n * n * n
+}

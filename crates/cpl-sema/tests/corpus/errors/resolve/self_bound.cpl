@@ -1,0 +1,14 @@
+module negative.self_bound
+
+// Binding `self` outside a `where` predicate is the warning `self_bound`
+// (S9); the binding is then an ordinary local, read here so that no
+// `unused_binding` warning accompanies it.
+
+fn a(n: Int) -> Int {
+    let self = n + 1 // expect-warning: self_bound
+    self * 2
+}
+
+fn b(self: Int) -> Int { // expect-warning: self_bound
+    self
+}

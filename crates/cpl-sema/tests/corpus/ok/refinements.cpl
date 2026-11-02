@@ -1,0 +1,118 @@
+module positive.refinements
+
+// Refinement proofs by constant evaluation (S16), assignability along a
+// chain (3.4 rules 1, 2, 2'), `check<R>` (3.7), S20's first-element rule,
+// equality on erased types (S17), member lookup through a refinement, and
+// predicates drawn from the compile-time evaluable subset. (`Square`'s
+// predicate reads struct fields, which that subset does not include, so a
+// `Square` is only ever obtained through a parameter or `check`.) The `Unit`
+// that a bare `return` and a missing tail stand for is proved against a
+// refinement of `Unit` like any constant (3.10, 3.11).
+
+pub type Positive = Int where self > 0
+pub type Big = Positive where self > 100
+pub type NonEmpty = List<Int> where not self.is_empty()
+pub type Short = Text where self.len < 10
+pub type AllPositive = List<Int> where forall x in self: x > 0
+pub type Parity = Int where if self % 2 == 0 { true } else { self > 0 }
+pub type Present = Option<Int> where match self {
+    Some(_) => true
+    None => false
+}
+
+pub struct Dimensions {
+    width: Positive
+    height: Positive
+}
+
+pub type Square = Dimensions where self.width == self.height
+
+pub type Done = Unit where true
+pub type Settled = Done where self == Unit
+
+fn paginate(items: List<Int>, size: Positive) -> List<List<Int>> {
+    [items.take(size)]
+}
+
+fn constant_proofs(items: List<Int>) -> Int {
+    let two: Positive = 2
+    let sum: Positive = 2 + 1
+    let negated: Positive = -(-3)
+    let big: Big = 101
+    let pages = paginate(items, 2)
+    let dims = Dimensions { width: 3, height: 4 }
+    let list: NonEmpty = [1]
+    let option: Option<Positive> = Some(2)
+    let short: Short = "abc"
+    let all: AllPositive = [1, 2, 3]
+    let parity: Parity = 4
+    let present: Present = Some(0)
+    let wrapped: Result<Positive, Text> = Ok(7)
+    let grouped: Positive = (2 * 3) - 5
+    two + sum + negated + big + pages.len + dims.width + list.len + option.unwrap_or(1) + short.len + all.len + parity + present.unwrap_or(0) + wrapped.unwrap_or(1) + grouped
+}
+
+fn one() -> Positive {
+    1
+}
+
+fn branches(c: Bool) -> Positive {
+    if c { 1 } else { 2 }
+}
+
+fn arms(o: Option<Int>) -> Positive {
+    match o {
+        Some(_) => 1
+        None => 2
+    }
+}
+
+fn widening(b: Big, p: Positive) -> Int {
+    let as_positive: Positive = b
+    let as_int: Int = p
+    let kept = p
+    let list_of_positive = [p, 3]
+    let list_of_int = [3, p]
+    let erased_equality = list_of_positive == list_of_int
+    let against_base = p == 3 and p > 0 and b >= p
+    if erased_equality and against_base { as_positive + as_int + kept } else { 0 }
+}
+
+fn checking(n: Int, p: Positive) -> Result<Big, ConstraintError> {
+    let checked = check<Positive>(n)?
+    let from_refinement = check<Big>(p)?
+    let from_base = check<Big>(n)?
+    let from_chain = check<Big>(checked)?
+    let _ = from_refinement + from_base
+    Ok(from_chain)
+}
+
+fn export(items: List<Int>, size: Int) -> Result<List<List<Int>>, ConstraintError> {
+    let checked_size = check<Positive>(size)?
+    Ok(paginate(items, checked_size))
+}
+
+fn through_refinement(p: Positive, s: Square, ne: NonEmpty) -> Int {
+    p.to_text().len + s.width + ne.len + ne.take(1).len
+}
+
+fn finish(n: Int) -> Done {
+    if n > 0 {
+        return
+    }
+    let _ = n
+}
+
+fn settle(c: Bool) -> Settled {
+    if c {
+        let _ = 1
+    } else {
+        let _ = 2
+    }
+}
+
+test "checks at runtime" {
+    assert check<Positive>(3) == Ok(3)
+    assert check<Positive>(0).is_err()
+    assert paginate([1, 2, 3], 2) == [[1, 2]]
+}

@@ -1,0 +1,13 @@
+module negative.self_outside_where
+
+// `self` is bound only inside a refinement `where` predicate (S9).
+
+fn a(n: Int) -> Int {
+    self + n // expect-error: self_outside_where
+}
+
+fn b(n: Int) -> Int
+    requires self > 0 // expect-error: self_outside_where
+{
+    n
+}

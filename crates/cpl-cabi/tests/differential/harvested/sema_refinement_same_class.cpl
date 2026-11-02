@@ -1,0 +1,36 @@
+module positive.refinement_same_class
+
+// Refinement identity is structural (S55, stdlib S29): this module's
+// `Positive` and `std.gen.Positive` are one type, so a `for` binder from
+// `gen.positive_int` is accepted where `Positive` is expected, with no
+// `check` and no annotation, exactly as the design's property writes it.
+// Grouping parentheses do not change the resolved predicate.
+
+pub type Positive = Int where (self > 0)
+
+fn paginate(items: List<Int>, size: Positive) -> List<List<Int>> {
+    [items.take(size)]
+}
+
+fn via_gen_type(p: Positive) -> gen.Positive {
+    p
+}
+
+fn via_std_path(p: std.gen.Positive) -> Positive {
+    p
+}
+
+fn checked_through_either(n: Int) -> Result<Positive, ConstraintError> {
+    let a = check<Positive>(n)?
+    let b = check<gen.Positive>(a)?
+    Ok(b)
+}
+
+property "pagination preserves input"
+    for items in gen.list(gen.int)
+    for size in gen.positive_int
+{
+    assert flatten(paginate(items, size)) == items
+    let s: Positive = size
+    assert s == size
+}

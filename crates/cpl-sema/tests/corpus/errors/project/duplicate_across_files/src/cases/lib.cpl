@@ -1,0 +1,10 @@
+module cases.lib
+
+// Directory case: two files of one module declare `width`. Declarations are
+// ordered by (file path, item order); src/cases/lib.cpl sorts before
+// src/cases/lib/extra.cpl, so the copy in extra.cpl is the later one and
+// carries the primary span (README: two-location convention).
+
+pub fn width(n: Int) -> Int {
+    n + 1
+}

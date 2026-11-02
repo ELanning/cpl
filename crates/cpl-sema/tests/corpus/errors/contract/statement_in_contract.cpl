@@ -1,0 +1,49 @@
+module negative.statement_in_contract
+
+// Blocks inside a contract expression admit only `let` and a tail (S32):
+// `var`, assignment, `assert`, `return`, and `while` are
+// `statement_in_contract`.
+
+fn a(n: Int) -> Int
+    requires if n > 0 { // expect-error@+1: statement_in_contract
+        var bound = 10
+        n < bound
+    } else {
+        true
+    }
+{
+    n
+}
+
+fn b(n: Int) -> Int
+    ensures match result { // expect-error@+1: statement_in_contract
+        0 => { assert true
+            true }
+        _ => true
+    }
+{
+    n
+}
+
+fn c(n: Int) -> Int
+    requires if n > 0 { // expect-error@+2: statement_in_contract
+        let _limit = 10
+        return true
+    } else {
+        true
+    }
+{
+    n
+}
+
+fn d(n: Int) -> Int
+    ensures if result > 0 { // expect-error@+1: statement_in_contract
+        while false {
+        }
+        true
+    } else {
+        true
+    }
+{
+    n
+}

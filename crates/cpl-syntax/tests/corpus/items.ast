@@ -1,0 +1,100 @@
+(module corpus.items
+  (docs "Every declaration form of grammar 3.3-3.10: wrappers and refinements" "(adjacent ones stay adjacent, T51), generic structs and enums with" "documented members, a capability with contracts, functions with every" "clause, annotations, a test, and a property.")
+  (use std.text (items trim parse_int) (trivia blank))
+  (use std.text split)
+  (use reader.pages (items Page PageId))
+  (type Name pub (wrapper (ty Text)) (trivia blank))
+  (type Small pub
+    (refinement (ty Int) (where (and (>= (name self) (int 0)) (< (name self) (int 10))))))
+  (type Odd
+    (refinement
+      (ty Int)
+      (where
+        (paren (or (== (% (name self) (int 2)) (int 1)) (== (% (name self) (int 2)) (neg (int 1))))))))
+  (type Opaque pub
+    (docs "The standard library's stub forms (grammar 3.5 `opaque_decl` and the" "bodiless `fn` of 3.9): they parse in any file and are check errors" "outside std. An annotation name may be a keyword (D71).")
+    (annotation builtin (text "corpus.opaque"))
+    (opaque (generics T))
+    (trivia blank))
+  (fn size pub
+    (annotation builtin (text "corpus.size"))
+    (annotation property)
+    (generics T)
+    (params (param value (ty Opaque (ty T))))
+    (ret (ty Int))
+    (ensures (>= (name result) (int 0)))
+    bodiless
+    (trivia blank))
+  (struct Pair pub
+    (docs "A pair; generic parameters belong to structs and enums (D19).")
+    (generics A B)
+    (field first (ty A) (docs "The first component."))
+    (field second (ty B))
+    (trivia blank))
+  (struct Empty (trivia blank))
+  (enum Shape pub
+    (docs "A shape with payload variants (D20).")
+    (generics T)
+    (variant Dot (docs "A single point."))
+    (variant Line (ty T) (ty T))
+    (variant Many (ty List (ty T)))
+    (trivia blank))
+  (capability Store pub
+    (op get
+      (params (param key (ty Text)))
+      (ret (ty Result (ty Text) (ty Unit)))
+      (requires (!= (name key) (text "")))
+      (ensures (!= (name result) (call (name Err) (name Unit))))
+      (docs "Read one entry."))
+    (op put
+      (params (param key (ty Text)) (param value (ty Text)))
+      (ret (ty Result (ty Unit) (ty Unit))))
+    (trivia blank))
+  (fn first pub
+    (docs "The first component of a pair.")
+    (annotation id (text "fn_k7w3qz2mb6ptx4ve"))
+    (annotation prove)
+    (generics A B)
+    (params (param pair (ty Pair (ty A) (ty B))))
+    (ret (ty A))
+    (block (tail (member (name pair) first)))
+    (trivia blank))
+  (fn load
+    (params (param key (ty Text)) (using store (ty Store)))
+    (ret (ty Result (ty Text) (ty Unit)))
+    (effects store.get)
+    (requires (> (member (name key) len) (int 0)))
+    (ensures (== (name result) (name result)))
+    (block (tail (call (member (name store) get) (name key))))
+    (trivia blank))
+  (fn count_down
+    (params (param n (ty Int)))
+    (ret (ty Int))
+    (requires (>= (name n) (int 0)))
+    (decreases (name n))
+    (block
+      (tail
+        (if
+          (== (name n) (int 0))
+          (block (tail (int 0)))
+          (else (block (tail (call (name count_down) (- (name n) (int 1)))))))))
+    (trivia blank))
+  (fn nothing (params) (ret (ty Unit)) (block) (trivia blank))
+  (fn wide pub
+    (annotation experimental ())
+    (params (param items (ty List (ty Int))) (param size (ty Int)))
+    (ret (ty Int))
+    (block (tail (name size)))
+    (trivia blank))
+  (test "pairs keep their first component"
+    (block
+      (assert
+        (==
+          (call (name first) (struct-lit Pair (field first (int 1)) (field second (text "x"))))
+          (int 1))))
+    (trivia blank))
+  (property "small numbers stay small"
+    (for n (call (member (name gen) int_range) (int 0) (int 9)))
+    (for m (member (name gen) int))
+    (block (assert (< (name n) (int 10))))
+    (trivia blank)))

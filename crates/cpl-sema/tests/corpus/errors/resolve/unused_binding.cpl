@@ -1,0 +1,18 @@
+module negative.unused_binding
+
+// A `let`, `var`, or pattern binding never read is a warning; `_`-prefixed
+// names are exempt (semantics 9.4).
+
+fn compute(n: Int) -> Int {
+    let unused = n + 1 // expect-warning: unused_binding
+    var counter = 0 // expect-warning: unused_binding
+    let _ignored = n * 2
+    n
+}
+
+fn describe(o: Option<Int>) -> Text {
+    match o {
+        Some(value) => "some" // expect-warning: unused_binding
+        None => "none"
+    }
+}

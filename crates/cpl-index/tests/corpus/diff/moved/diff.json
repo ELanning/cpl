@@ -1,0 +1,51 @@
+{
+  "old": {
+    "commit": null,
+    "state": "worktree",
+    "digest": "515f665f3ef9b095aaea6749ef9b5c5749d6146ec05b9509720d53315895b51b"
+  },
+  "new": {
+    "commit": null,
+    "state": "worktree",
+    "digest": "10b01c55d78035f992ac727b8ba7b5f1d660e4720f1911bd1d2d29515e3004f0"
+  },
+  "statements": [
+    {
+      "statement": "moved",
+      "id": "ty_bbbbbbbbbbbbbbbb",
+      "path": "shop.orders.Item",
+      "kind": "ty",
+      "facet": null,
+      "detail": {
+        "from_module": "shop.items",
+        "to_module": "shop.orders"
+      }
+    },
+    {
+      "statement": "identity_renamed",
+      "id": "fn_cccccccccccccccc",
+      "path": "shop.orders.order_total",
+      "kind": "fn",
+      "facet": "name",
+      "detail": {
+        "from": "shop.items.total",
+        "to": "shop.orders.order_total"
+      }
+    },
+    {
+      "statement": "moved",
+      "id": "fn_cccccccccccccccc",
+      "path": "shop.orders.order_total",
+      "kind": "fn",
+      "facet": null,
+      "detail": {
+        "from_module": "shop.items",
+        "to_module": "shop.orders"
+      }
+    }
+  ],
+  "duplicates": {
+    "old": [],
+    "new": []
+  }
+}

@@ -1,0 +1,266 @@
+{
+  "seed 1": {
+    "cases": 100,
+    "failed": 0,
+    "results": [
+      {
+        "duration_ms": 0,
+        "kind": "test",
+        "qualified_name": "tests.pagination.\"pagination handles empty input\"",
+        "status": "tested",
+        "symbol": "tests.pagination.\"pagination handles empty input\""
+      },
+      {
+        "duration_ms": 0,
+        "kind": "test",
+        "qualified_name": "tests.pagination.\"pagination preserves a short tail\"",
+        "status": "tested",
+        "symbol": "tests.pagination.\"pagination preserves a short tail\""
+      },
+      {
+        "cases": 100,
+        "duration_ms": 0,
+        "kind": "property",
+        "property_seed": "88edd5473a9608b57d9c5aa835cdac4672db1ee486a9ed7ef6c7bce530bae058",
+        "qualified_name": "tests.pagination.\"pagination preserves input\"",
+        "seed": 1,
+        "status": "tested",
+        "symbol": "tests.pagination.\"pagination preserves input\""
+      }
+    ],
+    "seed": 1,
+    "selected": 3,
+    "tested": 3
+  },
+  "seed 2": {
+    "cases": 100,
+    "failed": 0,
+    "results": [
+      {
+        "duration_ms": 0,
+        "kind": "test",
+        "qualified_name": "tests.pagination.\"pagination handles empty input\"",
+        "status": "tested",
+        "symbol": "tests.pagination.\"pagination handles empty input\""
+      },
+      {
+        "duration_ms": 0,
+        "kind": "test",
+        "qualified_name": "tests.pagination.\"pagination preserves a short tail\"",
+        "status": "tested",
+        "symbol": "tests.pagination.\"pagination preserves a short tail\""
+      },
+      {
+        "cases": 100,
+        "duration_ms": 0,
+        "kind": "property",
+        "property_seed": "533bf9fa1f3d62ceb3af4c6a0faec29d18e03f71730256d6ff7a454c7a2aa7df",
+        "qualified_name": "tests.pagination.\"pagination preserves input\"",
+        "seed": 2,
+        "status": "tested",
+        "symbol": "tests.pagination.\"pagination preserves input\""
+      }
+    ],
+    "seed": 2,
+    "selected": 3,
+    "tested": 3
+  },
+  "seed 3": {
+    "cases": 100,
+    "failed": 0,
+    "results": [
+      {
+        "duration_ms": 0,
+        "kind": "test",
+        "qualified_name": "tests.pagination.\"pagination handles empty input\"",
+        "status": "tested",
+        "symbol": "tests.pagination.\"pagination handles empty input\""
+      },
+      {
+        "duration_ms": 0,
+        "kind": "test",
+        "qualified_name": "tests.pagination.\"pagination preserves a short tail\"",
+        "status": "tested",
+        "symbol": "tests.pagination.\"pagination preserves a short tail\""
+      },
+      {
+        "cases": 100,
+        "duration_ms": 0,
+        "kind": "property",
+        "property_seed": "dd70efdc881db73e89bc6b2ce6a8a7311711833bb171aa85ef2e39d5f6cac036",
+        "qualified_name": "tests.pagination.\"pagination preserves input\"",
+        "seed": 3,
+        "status": "tested",
+        "symbol": "tests.pagination.\"pagination preserves input\""
+      }
+    ],
+    "seed": 3,
+    "selected": 3,
+    "tested": 3
+  },
+  "seed 4": {
+    "cases": 100,
+    "failed": 0,
+    "results": [
+      {
+        "duration_ms": 0,
+        "kind": "test",
+        "qualified_name": "tests.pagination.\"pagination handles empty input\"",
+        "status": "tested",
+        "symbol": "tests.pagination.\"pagination handles empty input\""
+      },
+      {
+        "duration_ms": 0,
+        "kind": "test",
+        "qualified_name": "tests.pagination.\"pagination preserves a short tail\"",
+        "status": "tested",
+        "symbol": "tests.pagination.\"pagination preserves a short tail\""
+      },
+      {
+        "cases": 100,
+        "duration_ms": 0,
+        "kind": "property",
+        "property_seed": "2462239803ead4c4656847e3d6bc758b2c58069c07c9d1a95291294d38fb957b",
+        "qualified_name": "tests.pagination.\"pagination preserves input\"",
+        "seed": 4,
+        "status": "tested",
+        "symbol": "tests.pagination.\"pagination preserves input\""
+      }
+    ],
+    "seed": 4,
+    "selected": 3,
+    "tested": 3
+  },
+  "seed 5": {
+    "cases": 100,
+    "failed": 0,
+    "results": [
+      {
+        "duration_ms": 0,
+        "kind": "test",
+        "qualified_name": "tests.pagination.\"pagination handles empty input\"",
+        "status": "tested",
+        "symbol": "tests.pagination.\"pagination handles empty input\""
+      },
+      {
+        "duration_ms": 0,
+        "kind": "test",
+        "qualified_name": "tests.pagination.\"pagination preserves a short tail\"",
+        "status": "tested",
+        "symbol": "tests.pagination.\"pagination preserves a short tail\""
+      },
+      {
+        "cases": 100,
+        "duration_ms": 0,
+        "kind": "property",
+        "property_seed": "3b4cd3ab4b3cc004dbc9fb9b99a7747dafafb20bb0e90cd6053fed1555750ff9",
+        "qualified_name": "tests.pagination.\"pagination preserves input\"",
+        "seed": 5,
+        "status": "tested",
+        "symbol": "tests.pagination.\"pagination preserves input\""
+      }
+    ],
+    "seed": 5,
+    "selected": 3,
+    "tested": 3
+  },
+  "seed 6": {
+    "cases": 100,
+    "failed": 0,
+    "results": [
+      {
+        "duration_ms": 0,
+        "kind": "test",
+        "qualified_name": "tests.pagination.\"pagination handles empty input\"",
+        "status": "tested",
+        "symbol": "tests.pagination.\"pagination handles empty input\""
+      },
+      {
+        "duration_ms": 0,
+        "kind": "test",
+        "qualified_name": "tests.pagination.\"pagination preserves a short tail\"",
+        "status": "tested",
+        "symbol": "tests.pagination.\"pagination preserves a short tail\""
+      },
+      {
+        "cases": 100,
+        "duration_ms": 0,
+        "kind": "property",
+        "property_seed": "4ed55dba440a4c38637bd4dd7c7a806e9af2362f3b18c4d9e1d61437aeda4102",
+        "qualified_name": "tests.pagination.\"pagination preserves input\"",
+        "seed": 6,
+        "status": "tested",
+        "symbol": "tests.pagination.\"pagination preserves input\""
+      }
+    ],
+    "seed": 6,
+    "selected": 3,
+    "tested": 3
+  },
+  "seed 7": {
+    "cases": 100,
+    "failed": 0,
+    "results": [
+      {
+        "duration_ms": 0,
+        "kind": "test",
+        "qualified_name": "tests.pagination.\"pagination handles empty input\"",
+        "status": "tested",
+        "symbol": "tests.pagination.\"pagination handles empty input\""
+      },
+      {
+        "duration_ms": 0,
+        "kind": "test",
+        "qualified_name": "tests.pagination.\"pagination preserves a short tail\"",
+        "status": "tested",
+        "symbol": "tests.pagination.\"pagination preserves a short tail\""
+      },
+      {
+        "cases": 100,
+        "duration_ms": 0,
+        "kind": "property",
+        "property_seed": "c6701fae5bc9ec40e2c8eaf02e51b2fb4c4365efccfe1e3f986792b4d6f0f890",
+        "qualified_name": "tests.pagination.\"pagination preserves input\"",
+        "seed": 7,
+        "status": "tested",
+        "symbol": "tests.pagination.\"pagination preserves input\""
+      }
+    ],
+    "seed": 7,
+    "selected": 3,
+    "tested": 3
+  },
+  "seed 8": {
+    "cases": 100,
+    "failed": 0,
+    "results": [
+      {
+        "duration_ms": 0,
+        "kind": "test",
+        "qualified_name": "tests.pagination.\"pagination handles empty input\"",
+        "status": "tested",
+        "symbol": "tests.pagination.\"pagination handles empty input\""
+      },
+      {
+        "duration_ms": 0,
+        "kind": "test",
+        "qualified_name": "tests.pagination.\"pagination preserves a short tail\"",
+        "status": "tested",
+        "symbol": "tests.pagination.\"pagination preserves a short tail\""
+      },
+      {
+        "cases": 100,
+        "duration_ms": 0,
+        "kind": "property",
+        "property_seed": "8a9fb3a941f9af77e5e08cb768381c2fbbcd4bec8304c7424fd6bece63d3f54a",
+        "qualified_name": "tests.pagination.\"pagination preserves input\"",
+        "seed": 8,
+        "status": "tested",
+        "symbol": "tests.pagination.\"pagination preserves input\""
+      }
+    ],
+    "seed": 8,
+    "selected": 3,
+    "tested": 3
+  }
+}

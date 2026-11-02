@@ -1,0 +1,20 @@
+module negative.cannot_prove_refinement_distinct_refinement
+
+// Ruling [D-232] (semantics S65, S55, 3.4 rule 3): `Int where 0 < self` is a
+// type distinct from `gen.positive_int`'s `Int where self > 0`; both strip
+// to Int and `size` is not a constant, so the call is
+// `cannot_prove_refinement` with the note quoting both predicates and
+// suggesting `self > 0` or `check<Positive>(size)`, never `type_mismatch`.
+
+pub type Positive = Int where 0 < self
+
+fn paginate(items: List<Int>, size: Positive) -> List<List<Int>> {
+    [items]
+}
+
+property "distinct predicate is a distinct type"
+    for items in gen.list(gen.int)
+    for size in gen.positive_int
+{
+    assert flatten(paginate(items, size)) == items // expect-error: cannot_prove_refinement
+}

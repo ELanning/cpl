@@ -1,0 +1,20 @@
+module negative.comparison_unsupported
+
+// Ordering operators are defined only when both operands strip to Int (S18;
+// stdlib 12: `"a" < "b"`, `true < false`).
+
+fn a() -> Bool {
+    "a" < "b" // expect-error: comparison_unsupported
+}
+
+fn b() -> Bool {
+    true < false // expect-error: comparison_unsupported
+}
+
+fn c(xs: List<Int>, ys: List<Int>) -> Bool {
+    xs <= ys // expect-error: comparison_unsupported
+}
+
+fn d(n: Int, t: Text) -> Bool {
+    n >= t // expect-error: comparison_unsupported
+}

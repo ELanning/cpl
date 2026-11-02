@@ -1,0 +1,9 @@
+module cases.lib
+
+// Directory case: the binding's backend `python` is not in `[interop]
+// targets` (toolchain 11.1).
+// expect-error(global): project_binding_target_not_enabled
+
+pub capability Codec {
+    fn size(image: Bytes) -> Int
+}

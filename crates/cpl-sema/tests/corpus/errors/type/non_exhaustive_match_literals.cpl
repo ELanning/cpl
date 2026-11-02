@@ -1,0 +1,30 @@
+module negative.non_exhaustive_match_literals
+
+// `Bool` is exhausted only by both literals; `Int` and `Text` literals never
+// make a match exhaustive and need `_` or a binding (S25).
+
+fn a(flag: Bool) -> Int {
+    match flag { // expect-error: non_exhaustive_match
+        true => 1
+    }
+}
+
+fn b(n: Int) -> Text {
+    match n { // expect-error: non_exhaustive_match
+        0 => "zero"
+        1 => "one"
+        -1 => "minus one"
+    }
+}
+
+fn c(t: Text) -> Int {
+    match t { // expect-error: non_exhaustive_match
+        "a" => 1
+        "b" => 2
+    }
+}
+
+fn d(xs: List<Int>) -> Int {
+    match xs { // expect-error: non_exhaustive_match
+    }
+}

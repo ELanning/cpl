@@ -1,0 +1,13 @@
+module cases.lib
+
+// Directory case: an export target that is a struct, no function
+// (toolchain 11.1).
+// expect-error(global): project_export_not_function
+
+pub struct Point {
+    x: Int
+}
+
+pub fn one() -> Int {
+    1
+}

@@ -1,0 +1,58 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/cpl-diag",
+    "crates/cpl-syntax",
+    "crates/cpl-hir",
+    "crates/cpl-project",
+    "crates/cpl-sema",
+    "crates/cpl-eval",
+    "crates/cpl-index",
+    "crates/cpl-work",
+    "crates/cpl-cli",
+    # Milestone 2 (spec/toolchain.md 1.1-1.2, T69)
+    "crates/cpl-rtspec",
+    "crates/cpl-rt",
+    "crates/cpl-emit-c",
+    "crates/cpl-cabi",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+
+[workspace.lints.clippy]
+# The crate APIs of spec/toolchain.md 1.6-1.9 return `Result<_, Diagnostic>`
+# (and `Fault`, `RunError`) by value; `Diagnostic` is larger than clippy's
+# 128-byte default for an error variant.
+result_large_err = "allow"
+
+[workspace.dependencies]
+cpl-diag = { path = "crates/cpl-diag" }
+cpl-syntax = { path = "crates/cpl-syntax" }
+cpl-hir = { path = "crates/cpl-hir" }
+cpl-project = { path = "crates/cpl-project" }
+cpl-sema = { path = "crates/cpl-sema" }
+cpl-eval = { path = "crates/cpl-eval" }
+cpl-index = { path = "crates/cpl-index" }
+cpl-work = { path = "crates/cpl-work" }
+# Milestone 2 (spec/toolchain.md 1.1-1.3, T69)
+cpl-rtspec = { path = "crates/cpl-rtspec" }
+cpl-rt = { path = "crates/cpl-rt" }
+cpl-emit-c = { path = "crates/cpl-emit-c" }
+cpl-cabi = { path = "crates/cpl-cabi" }
+
+blake3 = "1.8"
+clap = { version = "4.6", features = ["derive"] }
+num-bigint = "0.5"
+num-traits = "0.2"
+rand = "0.10"
+rand_chacha = "0.10"
+serde = { version = "1.0", features = ["derive"] }
+# `arbitrary_precision`: a CPL `Int` round-trips as a JSON number of any length (toolchain 1.3, 7.3).
+# `unbounded_depth` (Milestone 2, toolchain T71): makes `Deserializer::disable_recursion_limit` available, which only
+# cpl-cabi's protocol reader calls, on the evaluation thread, to read a native fault record's payload; every other
+# reader keeps serde_json's 128-level limit, which the feature does not change.
+serde_json = { version = "1.0", features = ["arbitrary_precision", "unbounded_depth"] }
+thiserror = "2.0"
+toml = "1.1"

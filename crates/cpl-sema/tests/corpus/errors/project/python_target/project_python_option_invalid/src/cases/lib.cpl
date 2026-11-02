@@ -1,0 +1,9 @@
+module cases.lib
+
+// Directory case (Milestone 3, spec/python.md, toolchain 11.1): a package named like a standard-library module and a version that is no release segment.
+// expect-error(global): project_python_option_invalid
+// expect-error(global): project_python_option_invalid
+
+pub capability Codec {
+    fn size(image: Bytes) -> Int
+}

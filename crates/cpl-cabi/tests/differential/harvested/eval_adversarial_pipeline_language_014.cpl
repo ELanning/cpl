@@ -1,0 +1,68 @@
+module pl.caps
+
+pub capability Store {
+    fn get(id: Int) -> Int
+        requires id > 0
+        requires 100 / (id - 7) != 1000
+        ensures result >= id
+    fn put(id: Int, v: Int) -> Unit
+        requires small(v)
+}
+
+pub fn small(v: Int) -> Bool
+    requires v < 1000
+{
+    true
+}
+
+pub fn reader(id: Int, using db: Store) -> Int
+    effects { db.get }
+{
+    db.get(id)
+}
+
+pub fn writer(id: Int, v: Int, using db: Store) -> Unit
+    effects { db.put }
+{
+    db.put(id, v)
+}
+
+pub fn forward(id: Int, using db: Store) -> Int
+    effects { db.get }
+{
+    reader(id, using db) + reader(id + 1, using db)
+}
+
+pub fn two(using a: Store, using b: Store) -> Int
+    effects { a.get, b.get }
+{
+    a.get(1) * 10 + b.get(1)
+}
+
+pub fn looped(n: Int, using db: Store) -> Int
+    effects { db.get }
+{
+    let first = db.get(1)
+    var i = 0
+    while i < n
+        invariant i < 2
+    {
+        i = i + 1
+    }
+    i + first
+}
+
+pub fn holed(n: Int, using db: Store) -> Int
+    effects { db.get }
+{
+    let x = db.get(n)
+    ?todo
+}
+
+pub fn asserted(n: Int, using db: Store) -> Int
+    effects { db.get }
+{
+    let x = db.get(n)
+    assert x < 3
+    x
+}

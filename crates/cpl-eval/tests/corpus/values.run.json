@@ -1,0 +1,10 @@
+[
+  {"function": "corpus.values.moved", "args": [{"$type": "corpus.values.Point", "x": 1, "y": 2}, 5], "expect": {"value": [{"$type": "corpus.values.Point", "x": 1, "y": 2}, {"$type": "corpus.values.Point", "x": 6, "y": 2}]}},
+  {"function": "corpus.values.points_equal", "args": [{"$type": "corpus.values.Point", "x": 1, "y": 2}, {"$type": "corpus.values.Point", "x": 1, "y": 2}], "expect": {"value": true}},
+  {"function": "corpus.values.wrap", "args": [3], "expect": {"value": {"$type": "corpus.values.Meters", "$payload": [3]}}},
+  {"function": "corpus.values.unwrap", "args": [{"$type": "corpus.values.Meters", "$payload": [7]}], "expect": {"value": 7}},
+  {"function": "corpus.values.same_tag", "args": [{"$type": "corpus.values.Tag", "$payload": ["a"]}, {"$type": "corpus.values.Tag", "$payload": ["a"]}], "expect": {"value": true}},
+  {"function": "corpus.values.nothing", "args": [], "expect": {"value": {"$type": "Unit"}}},
+  {"function": "corpus.values.noop", "args": [], "expect": {"value": {"$type": "Unit"}}},
+  {"function": "corpus.values.nested_equal", "args": [[[1], [2]], [[1], [2]]], "expect": {"value": true}}
+]

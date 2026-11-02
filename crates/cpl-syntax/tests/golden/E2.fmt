@@ -1,0 +1,14 @@
+module reader.pages
+
+fn label(result: Result<Page, StoreError>) -> Text {
+    match result {
+        Ok(page) => page.text
+        Err(Missing(_)) => "Missing page"
+        Err(Unavailable) => "Storage unavailable"
+    }
+}
+
+fn positive_size(text: Text) -> Result<Positive, ConstraintError> {
+    let n = parse_size(text)?
+    check<Positive>(n)
+}

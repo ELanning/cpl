@@ -1,0 +1,26 @@
+module negative.check_requires_refinement
+
+// The type argument of `check` must name a refinement (stdlib S4): a base
+// type, a nominal wrapper, a struct, or an enum is rejected.
+
+pub type PageId(Text)
+
+pub struct Size {
+    width: Int
+}
+
+fn a(n: Int) -> Result<Int, ConstraintError> {
+    check<Int>(n) // expect-error: check_requires_refinement
+}
+
+fn b(t: Text) -> Result<PageId, ConstraintError> {
+    check<PageId>(t) // expect-error: check_requires_refinement
+}
+
+fn c(s: Size) -> Result<Size, ConstraintError> {
+    check<Size>(s) // expect-error: check_requires_refinement
+}
+
+fn d(o: Option<Int>) -> Result<Option<Int>, ConstraintError> {
+    check<Option<Int>>(o) // expect-error: check_requires_refinement
+}

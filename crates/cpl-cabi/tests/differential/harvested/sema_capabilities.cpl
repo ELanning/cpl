@@ -1,0 +1,88 @@
+module positive.capabilities
+
+// Capability parameters, operation calls as tracked effects, explicit bounds
+// (absent and `effects {}` both mean pure), forwarding with `using`
+// arguments matched by position (S28), bounds wider than the body (S29: no
+// warning), two handles of one type, and `?` through an operation's Result.
+
+pub type PageId(Text)
+
+pub struct Page {
+    id: PageId
+    text: Text
+}
+
+pub enum StoreError {
+    Missing(PageId)
+    Unavailable
+}
+
+pub capability PageRead {
+    fn get(id: PageId) -> Result<Page, StoreError>
+    fn exists(id: PageId) -> Bool
+}
+
+pub capability PageWrite {
+    fn put(page: Page) -> Result<Unit, StoreError>
+}
+
+pub fn load_page(
+    id: PageId,
+    using db: PageRead,
+) -> Result<Page, StoreError>
+    effects { db.get }
+{
+    db.get(id)
+}
+
+pub fn load_text(
+    id: PageId,
+    using db: PageRead,
+) -> Result<Text, StoreError>
+    effects { db.get }
+{
+    let page = load_page(id, using db)?
+    Ok(page.text)
+}
+
+pub fn copy(id: PageId, using source: PageRead, using sink: PageWrite) -> Result<Unit, StoreError>
+    effects { source.get, sink.put }
+{
+    let page = load_page(id, using source)?
+    sink.put(page)
+}
+
+pub fn mirror(id: PageId, using primary: PageRead, using replica: PageRead, using sink: PageWrite) -> Result<Unit, StoreError>
+    effects { primary.get, primary.exists, replica.get, replica.exists, sink.put }
+{
+    if primary.exists(id) or replica.exists(id) {
+        let _ = copy(id, using primary, using sink)?
+    }
+    copy(id, using replica, using sink)
+}
+
+pub fn wide_bound(id: PageId, using db: PageRead) -> Bool
+    effects { db.get, db.exists }
+{
+    db.exists(id)
+}
+
+fn pure_with_empty_clause(n: Int) -> Int
+    effects {}
+{
+    n + 1
+}
+
+fn pure_without_clause(id: PageId) -> Text {
+    match id {
+        PageId(t) => t
+    }
+}
+
+fn effects_after_contract(id: PageId, using db: PageRead) -> Result<Page, StoreError>
+    requires pure_without_clause(id).len > 0
+    effects { db.get }
+    ensures result.is_ok() or result.is_err()
+{
+    db.get(id)
+}

@@ -1,0 +1,5 @@
+module ord.sub
+
+test "0" {
+    assert true
+}

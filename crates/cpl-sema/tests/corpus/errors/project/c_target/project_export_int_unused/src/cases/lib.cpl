@@ -1,0 +1,10 @@
+module cases.lib
+
+// Directory case: `int = "int64"` on an entry whose function has no Int at
+// the top level of its signature (a warning; toolchain 11.1, spec/cabi.md
+// 5.4).
+// expect-warning(global): project_export_int_unused
+
+pub fn name(text: Text) -> Text {
+    text
+}

@@ -1,0 +1,228 @@
+{
+  "command": "inspect",
+  "toolchain": {
+    "version": "0.1.0",
+    "edition": "0.1",
+    "json_schema": 1
+  },
+  "revision": {
+    "commit": "<commit>",
+    "state": "clean",
+    "digest": "<digest>"
+  },
+  "status": "ok",
+  "diagnostics": [],
+  "include": [
+    "signature",
+    "contract",
+    "effects",
+    "docs",
+    "interface_dependencies"
+  ],
+  "symbol": {
+    "id": "pgn_7c2d",
+    "path": "reader.pages.paginate",
+    "provisional": false,
+    "facets": {
+      "identity": "bd3f91f48de8b527b3cb33c4f2b1b66b",
+      "name": "c7c6593c3beabcd67c41127d206918f5",
+      "signature": "11367ea8051ec723a2947f3c23cbc6be",
+      "contract": "b57e46d5b8e6685b08b351c8c667185d",
+      "effects": "af1349b9f5f9a1a6a0404dea36dcc949",
+      "body": "7d1bb2835a6b401c0619ef13dc24e817",
+      "docs": "af1349b9f5f9a1a6a0404dea36dcc949",
+      "verification_policy": "855639fcf39ddd0cba719e0c76039a29"
+    },
+    "definition": "89b3dc79b6d7fb61f0ac85d1c984bb88",
+    "kind": "fn",
+    "module": "reader.pages",
+    "public": true,
+    "location": {
+      "file": "src/reader/pages.cpl",
+      "line": 43,
+      "col": 1,
+      "end_line": 67,
+      "end_col": 2
+    },
+    "verification_policy": {
+      "prove": true
+    },
+    "signature": "pub fn paginate<T>(items: List<T>, size: Positive) -> List<List<T>>",
+    "contract": [
+      "ensures flatten(result) == items",
+      "ensures forall page in result: page.len > 0 and page.len <= size",
+      "ensures forall page in result.drop_last(): page.len == size"
+    ],
+    "effects": [],
+    "docs": null
+  },
+  "interface_dependencies": [
+    {
+      "id": "reader.pages.Positive",
+      "path": "reader.pages.Positive",
+      "provisional": true,
+      "facets": {
+        "identity": "89163351faf43f793e41b4ee8d745d5b",
+        "name": "1cc069928bda005fad0cccd59fe91ed2",
+        "signature": "ba8510c2ef6c449e99d7160e160be102",
+        "contract": "7d06c1a8e4e1bc964308ba7137dcf4c0",
+        "docs": "af1349b9f5f9a1a6a0404dea36dcc949"
+      },
+      "definition": "fa260c89e66233445ee0e6734b67711f",
+      "kind": "ty",
+      "module": "reader.pages",
+      "public": true,
+      "location": {
+        "file": "src/reader/pages.cpl",
+        "line": 9,
+        "col": 1,
+        "end_line": 9,
+        "end_col": 39
+      },
+      "signature": "pub type Positive = Int",
+      "contract": [
+        "where self > 0"
+      ],
+      "effects": [],
+      "docs": null,
+      "relation": "type_use"
+    },
+    {
+      "id": "std.prelude.List",
+      "path": "std.prelude.List",
+      "provisional": true,
+      "facets": {
+        "identity": "e023f20d653cc0d1307d5d87e1fd5ca9",
+        "name": "f8ab3dba7a014a9be0bbede1a593235b",
+        "signature": "54c224941a90302904d92e3b0a86c60e",
+        "docs": "6c9d2b667a6873d564c60a5b07eef786"
+      },
+      "definition": "76e08b68f048860dc4d5f28cabaa9779",
+      "kind": "ty",
+      "module": "std.prelude",
+      "public": true,
+      "location": {
+        "file": "std/prelude.cpl",
+        "line": 23,
+        "col": 1,
+        "end_line": 25,
+        "end_col": 17
+      },
+      "signature": "pub type List<T>",
+      "contract": [],
+      "effects": [],
+      "docs": "An immutable sequence.",
+      "relation": "type_use"
+    },
+    {
+      "id": "std.prelude.List.drop_last",
+      "path": "std.prelude.List.drop_last",
+      "provisional": true,
+      "facets": {
+        "identity": "092d433a1bef3210cc589336ebfb72d6",
+        "name": "13a680143afe47bdc2fbe56be2ab87cb",
+        "signature": "32d0ecac598bcbcd3800181c3b494f7e",
+        "contract": "3a4f6bf9b63371f7a78632fa79604e0a",
+        "effects": "af1349b9f5f9a1a6a0404dea36dcc949",
+        "body": "af1349b9f5f9a1a6a0404dea36dcc949",
+        "docs": "55070e3d3d2e5e0513e18c503deb8e29",
+        "verification_policy": "af1349b9f5f9a1a6a0404dea36dcc949"
+      },
+      "definition": "3db926bceaf6fac9be1aac4c9fadc8c3",
+      "kind": "fn",
+      "module": "std.prelude",
+      "public": true,
+      "location": {
+        "file": "std/prelude.cpl",
+        "line": 150,
+        "col": 1,
+        "end_line": 155,
+        "end_col": 55
+      },
+      "verification_policy": {
+        "prove": false
+      },
+      "signature": "pub fn drop_last<T>(list: List<T>) -> List<T>",
+      "contract": [
+        "ensures result.len == (list.len - 1).max(0)",
+        "ensures result == list.take((list.len - 1).max(0))"
+      ],
+      "effects": [],
+      "docs": "All but the last element; [] for [].",
+      "relation": "call"
+    },
+    {
+      "id": "std.prelude.List.len",
+      "path": "std.prelude.List.len",
+      "provisional": true,
+      "facets": {
+        "identity": "f19133b5e97047801a0c8e3244b0a504",
+        "name": "7d0f6d0f178ceedc363d520c14de9cdc",
+        "signature": "a56593fdfcc2860dcde71a4b22dd32f3",
+        "contract": "3b455c8135fe8cea8c594a6aed2b77d1",
+        "effects": "af1349b9f5f9a1a6a0404dea36dcc949",
+        "body": "af1349b9f5f9a1a6a0404dea36dcc949",
+        "docs": "d55c69c8100872a3db28f3028d6dea22",
+        "verification_policy": "af1349b9f5f9a1a6a0404dea36dcc949"
+      },
+      "definition": "b71ec391e93f46b3adbae1a9ec76a2fa",
+      "kind": "fn",
+      "module": "std.prelude",
+      "public": true,
+      "location": {
+        "file": "std/prelude.cpl",
+        "line": 123,
+        "col": 1,
+        "end_line": 127,
+        "end_col": 24
+      },
+      "verification_policy": {
+        "prove": false
+      },
+      "signature": "pub fn len<T>(list: List<T>) -> Int",
+      "contract": [
+        "ensures result >= 0"
+      ],
+      "effects": [],
+      "docs": "Number of elements.",
+      "relation": "call"
+    },
+    {
+      "id": "std.prelude.flatten",
+      "path": "std.prelude.flatten",
+      "provisional": true,
+      "facets": {
+        "identity": "8d7c48f3a462e75c46f41ef055a68ab4",
+        "name": "be2ddfa41fa60eeb51acb25611c156b0",
+        "signature": "7160609903cbcdc5f89ccc45d3753645",
+        "contract": "c322ded6d51286a011ea0966ffdf2fa8",
+        "effects": "af1349b9f5f9a1a6a0404dea36dcc949",
+        "body": "af1349b9f5f9a1a6a0404dea36dcc949",
+        "docs": "f62bb82488ce1f0949c3f657dc589d38",
+        "verification_policy": "af1349b9f5f9a1a6a0404dea36dcc949"
+      },
+      "definition": "5ad0ed9c89bf29cc3c92b0521f4c7fd7",
+      "kind": "fn",
+      "module": "std.prelude",
+      "public": true,
+      "location": {
+        "file": "std/prelude.cpl",
+        "line": 60,
+        "col": 1,
+        "end_line": 64,
+        "end_col": 57
+      },
+      "verification_policy": {
+        "prove": false
+      },
+      "signature": "pub fn flatten<T>(lists: List<List<T>>) -> List<T>",
+      "contract": [
+        "ensures not lists.is_empty() or result == []",
+        "ensures forall part in lists: part.len <= result.len"
+      ],
+      "effects": [],
+      "docs": "Concatenation of a list of lists, in order.",
+      "relation": "call"
+    }
+  ]
+}

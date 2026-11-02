@@ -1,0 +1,70 @@
+{
+  "command": "check",
+  "toolchain": {
+    "version": "0.1.0",
+    "edition": "0.1",
+    "json_schema": 1
+  },
+  "revision": {
+    "commit": "<commit>",
+    "state": "clean",
+    "digest": "<digest>"
+  },
+  "status": "ok",
+  "diagnostics": [
+    {
+      "code": "verification_result",
+      "category": "contract",
+      "severity": "info",
+      "message": "paginate: unknown (verifier unavailable)",
+      "span": {
+        "file": "src/reader/pages.cpl",
+        "line": 45,
+        "col": 8,
+        "end_line": 45,
+        "end_col": 16
+      },
+      "symbol": "pgn_7c2d",
+      "qualified_name": "reader.pages.paginate",
+      "facet": "verification_policy",
+      "reason": "verifier_unavailable",
+      "receipt": {
+        "assumptions": [],
+        "check_configuration": {
+          "release": false
+        },
+        "modules": [
+          {
+            "content_hash": "3280168ad6eefffe1abb46548d01e818a610f76548aac5ad58946731de99fdca",
+            "module": "reader.pages"
+          }
+        ],
+        "source_revision": "<commit>",
+        "toolchain": {
+          "cpl": "0.1.0",
+          "edition": "0.1",
+          "std": "42236a5efaffeb1110f986d858c30c7dabeb7efa54a3d80ec548b77135351388"
+        }
+      },
+      "status": "unknown"
+    }
+  ],
+  "release": false,
+  "summary": {
+    "errors": 0,
+    "warnings": 0,
+    "holes": 0,
+    "definitions": 21,
+    "modules": 3,
+    "files": 3
+  },
+  "holes": [],
+  "verification": [
+    {
+      "symbol": "pgn_7c2d",
+      "qualified_name": "reader.pages.paginate",
+      "status": "unknown",
+      "reason": "verifier_unavailable"
+    }
+  ]
+}

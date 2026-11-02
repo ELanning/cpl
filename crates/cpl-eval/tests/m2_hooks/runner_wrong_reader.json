@@ -1,0 +1,1668 @@
+{
+  "seed 1": {
+    "cases": 100,
+    "failed": 2,
+    "results": [
+      {
+        "duration_ms": 0,
+        "kind": "test",
+        "qualified_name": "tests.pagination.\"pagination handles empty input\"",
+        "status": "tested",
+        "symbol": "tests.pagination.\"pagination handles empty input\""
+      },
+      {
+        "counterexamples": [
+          {
+            "actual": [
+              [
+                1,
+                2
+              ]
+            ],
+            "category": "contract",
+            "clause": "flatten(result) == items",
+            "clause_kind": "ensures",
+            "code": "contract_counterexample",
+            "facet": "body",
+            "found_by": "tests.pagination.\"pagination preserves a short tail\"",
+            "input": {
+              "items": [
+                1,
+                2,
+                3
+              ],
+              "size": 2
+            },
+            "message": "tests.pagination.\"pagination preserves a short tail\" found a counterexample to reader.pages.paginate: ensures clause failed: flatten(result) == items",
+            "qualified_name": "reader.pages.paginate",
+            "severity": "error",
+            "span": {
+              "col": 5,
+              "end_col": 37,
+              "end_line": 46,
+              "file": "src/reader/pages.cpl",
+              "line": 46
+            },
+            "status": "failed",
+            "symbol": "pgn_7c2d"
+          }
+        ],
+        "duration_ms": 0,
+        "fault": {
+          "actual": [
+            [
+              1,
+              2
+            ]
+          ],
+          "attributed_to": "body",
+          "backtrace": [
+            {
+              "qualified_name": "reader.pages.paginate",
+              "span": {
+                "col": 12,
+                "end_col": 34,
+                "end_line": 8,
+                "file": "src/tests/pagination.cpl",
+                "line": 8
+              }
+            },
+            {
+              "qualified_name": "tests.pagination.\"pagination preserves a short tail\""
+            }
+          ],
+          "category": "contract",
+          "clause": "flatten(result) == items",
+          "clause_kind": "ensures",
+          "code": "contract_violation",
+          "facet": "contract",
+          "input": {
+            "items": [
+              1,
+              2,
+              3
+            ],
+            "size": 2
+          },
+          "message": "ensures clause failed: flatten(result) == items",
+          "qualified_name": "reader.pages.paginate",
+          "severity": "error",
+          "span": {
+            "col": 5,
+            "end_col": 37,
+            "end_line": 46,
+            "file": "src/reader/pages.cpl",
+            "line": 46
+          },
+          "status": "failed",
+          "symbol": "pgn_7c2d"
+        },
+        "kind": "test",
+        "qualified_name": "tests.pagination.\"pagination preserves a short tail\"",
+        "status": "failed",
+        "symbol": "tests.pagination.\"pagination preserves a short tail\""
+      },
+      {
+        "cases": 2,
+        "counterexamples": [
+          {
+            "actual": [],
+            "category": "contract",
+            "clause": "flatten(result) == items",
+            "clause_kind": "ensures",
+            "code": "contract_counterexample",
+            "facet": "body",
+            "found_by": "tests.pagination.\"pagination preserves input\"",
+            "input": {
+              "items": [
+                0
+              ],
+              "size": 1
+            },
+            "message": "tests.pagination.\"pagination preserves input\" found a counterexample to reader.pages.paginate: ensures clause failed: flatten(result) == items",
+            "qualified_name": "reader.pages.paginate",
+            "severity": "error",
+            "span": {
+              "col": 5,
+              "end_col": 37,
+              "end_line": 46,
+              "file": "src/reader/pages.cpl",
+              "line": 46
+            },
+            "status": "failed",
+            "symbol": "pgn_7c2d"
+          }
+        ],
+        "duration_ms": 0,
+        "failing_case": {
+          "index": 1,
+          "input": {
+            "items": [
+              -1
+            ],
+            "size": 1
+          }
+        },
+        "fault": {
+          "actual": [],
+          "attributed_to": "body",
+          "backtrace": [
+            {
+              "qualified_name": "reader.pages.paginate",
+              "span": {
+                "col": 20,
+                "end_col": 41,
+                "end_line": 20,
+                "file": "src/tests/pagination.cpl",
+                "line": 20
+              }
+            },
+            {
+              "qualified_name": "tests.pagination.\"pagination preserves input\""
+            }
+          ],
+          "category": "contract",
+          "clause": "flatten(result) == items",
+          "clause_kind": "ensures",
+          "code": "contract_violation",
+          "facet": "contract",
+          "input": {
+            "items": [
+              0
+            ],
+            "size": 1
+          },
+          "message": "ensures clause failed: flatten(result) == items",
+          "qualified_name": "reader.pages.paginate",
+          "severity": "error",
+          "span": {
+            "col": 5,
+            "end_col": 37,
+            "end_line": 46,
+            "file": "src/reader/pages.cpl",
+            "line": 46
+          },
+          "status": "failed",
+          "symbol": "pgn_7c2d"
+        },
+        "kind": "property",
+        "property_seed": "88edd5473a9608b57d9c5aa835cdac4672db1ee486a9ed7ef6c7bce530bae058",
+        "qualified_name": "tests.pagination.\"pagination preserves input\"",
+        "seed": 1,
+        "shrunk": {
+          "input": {
+            "items": [
+              0
+            ],
+            "size": 1
+          },
+          "shrink_exhausted": false,
+          "shrink_steps": 10
+        },
+        "status": "failed",
+        "symbol": "tests.pagination.\"pagination preserves input\""
+      }
+    ],
+    "seed": 1,
+    "selected": 3,
+    "tested": 1
+  },
+  "seed 2": {
+    "cases": 100,
+    "failed": 2,
+    "results": [
+      {
+        "duration_ms": 0,
+        "kind": "test",
+        "qualified_name": "tests.pagination.\"pagination handles empty input\"",
+        "status": "tested",
+        "symbol": "tests.pagination.\"pagination handles empty input\""
+      },
+      {
+        "counterexamples": [
+          {
+            "actual": [
+              [
+                1,
+                2
+              ]
+            ],
+            "category": "contract",
+            "clause": "flatten(result) == items",
+            "clause_kind": "ensures",
+            "code": "contract_counterexample",
+            "facet": "body",
+            "found_by": "tests.pagination.\"pagination preserves a short tail\"",
+            "input": {
+              "items": [
+                1,
+                2,
+                3
+              ],
+              "size": 2
+            },
+            "message": "tests.pagination.\"pagination preserves a short tail\" found a counterexample to reader.pages.paginate: ensures clause failed: flatten(result) == items",
+            "qualified_name": "reader.pages.paginate",
+            "severity": "error",
+            "span": {
+              "col": 5,
+              "end_col": 37,
+              "end_line": 46,
+              "file": "src/reader/pages.cpl",
+              "line": 46
+            },
+            "status": "failed",
+            "symbol": "pgn_7c2d"
+          }
+        ],
+        "duration_ms": 0,
+        "fault": {
+          "actual": [
+            [
+              1,
+              2
+            ]
+          ],
+          "attributed_to": "body",
+          "backtrace": [
+            {
+              "qualified_name": "reader.pages.paginate",
+              "span": {
+                "col": 12,
+                "end_col": 34,
+                "end_line": 8,
+                "file": "src/tests/pagination.cpl",
+                "line": 8
+              }
+            },
+            {
+              "qualified_name": "tests.pagination.\"pagination preserves a short tail\""
+            }
+          ],
+          "category": "contract",
+          "clause": "flatten(result) == items",
+          "clause_kind": "ensures",
+          "code": "contract_violation",
+          "facet": "contract",
+          "input": {
+            "items": [
+              1,
+              2,
+              3
+            ],
+            "size": 2
+          },
+          "message": "ensures clause failed: flatten(result) == items",
+          "qualified_name": "reader.pages.paginate",
+          "severity": "error",
+          "span": {
+            "col": 5,
+            "end_col": 37,
+            "end_line": 46,
+            "file": "src/reader/pages.cpl",
+            "line": 46
+          },
+          "status": "failed",
+          "symbol": "pgn_7c2d"
+        },
+        "kind": "test",
+        "qualified_name": "tests.pagination.\"pagination preserves a short tail\"",
+        "status": "failed",
+        "symbol": "tests.pagination.\"pagination preserves a short tail\""
+      },
+      {
+        "cases": 3,
+        "counterexamples": [
+          {
+            "actual": [],
+            "category": "contract",
+            "clause": "flatten(result) == items",
+            "clause_kind": "ensures",
+            "code": "contract_counterexample",
+            "facet": "body",
+            "found_by": "tests.pagination.\"pagination preserves input\"",
+            "input": {
+              "items": [
+                0
+              ],
+              "size": 1
+            },
+            "message": "tests.pagination.\"pagination preserves input\" found a counterexample to reader.pages.paginate: ensures clause failed: flatten(result) == items",
+            "qualified_name": "reader.pages.paginate",
+            "severity": "error",
+            "span": {
+              "col": 5,
+              "end_col": 37,
+              "end_line": 46,
+              "file": "src/reader/pages.cpl",
+              "line": 46
+            },
+            "status": "failed",
+            "symbol": "pgn_7c2d"
+          }
+        ],
+        "duration_ms": 0,
+        "failing_case": {
+          "index": 2,
+          "input": {
+            "items": [
+              0
+            ],
+            "size": 1
+          }
+        },
+        "fault": {
+          "actual": [],
+          "attributed_to": "body",
+          "backtrace": [
+            {
+              "qualified_name": "reader.pages.paginate",
+              "span": {
+                "col": 20,
+                "end_col": 41,
+                "end_line": 20,
+                "file": "src/tests/pagination.cpl",
+                "line": 20
+              }
+            },
+            {
+              "qualified_name": "tests.pagination.\"pagination preserves input\""
+            }
+          ],
+          "category": "contract",
+          "clause": "flatten(result) == items",
+          "clause_kind": "ensures",
+          "code": "contract_violation",
+          "facet": "contract",
+          "input": {
+            "items": [
+              0
+            ],
+            "size": 1
+          },
+          "message": "ensures clause failed: flatten(result) == items",
+          "qualified_name": "reader.pages.paginate",
+          "severity": "error",
+          "span": {
+            "col": 5,
+            "end_col": 37,
+            "end_line": 46,
+            "file": "src/reader/pages.cpl",
+            "line": 46
+          },
+          "status": "failed",
+          "symbol": "pgn_7c2d"
+        },
+        "kind": "property",
+        "property_seed": "533bf9fa1f3d62ceb3af4c6a0faec29d18e03f71730256d6ff7a454c7a2aa7df",
+        "qualified_name": "tests.pagination.\"pagination preserves input\"",
+        "seed": 2,
+        "shrunk": {
+          "input": {
+            "items": [
+              0
+            ],
+            "size": 1
+          },
+          "shrink_exhausted": false,
+          "shrink_steps": 3
+        },
+        "status": "failed",
+        "symbol": "tests.pagination.\"pagination preserves input\""
+      }
+    ],
+    "seed": 2,
+    "selected": 3,
+    "tested": 1
+  },
+  "seed 3": {
+    "cases": 100,
+    "failed": 2,
+    "results": [
+      {
+        "duration_ms": 0,
+        "kind": "test",
+        "qualified_name": "tests.pagination.\"pagination handles empty input\"",
+        "status": "tested",
+        "symbol": "tests.pagination.\"pagination handles empty input\""
+      },
+      {
+        "counterexamples": [
+          {
+            "actual": [
+              [
+                1,
+                2
+              ]
+            ],
+            "category": "contract",
+            "clause": "flatten(result) == items",
+            "clause_kind": "ensures",
+            "code": "contract_counterexample",
+            "facet": "body",
+            "found_by": "tests.pagination.\"pagination preserves a short tail\"",
+            "input": {
+              "items": [
+                1,
+                2,
+                3
+              ],
+              "size": 2
+            },
+            "message": "tests.pagination.\"pagination preserves a short tail\" found a counterexample to reader.pages.paginate: ensures clause failed: flatten(result) == items",
+            "qualified_name": "reader.pages.paginate",
+            "severity": "error",
+            "span": {
+              "col": 5,
+              "end_col": 37,
+              "end_line": 46,
+              "file": "src/reader/pages.cpl",
+              "line": 46
+            },
+            "status": "failed",
+            "symbol": "pgn_7c2d"
+          }
+        ],
+        "duration_ms": 0,
+        "fault": {
+          "actual": [
+            [
+              1,
+              2
+            ]
+          ],
+          "attributed_to": "body",
+          "backtrace": [
+            {
+              "qualified_name": "reader.pages.paginate",
+              "span": {
+                "col": 12,
+                "end_col": 34,
+                "end_line": 8,
+                "file": "src/tests/pagination.cpl",
+                "line": 8
+              }
+            },
+            {
+              "qualified_name": "tests.pagination.\"pagination preserves a short tail\""
+            }
+          ],
+          "category": "contract",
+          "clause": "flatten(result) == items",
+          "clause_kind": "ensures",
+          "code": "contract_violation",
+          "facet": "contract",
+          "input": {
+            "items": [
+              1,
+              2,
+              3
+            ],
+            "size": 2
+          },
+          "message": "ensures clause failed: flatten(result) == items",
+          "qualified_name": "reader.pages.paginate",
+          "severity": "error",
+          "span": {
+            "col": 5,
+            "end_col": 37,
+            "end_line": 46,
+            "file": "src/reader/pages.cpl",
+            "line": 46
+          },
+          "status": "failed",
+          "symbol": "pgn_7c2d"
+        },
+        "kind": "test",
+        "qualified_name": "tests.pagination.\"pagination preserves a short tail\"",
+        "status": "failed",
+        "symbol": "tests.pagination.\"pagination preserves a short tail\""
+      },
+      {
+        "cases": 3,
+        "counterexamples": [
+          {
+            "actual": [],
+            "category": "contract",
+            "clause": "flatten(result) == items",
+            "clause_kind": "ensures",
+            "code": "contract_counterexample",
+            "facet": "body",
+            "found_by": "tests.pagination.\"pagination preserves input\"",
+            "input": {
+              "items": [
+                0
+              ],
+              "size": 1
+            },
+            "message": "tests.pagination.\"pagination preserves input\" found a counterexample to reader.pages.paginate: ensures clause failed: flatten(result) == items",
+            "qualified_name": "reader.pages.paginate",
+            "severity": "error",
+            "span": {
+              "col": 5,
+              "end_col": 37,
+              "end_line": 46,
+              "file": "src/reader/pages.cpl",
+              "line": 46
+            },
+            "status": "failed",
+            "symbol": "pgn_7c2d"
+          }
+        ],
+        "duration_ms": 0,
+        "failing_case": {
+          "index": 2,
+          "input": {
+            "items": [
+              1
+            ],
+            "size": 3
+          }
+        },
+        "fault": {
+          "actual": [],
+          "attributed_to": "body",
+          "backtrace": [
+            {
+              "qualified_name": "reader.pages.paginate",
+              "span": {
+                "col": 20,
+                "end_col": 41,
+                "end_line": 20,
+                "file": "src/tests/pagination.cpl",
+                "line": 20
+              }
+            },
+            {
+              "qualified_name": "tests.pagination.\"pagination preserves input\""
+            }
+          ],
+          "category": "contract",
+          "clause": "flatten(result) == items",
+          "clause_kind": "ensures",
+          "code": "contract_violation",
+          "facet": "contract",
+          "input": {
+            "items": [
+              0
+            ],
+            "size": 1
+          },
+          "message": "ensures clause failed: flatten(result) == items",
+          "qualified_name": "reader.pages.paginate",
+          "severity": "error",
+          "span": {
+            "col": 5,
+            "end_col": 37,
+            "end_line": 46,
+            "file": "src/reader/pages.cpl",
+            "line": 46
+          },
+          "status": "failed",
+          "symbol": "pgn_7c2d"
+        },
+        "kind": "property",
+        "property_seed": "dd70efdc881db73e89bc6b2ce6a8a7311711833bb171aa85ef2e39d5f6cac036",
+        "qualified_name": "tests.pagination.\"pagination preserves input\"",
+        "seed": 3,
+        "shrunk": {
+          "input": {
+            "items": [
+              0
+            ],
+            "size": 1
+          },
+          "shrink_exhausted": false,
+          "shrink_steps": 11
+        },
+        "status": "failed",
+        "symbol": "tests.pagination.\"pagination preserves input\""
+      }
+    ],
+    "seed": 3,
+    "selected": 3,
+    "tested": 1
+  },
+  "seed 4": {
+    "cases": 100,
+    "failed": 2,
+    "results": [
+      {
+        "duration_ms": 0,
+        "kind": "test",
+        "qualified_name": "tests.pagination.\"pagination handles empty input\"",
+        "status": "tested",
+        "symbol": "tests.pagination.\"pagination handles empty input\""
+      },
+      {
+        "counterexamples": [
+          {
+            "actual": [
+              [
+                1,
+                2
+              ]
+            ],
+            "category": "contract",
+            "clause": "flatten(result) == items",
+            "clause_kind": "ensures",
+            "code": "contract_counterexample",
+            "facet": "body",
+            "found_by": "tests.pagination.\"pagination preserves a short tail\"",
+            "input": {
+              "items": [
+                1,
+                2,
+                3
+              ],
+              "size": 2
+            },
+            "message": "tests.pagination.\"pagination preserves a short tail\" found a counterexample to reader.pages.paginate: ensures clause failed: flatten(result) == items",
+            "qualified_name": "reader.pages.paginate",
+            "severity": "error",
+            "span": {
+              "col": 5,
+              "end_col": 37,
+              "end_line": 46,
+              "file": "src/reader/pages.cpl",
+              "line": 46
+            },
+            "status": "failed",
+            "symbol": "pgn_7c2d"
+          }
+        ],
+        "duration_ms": 0,
+        "fault": {
+          "actual": [
+            [
+              1,
+              2
+            ]
+          ],
+          "attributed_to": "body",
+          "backtrace": [
+            {
+              "qualified_name": "reader.pages.paginate",
+              "span": {
+                "col": 12,
+                "end_col": 34,
+                "end_line": 8,
+                "file": "src/tests/pagination.cpl",
+                "line": 8
+              }
+            },
+            {
+              "qualified_name": "tests.pagination.\"pagination preserves a short tail\""
+            }
+          ],
+          "category": "contract",
+          "clause": "flatten(result) == items",
+          "clause_kind": "ensures",
+          "code": "contract_violation",
+          "facet": "contract",
+          "input": {
+            "items": [
+              1,
+              2,
+              3
+            ],
+            "size": 2
+          },
+          "message": "ensures clause failed: flatten(result) == items",
+          "qualified_name": "reader.pages.paginate",
+          "severity": "error",
+          "span": {
+            "col": 5,
+            "end_col": 37,
+            "end_line": 46,
+            "file": "src/reader/pages.cpl",
+            "line": 46
+          },
+          "status": "failed",
+          "symbol": "pgn_7c2d"
+        },
+        "kind": "test",
+        "qualified_name": "tests.pagination.\"pagination preserves a short tail\"",
+        "status": "failed",
+        "symbol": "tests.pagination.\"pagination preserves a short tail\""
+      },
+      {
+        "cases": 3,
+        "counterexamples": [
+          {
+            "actual": [],
+            "category": "contract",
+            "clause": "flatten(result) == items",
+            "clause_kind": "ensures",
+            "code": "contract_counterexample",
+            "facet": "body",
+            "found_by": "tests.pagination.\"pagination preserves input\"",
+            "input": {
+              "items": [
+                0
+              ],
+              "size": 1
+            },
+            "message": "tests.pagination.\"pagination preserves input\" found a counterexample to reader.pages.paginate: ensures clause failed: flatten(result) == items",
+            "qualified_name": "reader.pages.paginate",
+            "severity": "error",
+            "span": {
+              "col": 5,
+              "end_col": 37,
+              "end_line": 46,
+              "file": "src/reader/pages.cpl",
+              "line": 46
+            },
+            "status": "failed",
+            "symbol": "pgn_7c2d"
+          }
+        ],
+        "duration_ms": 0,
+        "failing_case": {
+          "index": 2,
+          "input": {
+            "items": [
+              -1
+            ],
+            "size": 2
+          }
+        },
+        "fault": {
+          "actual": [],
+          "attributed_to": "body",
+          "backtrace": [
+            {
+              "qualified_name": "reader.pages.paginate",
+              "span": {
+                "col": 20,
+                "end_col": 41,
+                "end_line": 20,
+                "file": "src/tests/pagination.cpl",
+                "line": 20
+              }
+            },
+            {
+              "qualified_name": "tests.pagination.\"pagination preserves input\""
+            }
+          ],
+          "category": "contract",
+          "clause": "flatten(result) == items",
+          "clause_kind": "ensures",
+          "code": "contract_violation",
+          "facet": "contract",
+          "input": {
+            "items": [
+              0
+            ],
+            "size": 1
+          },
+          "message": "ensures clause failed: flatten(result) == items",
+          "qualified_name": "reader.pages.paginate",
+          "severity": "error",
+          "span": {
+            "col": 5,
+            "end_col": 37,
+            "end_line": 46,
+            "file": "src/reader/pages.cpl",
+            "line": 46
+          },
+          "status": "failed",
+          "symbol": "pgn_7c2d"
+        },
+        "kind": "property",
+        "property_seed": "2462239803ead4c4656847e3d6bc758b2c58069c07c9d1a95291294d38fb957b",
+        "qualified_name": "tests.pagination.\"pagination preserves input\"",
+        "seed": 4,
+        "shrunk": {
+          "input": {
+            "items": [
+              0
+            ],
+            "size": 1
+          },
+          "shrink_exhausted": false,
+          "shrink_steps": 11
+        },
+        "status": "failed",
+        "symbol": "tests.pagination.\"pagination preserves input\""
+      }
+    ],
+    "seed": 4,
+    "selected": 3,
+    "tested": 1
+  },
+  "seed 5": {
+    "cases": 100,
+    "failed": 2,
+    "results": [
+      {
+        "duration_ms": 0,
+        "kind": "test",
+        "qualified_name": "tests.pagination.\"pagination handles empty input\"",
+        "status": "tested",
+        "symbol": "tests.pagination.\"pagination handles empty input\""
+      },
+      {
+        "counterexamples": [
+          {
+            "actual": [
+              [
+                1,
+                2
+              ]
+            ],
+            "category": "contract",
+            "clause": "flatten(result) == items",
+            "clause_kind": "ensures",
+            "code": "contract_counterexample",
+            "facet": "body",
+            "found_by": "tests.pagination.\"pagination preserves a short tail\"",
+            "input": {
+              "items": [
+                1,
+                2,
+                3
+              ],
+              "size": 2
+            },
+            "message": "tests.pagination.\"pagination preserves a short tail\" found a counterexample to reader.pages.paginate: ensures clause failed: flatten(result) == items",
+            "qualified_name": "reader.pages.paginate",
+            "severity": "error",
+            "span": {
+              "col": 5,
+              "end_col": 37,
+              "end_line": 46,
+              "file": "src/reader/pages.cpl",
+              "line": 46
+            },
+            "status": "failed",
+            "symbol": "pgn_7c2d"
+          }
+        ],
+        "duration_ms": 0,
+        "fault": {
+          "actual": [
+            [
+              1,
+              2
+            ]
+          ],
+          "attributed_to": "body",
+          "backtrace": [
+            {
+              "qualified_name": "reader.pages.paginate",
+              "span": {
+                "col": 12,
+                "end_col": 34,
+                "end_line": 8,
+                "file": "src/tests/pagination.cpl",
+                "line": 8
+              }
+            },
+            {
+              "qualified_name": "tests.pagination.\"pagination preserves a short tail\""
+            }
+          ],
+          "category": "contract",
+          "clause": "flatten(result) == items",
+          "clause_kind": "ensures",
+          "code": "contract_violation",
+          "facet": "contract",
+          "input": {
+            "items": [
+              1,
+              2,
+              3
+            ],
+            "size": 2
+          },
+          "message": "ensures clause failed: flatten(result) == items",
+          "qualified_name": "reader.pages.paginate",
+          "severity": "error",
+          "span": {
+            "col": 5,
+            "end_col": 37,
+            "end_line": 46,
+            "file": "src/reader/pages.cpl",
+            "line": 46
+          },
+          "status": "failed",
+          "symbol": "pgn_7c2d"
+        },
+        "kind": "test",
+        "qualified_name": "tests.pagination.\"pagination preserves a short tail\"",
+        "status": "failed",
+        "symbol": "tests.pagination.\"pagination preserves a short tail\""
+      },
+      {
+        "cases": 4,
+        "counterexamples": [
+          {
+            "actual": [],
+            "category": "contract",
+            "clause": "flatten(result) == items",
+            "clause_kind": "ensures",
+            "code": "contract_counterexample",
+            "facet": "body",
+            "found_by": "tests.pagination.\"pagination preserves input\"",
+            "input": {
+              "items": [
+                0
+              ],
+              "size": 1
+            },
+            "message": "tests.pagination.\"pagination preserves input\" found a counterexample to reader.pages.paginate: ensures clause failed: flatten(result) == items",
+            "qualified_name": "reader.pages.paginate",
+            "severity": "error",
+            "span": {
+              "col": 5,
+              "end_col": 37,
+              "end_line": 46,
+              "file": "src/reader/pages.cpl",
+              "line": 46
+            },
+            "status": "failed",
+            "symbol": "pgn_7c2d"
+          }
+        ],
+        "duration_ms": 0,
+        "failing_case": {
+          "index": 3,
+          "input": {
+            "items": [
+              2,
+              0,
+              0
+            ],
+            "size": 4
+          }
+        },
+        "fault": {
+          "actual": [],
+          "attributed_to": "body",
+          "backtrace": [
+            {
+              "qualified_name": "reader.pages.paginate",
+              "span": {
+                "col": 20,
+                "end_col": 41,
+                "end_line": 20,
+                "file": "src/tests/pagination.cpl",
+                "line": 20
+              }
+            },
+            {
+              "qualified_name": "tests.pagination.\"pagination preserves input\""
+            }
+          ],
+          "category": "contract",
+          "clause": "flatten(result) == items",
+          "clause_kind": "ensures",
+          "code": "contract_violation",
+          "facet": "contract",
+          "input": {
+            "items": [
+              0
+            ],
+            "size": 1
+          },
+          "message": "ensures clause failed: flatten(result) == items",
+          "qualified_name": "reader.pages.paginate",
+          "severity": "error",
+          "span": {
+            "col": 5,
+            "end_col": 37,
+            "end_line": 46,
+            "file": "src/reader/pages.cpl",
+            "line": 46
+          },
+          "status": "failed",
+          "symbol": "pgn_7c2d"
+        },
+        "kind": "property",
+        "property_seed": "3b4cd3ab4b3cc004dbc9fb9b99a7747dafafb20bb0e90cd6053fed1555750ff9",
+        "qualified_name": "tests.pagination.\"pagination preserves input\"",
+        "seed": 5,
+        "shrunk": {
+          "input": {
+            "items": [
+              0
+            ],
+            "size": 1
+          },
+          "shrink_exhausted": false,
+          "shrink_steps": 13
+        },
+        "status": "failed",
+        "symbol": "tests.pagination.\"pagination preserves input\""
+      }
+    ],
+    "seed": 5,
+    "selected": 3,
+    "tested": 1
+  },
+  "seed 6": {
+    "cases": 100,
+    "failed": 2,
+    "results": [
+      {
+        "duration_ms": 0,
+        "kind": "test",
+        "qualified_name": "tests.pagination.\"pagination handles empty input\"",
+        "status": "tested",
+        "symbol": "tests.pagination.\"pagination handles empty input\""
+      },
+      {
+        "counterexamples": [
+          {
+            "actual": [
+              [
+                1,
+                2
+              ]
+            ],
+            "category": "contract",
+            "clause": "flatten(result) == items",
+            "clause_kind": "ensures",
+            "code": "contract_counterexample",
+            "facet": "body",
+            "found_by": "tests.pagination.\"pagination preserves a short tail\"",
+            "input": {
+              "items": [
+                1,
+                2,
+                3
+              ],
+              "size": 2
+            },
+            "message": "tests.pagination.\"pagination preserves a short tail\" found a counterexample to reader.pages.paginate: ensures clause failed: flatten(result) == items",
+            "qualified_name": "reader.pages.paginate",
+            "severity": "error",
+            "span": {
+              "col": 5,
+              "end_col": 37,
+              "end_line": 46,
+              "file": "src/reader/pages.cpl",
+              "line": 46
+            },
+            "status": "failed",
+            "symbol": "pgn_7c2d"
+          }
+        ],
+        "duration_ms": 0,
+        "fault": {
+          "actual": [
+            [
+              1,
+              2
+            ]
+          ],
+          "attributed_to": "body",
+          "backtrace": [
+            {
+              "qualified_name": "reader.pages.paginate",
+              "span": {
+                "col": 12,
+                "end_col": 34,
+                "end_line": 8,
+                "file": "src/tests/pagination.cpl",
+                "line": 8
+              }
+            },
+            {
+              "qualified_name": "tests.pagination.\"pagination preserves a short tail\""
+            }
+          ],
+          "category": "contract",
+          "clause": "flatten(result) == items",
+          "clause_kind": "ensures",
+          "code": "contract_violation",
+          "facet": "contract",
+          "input": {
+            "items": [
+              1,
+              2,
+              3
+            ],
+            "size": 2
+          },
+          "message": "ensures clause failed: flatten(result) == items",
+          "qualified_name": "reader.pages.paginate",
+          "severity": "error",
+          "span": {
+            "col": 5,
+            "end_col": 37,
+            "end_line": 46,
+            "file": "src/reader/pages.cpl",
+            "line": 46
+          },
+          "status": "failed",
+          "symbol": "pgn_7c2d"
+        },
+        "kind": "test",
+        "qualified_name": "tests.pagination.\"pagination preserves a short tail\"",
+        "status": "failed",
+        "symbol": "tests.pagination.\"pagination preserves a short tail\""
+      },
+      {
+        "cases": 2,
+        "counterexamples": [
+          {
+            "actual": [],
+            "category": "contract",
+            "clause": "flatten(result) == items",
+            "clause_kind": "ensures",
+            "code": "contract_counterexample",
+            "facet": "body",
+            "found_by": "tests.pagination.\"pagination preserves input\"",
+            "input": {
+              "items": [
+                0
+              ],
+              "size": 1
+            },
+            "message": "tests.pagination.\"pagination preserves input\" found a counterexample to reader.pages.paginate: ensures clause failed: flatten(result) == items",
+            "qualified_name": "reader.pages.paginate",
+            "severity": "error",
+            "span": {
+              "col": 5,
+              "end_col": 37,
+              "end_line": 46,
+              "file": "src/reader/pages.cpl",
+              "line": 46
+            },
+            "status": "failed",
+            "symbol": "pgn_7c2d"
+          }
+        ],
+        "duration_ms": 0,
+        "failing_case": {
+          "index": 1,
+          "input": {
+            "items": [
+              0
+            ],
+            "size": 1
+          }
+        },
+        "fault": {
+          "actual": [],
+          "attributed_to": "body",
+          "backtrace": [
+            {
+              "qualified_name": "reader.pages.paginate",
+              "span": {
+                "col": 20,
+                "end_col": 41,
+                "end_line": 20,
+                "file": "src/tests/pagination.cpl",
+                "line": 20
+              }
+            },
+            {
+              "qualified_name": "tests.pagination.\"pagination preserves input\""
+            }
+          ],
+          "category": "contract",
+          "clause": "flatten(result) == items",
+          "clause_kind": "ensures",
+          "code": "contract_violation",
+          "facet": "contract",
+          "input": {
+            "items": [
+              0
+            ],
+            "size": 1
+          },
+          "message": "ensures clause failed: flatten(result) == items",
+          "qualified_name": "reader.pages.paginate",
+          "severity": "error",
+          "span": {
+            "col": 5,
+            "end_col": 37,
+            "end_line": 46,
+            "file": "src/reader/pages.cpl",
+            "line": 46
+          },
+          "status": "failed",
+          "symbol": "pgn_7c2d"
+        },
+        "kind": "property",
+        "property_seed": "4ed55dba440a4c38637bd4dd7c7a806e9af2362f3b18c4d9e1d61437aeda4102",
+        "qualified_name": "tests.pagination.\"pagination preserves input\"",
+        "seed": 6,
+        "shrunk": {
+          "input": {
+            "items": [
+              0
+            ],
+            "size": 1
+          },
+          "shrink_exhausted": false,
+          "shrink_steps": 3
+        },
+        "status": "failed",
+        "symbol": "tests.pagination.\"pagination preserves input\""
+      }
+    ],
+    "seed": 6,
+    "selected": 3,
+    "tested": 1
+  },
+  "seed 7": {
+    "cases": 100,
+    "failed": 2,
+    "results": [
+      {
+        "duration_ms": 0,
+        "kind": "test",
+        "qualified_name": "tests.pagination.\"pagination handles empty input\"",
+        "status": "tested",
+        "symbol": "tests.pagination.\"pagination handles empty input\""
+      },
+      {
+        "counterexamples": [
+          {
+            "actual": [
+              [
+                1,
+                2
+              ]
+            ],
+            "category": "contract",
+            "clause": "flatten(result) == items",
+            "clause_kind": "ensures",
+            "code": "contract_counterexample",
+            "facet": "body",
+            "found_by": "tests.pagination.\"pagination preserves a short tail\"",
+            "input": {
+              "items": [
+                1,
+                2,
+                3
+              ],
+              "size": 2
+            },
+            "message": "tests.pagination.\"pagination preserves a short tail\" found a counterexample to reader.pages.paginate: ensures clause failed: flatten(result) == items",
+            "qualified_name": "reader.pages.paginate",
+            "severity": "error",
+            "span": {
+              "col": 5,
+              "end_col": 37,
+              "end_line": 46,
+              "file": "src/reader/pages.cpl",
+              "line": 46
+            },
+            "status": "failed",
+            "symbol": "pgn_7c2d"
+          }
+        ],
+        "duration_ms": 0,
+        "fault": {
+          "actual": [
+            [
+              1,
+              2
+            ]
+          ],
+          "attributed_to": "body",
+          "backtrace": [
+            {
+              "qualified_name": "reader.pages.paginate",
+              "span": {
+                "col": 12,
+                "end_col": 34,
+                "end_line": 8,
+                "file": "src/tests/pagination.cpl",
+                "line": 8
+              }
+            },
+            {
+              "qualified_name": "tests.pagination.\"pagination preserves a short tail\""
+            }
+          ],
+          "category": "contract",
+          "clause": "flatten(result) == items",
+          "clause_kind": "ensures",
+          "code": "contract_violation",
+          "facet": "contract",
+          "input": {
+            "items": [
+              1,
+              2,
+              3
+            ],
+            "size": 2
+          },
+          "message": "ensures clause failed: flatten(result) == items",
+          "qualified_name": "reader.pages.paginate",
+          "severity": "error",
+          "span": {
+            "col": 5,
+            "end_col": 37,
+            "end_line": 46,
+            "file": "src/reader/pages.cpl",
+            "line": 46
+          },
+          "status": "failed",
+          "symbol": "pgn_7c2d"
+        },
+        "kind": "test",
+        "qualified_name": "tests.pagination.\"pagination preserves a short tail\"",
+        "status": "failed",
+        "symbol": "tests.pagination.\"pagination preserves a short tail\""
+      },
+      {
+        "cases": 3,
+        "counterexamples": [
+          {
+            "actual": [],
+            "category": "contract",
+            "clause": "flatten(result) == items",
+            "clause_kind": "ensures",
+            "code": "contract_counterexample",
+            "facet": "body",
+            "found_by": "tests.pagination.\"pagination preserves input\"",
+            "input": {
+              "items": [
+                0
+              ],
+              "size": 1
+            },
+            "message": "tests.pagination.\"pagination preserves input\" found a counterexample to reader.pages.paginate: ensures clause failed: flatten(result) == items",
+            "qualified_name": "reader.pages.paginate",
+            "severity": "error",
+            "span": {
+              "col": 5,
+              "end_col": 37,
+              "end_line": 46,
+              "file": "src/reader/pages.cpl",
+              "line": 46
+            },
+            "status": "failed",
+            "symbol": "pgn_7c2d"
+          }
+        ],
+        "duration_ms": 0,
+        "failing_case": {
+          "index": 2,
+          "input": {
+            "items": [
+              -2
+            ],
+            "size": 1
+          }
+        },
+        "fault": {
+          "actual": [],
+          "attributed_to": "body",
+          "backtrace": [
+            {
+              "qualified_name": "reader.pages.paginate",
+              "span": {
+                "col": 20,
+                "end_col": 41,
+                "end_line": 20,
+                "file": "src/tests/pagination.cpl",
+                "line": 20
+              }
+            },
+            {
+              "qualified_name": "tests.pagination.\"pagination preserves input\""
+            }
+          ],
+          "category": "contract",
+          "clause": "flatten(result) == items",
+          "clause_kind": "ensures",
+          "code": "contract_violation",
+          "facet": "contract",
+          "input": {
+            "items": [
+              0
+            ],
+            "size": 1
+          },
+          "message": "ensures clause failed: flatten(result) == items",
+          "qualified_name": "reader.pages.paginate",
+          "severity": "error",
+          "span": {
+            "col": 5,
+            "end_col": 37,
+            "end_line": 46,
+            "file": "src/reader/pages.cpl",
+            "line": 46
+          },
+          "status": "failed",
+          "symbol": "pgn_7c2d"
+        },
+        "kind": "property",
+        "property_seed": "c6701fae5bc9ec40e2c8eaf02e51b2fb4c4365efccfe1e3f986792b4d6f0f890",
+        "qualified_name": "tests.pagination.\"pagination preserves input\"",
+        "seed": 7,
+        "shrunk": {
+          "input": {
+            "items": [
+              0
+            ],
+            "size": 1
+          },
+          "shrink_exhausted": false,
+          "shrink_steps": 10
+        },
+        "status": "failed",
+        "symbol": "tests.pagination.\"pagination preserves input\""
+      }
+    ],
+    "seed": 7,
+    "selected": 3,
+    "tested": 1
+  },
+  "seed 8": {
+    "cases": 100,
+    "failed": 2,
+    "results": [
+      {
+        "duration_ms": 0,
+        "kind": "test",
+        "qualified_name": "tests.pagination.\"pagination handles empty input\"",
+        "status": "tested",
+        "symbol": "tests.pagination.\"pagination handles empty input\""
+      },
+      {
+        "counterexamples": [
+          {
+            "actual": [
+              [
+                1,
+                2
+              ]
+            ],
+            "category": "contract",
+            "clause": "flatten(result) == items",
+            "clause_kind": "ensures",
+            "code": "contract_counterexample",
+            "facet": "body",
+            "found_by": "tests.pagination.\"pagination preserves a short tail\"",
+            "input": {
+              "items": [
+                1,
+                2,
+                3
+              ],
+              "size": 2
+            },
+            "message": "tests.pagination.\"pagination preserves a short tail\" found a counterexample to reader.pages.paginate: ensures clause failed: flatten(result) == items",
+            "qualified_name": "reader.pages.paginate",
+            "severity": "error",
+            "span": {
+              "col": 5,
+              "end_col": 37,
+              "end_line": 46,
+              "file": "src/reader/pages.cpl",
+              "line": 46
+            },
+            "status": "failed",
+            "symbol": "pgn_7c2d"
+          }
+        ],
+        "duration_ms": 0,
+        "fault": {
+          "actual": [
+            [
+              1,
+              2
+            ]
+          ],
+          "attributed_to": "body",
+          "backtrace": [
+            {
+              "qualified_name": "reader.pages.paginate",
+              "span": {
+                "col": 12,
+                "end_col": 34,
+                "end_line": 8,
+                "file": "src/tests/pagination.cpl",
+                "line": 8
+              }
+            },
+            {
+              "qualified_name": "tests.pagination.\"pagination preserves a short tail\""
+            }
+          ],
+          "category": "contract",
+          "clause": "flatten(result) == items",
+          "clause_kind": "ensures",
+          "code": "contract_violation",
+          "facet": "contract",
+          "input": {
+            "items": [
+              1,
+              2,
+              3
+            ],
+            "size": 2
+          },
+          "message": "ensures clause failed: flatten(result) == items",
+          "qualified_name": "reader.pages.paginate",
+          "severity": "error",
+          "span": {
+            "col": 5,
+            "end_col": 37,
+            "end_line": 46,
+            "file": "src/reader/pages.cpl",
+            "line": 46
+          },
+          "status": "failed",
+          "symbol": "pgn_7c2d"
+        },
+        "kind": "test",
+        "qualified_name": "tests.pagination.\"pagination preserves a short tail\"",
+        "status": "failed",
+        "symbol": "tests.pagination.\"pagination preserves a short tail\""
+      },
+      {
+        "cases": 2,
+        "counterexamples": [
+          {
+            "actual": [],
+            "category": "contract",
+            "clause": "flatten(result) == items",
+            "clause_kind": "ensures",
+            "code": "contract_counterexample",
+            "facet": "body",
+            "found_by": "tests.pagination.\"pagination preserves input\"",
+            "input": {
+              "items": [
+                0
+              ],
+              "size": 1
+            },
+            "message": "tests.pagination.\"pagination preserves input\" found a counterexample to reader.pages.paginate: ensures clause failed: flatten(result) == items",
+            "qualified_name": "reader.pages.paginate",
+            "severity": "error",
+            "span": {
+              "col": 5,
+              "end_col": 37,
+              "end_line": 46,
+              "file": "src/reader/pages.cpl",
+              "line": 46
+            },
+            "status": "failed",
+            "symbol": "pgn_7c2d"
+          }
+        ],
+        "duration_ms": 0,
+        "failing_case": {
+          "index": 1,
+          "input": {
+            "items": [
+              1
+            ],
+            "size": 1
+          }
+        },
+        "fault": {
+          "actual": [],
+          "attributed_to": "body",
+          "backtrace": [
+            {
+              "qualified_name": "reader.pages.paginate",
+              "span": {
+                "col": 20,
+                "end_col": 41,
+                "end_line": 20,
+                "file": "src/tests/pagination.cpl",
+                "line": 20
+              }
+            },
+            {
+              "qualified_name": "tests.pagination.\"pagination preserves input\""
+            }
+          ],
+          "category": "contract",
+          "clause": "flatten(result) == items",
+          "clause_kind": "ensures",
+          "code": "contract_violation",
+          "facet": "contract",
+          "input": {
+            "items": [
+              0
+            ],
+            "size": 1
+          },
+          "message": "ensures clause failed: flatten(result) == items",
+          "qualified_name": "reader.pages.paginate",
+          "severity": "error",
+          "span": {
+            "col": 5,
+            "end_col": 37,
+            "end_line": 46,
+            "file": "src/reader/pages.cpl",
+            "line": 46
+          },
+          "status": "failed",
+          "symbol": "pgn_7c2d"
+        },
+        "kind": "property",
+        "property_seed": "8a9fb3a941f9af77e5e08cb768381c2fbbcd4bec8304c7424fd6bece63d3f54a",
+        "qualified_name": "tests.pagination.\"pagination preserves input\"",
+        "seed": 8,
+        "shrunk": {
+          "input": {
+            "items": [
+              0
+            ],
+            "size": 1
+          },
+          "shrink_exhausted": false,
+          "shrink_steps": 10
+        },
+        "status": "failed",
+        "symbol": "tests.pagination.\"pagination preserves input\""
+      }
+    ],
+    "seed": 8,
+    "selected": 3,
+    "tested": 1
+  }
+}

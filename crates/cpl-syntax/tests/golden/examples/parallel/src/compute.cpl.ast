@@ -1,0 +1,187 @@
+(module compute
+  (pure fn work
+    (params (param n (ty Int)))
+    (ret (ty Int))
+    (block
+      (var i (int 0))
+      (var total (int 0))
+      (while
+        (< (name i) (name n))
+        (block
+          (assign total
+            (+
+              (+ (name total) (paren (* (paren (+ (* (int 17) (int 23)) (int 19))) (int 11))))
+              (* (paren (+ (name i) (int 0))) (int 1))))
+          (assign i (+ (name i) (int 1)))))
+      (tail (name total)))
+    (trivia blank))
+  (pure fn batches
+    (params (param items (ty List (ty Int))))
+    (ret (ty List (ty Int)))
+    (block (tail (parallel n (name items) (call (name work) (name n)))))
+    (trivia blank))
+  (pure fn captured
+    (params (param items (ty List (ty Int))) (param offset (ty Int)))
+    (ret (ty List (ty Int)))
+    (block
+      (tail
+        (parallel n
+          (name items)
+          (if
+            (> (name n) (int 0))
+            (block (let twice (* (name n) (int 2))) (tail (+ (name twice) (name offset))))
+            (else (block (tail (name offset))))))))
+    (trivia blank))
+  (pure fn nested
+    (params (param items (ty List (ty Int))))
+    (ret (ty List (ty List (ty Int))))
+    (block
+      (tail
+        (parallel n
+          (name items)
+          (paren (parallel m (list (int 1) (int 2) (int 3)) (+ (name n) (name m)))))))
+    (trivia blank))
+  (pure fn divide
+    (params (param n (ty Int)))
+    (ret (ty Int))
+    (block (tail (/ (int 100) (name n))))
+    (trivia blank))
+  (pure fn failures
+    (params (param items (ty List (ty Int))))
+    (ret (ty List (ty Int)))
+    (block (tail (parallel n (name items) (call (name divide) (name n)))))
+    (trivia blank))
+  (pure fn recursive
+    (params (param n (ty Int)))
+    (ret (ty Int))
+    (block
+      (tail
+        (if
+          (== (name n) (int 0))
+          (block (tail (int 0)))
+          (else (block (tail (call (name recursive) (- (name n) (int 1)))))))))
+    (trivia blank))
+  (pure fn depths
+    (params (param items (ty List (ty Int))))
+    (ret (ty List (ty Int)))
+    (block (tail (parallel n (name items) (call (name recursive) (name n)))))
+    (trivia blank))
+  (pure fn build
+    (params (param n (ty Int)))
+    (ret (ty List (ty Int)))
+    (block
+      (var result (ty List (ty Int)) (list))
+      (var i (int 0))
+      (while
+        (< (name i) (name n))
+        (block
+          (assign result (call (member (name result) push) (name i)))
+          (assign i (+ (name i) (int 1)))))
+      (tail (name result)))
+    (trivia blank))
+  (pure fn text_scan
+    (params (param text (ty Text)) (param n (ty Int)))
+    (ret (ty Int))
+    (block
+      (var i (int 0))
+      (var total (int 0))
+      (while
+        (< (name i) (name n))
+        (block
+          (assign total (+ (name total) (member (name text) len)))
+          (assign i (+ (name i) (int 1)))))
+      (tail (name total)))
+    (trivia blank))
+  (test "parallel maps retain input order"
+    (block
+      (assert
+        (==
+          (call (name captured) (list (int 3) (int 0) (int 2)) (int 7))
+          (list (int 13) (int 7) (int 11))))
+      (assert
+        (==
+          (call (name nested) (list (int 10) (int 20)))
+          (list (list (int 11) (int 12) (int 13)) (list (int 21) (int 22) (int 23)))))
+      (assert (== (call (name batches) (list)) (list))))
+    (trivia blank))
+  (pure fn snapshots
+    (params (param n (ty Int)))
+    (ret (ty List (ty List (ty Int))))
+    (block
+      (var xs (ty List (ty Int)) (list))
+      (var i (int 0))
+      (while
+        (< (name i) (name n))
+        (block (assign xs (call (member (name xs) push) (name i))) (assign i (+ (name i) (int 1)))))
+      (let old (name xs))
+      (assign xs (call (member (name xs) push) (name n)))
+      (tail (list (name old) (name xs))))
+    (trivia blank))
+  (pure fn alias_argument
+    (params)
+    (ret (ty List (ty List (ty Int))))
+    (block
+      (var xs (ty List (ty List (ty Int))) (list (list (int 1))))
+      (let old (name xs))
+      (assign xs
+        (call
+          (member (name xs) push)
+          (call (member (call (member (name xs) first)) unwrap_or) (list))))
+      (assign xs (call (member (name xs) push) (list (int 3))))
+      (tail (list (call (name flatten) (name old)) (call (name flatten) (name xs)))))
+    (trivia blank))
+  (pure fn numbers
+    (params (param a (ty Int)) (param b (ty Int)))
+    (ret (ty List (ty Int)))
+    (block
+      (tail
+        (list
+          (+ (name a) (name b))
+          (- (name a) (name b))
+          (* (name a) (name b))
+          (/ (name a) (name b))
+          (% (name a) (name b))
+          (* (paren (+ (name a) (int 0))) (int 1))
+          (* (paren (+ (* (int 17) (int 23)) (int 19))) (int 11)))))
+    (trivia blank))
+  (pure fn fail_preserved
+    (params (param n (ty Int)))
+    (ret (ty Int))
+    (block (tail (* (paren (/ (int 100) (name n))) (int 0))))
+    (trivia blank))
+  (pure fn task_contract
+    (params (param n (ty Int)))
+    (ret (ty Int))
+    (requires (> (name n) (int 0)))
+    (block (tail (name n)))
+    (trivia blank))
+  (pure fn contracts
+    (params (param items (ty List (ty Int))))
+    (ret (ty List (ty Int)))
+    (block (tail (parallel n (name items) (call (name task_contract) (name n)))))
+    (trivia blank))
+  (pure fn infinite
+    (params (param n (ty Int)))
+    (ret (ty Int))
+    (block (while (>= (name n) (int 0)) (block)) (tail (name n)))
+    (trivia blank))
+  (pure fn deadlines
+    (params (param items (ty List (ty Int))))
+    (ret (ty List (ty Int)))
+    (block (tail (parallel n (name items) (call (name infinite) (name n)))))
+    (trivia blank))
+  (pure fn cancelled_task
+    (params (param n (ty Int)))
+    (ret (ty Int))
+    (block
+      (tail
+        (if
+          (== (name n) (int 0))
+          (block (tail (/ (int 1) (name n))))
+          (else (block (tail (call (name infinite) (name n))))))))
+    (trivia blank))
+  (pure fn cancel_later
+    (params (param items (ty List (ty Int))))
+    (ret (ty List (ty Int)))
+    (block (tail (parallel n (name items) (call (name cancelled_task) (name n)))))
+    (trivia blank)))

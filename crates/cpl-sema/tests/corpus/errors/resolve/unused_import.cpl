@@ -1,0 +1,9 @@
+module negative.unused_import
+
+// An import never used in the file is a warning (semantics 1.6).
+
+use std.text.{trim} // expect-warning: unused_import
+
+fn one() -> Int {
+    1
+}

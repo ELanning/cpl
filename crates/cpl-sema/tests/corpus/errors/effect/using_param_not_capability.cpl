@@ -1,0 +1,15 @@
+module negative.using_param_not_capability
+
+// A `using` parameter's type must be a capability (semantics 1.8, 4.1).
+
+pub struct Config {
+    verbose: Bool
+}
+
+fn a(key: Text, using n: Int) -> Int { // expect-error: using_param_not_capability
+    key.len
+}
+
+fn b(key: Text, using cfg: Config) -> Int { // expect-error: using_param_not_capability
+    key.len
+}

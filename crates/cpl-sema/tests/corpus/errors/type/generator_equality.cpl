@@ -1,0 +1,10 @@
+module negative.generator_equality
+
+// Ruling [D-229] (semantics S62, S14; stdlib 12 lists `gen.int == gen.int`):
+// a generator outside a `for` range or `std.gen` argument is a condition on
+// the position, not on a type, so the error on the left operand does not
+// suppress the right one: both operands are `generator_outside_for`.
+
+fn same() -> Bool {
+    gen.int == gen.int // expect-error: generator_outside_for, generator_outside_for
+}

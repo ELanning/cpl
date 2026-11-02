@@ -1,0 +1,3 @@
+[project]
+name = "effect_bounds"
+edition = "0.1"

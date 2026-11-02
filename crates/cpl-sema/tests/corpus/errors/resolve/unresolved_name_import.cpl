@@ -1,0 +1,10 @@
+module negative.unresolved_name_import
+
+// The module exists but the item does not: `unresolved_name` with the
+// `module` field (semantics 1.6).
+
+use std.text.{shout} // expect-error: unresolved_name
+
+fn one() -> Int {
+    1
+}

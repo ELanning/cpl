@@ -1,0 +1,21 @@
+patch paginate.body
+    expect base(paginate.body)
+{
+    var pages: List<List<T>> = []
+    var rest = items
+
+    while rest.len > size
+        invariant flatten(pages) ++ rest == items
+        invariant forall page in pages: page.len == size
+        decreases rest.len
+    {
+        pages = pages.push(rest.take(size))
+        rest = rest.drop(size)
+    }
+
+    if not rest.is_empty() {
+        pages = pages.push(rest)
+    }
+
+    pages
+}

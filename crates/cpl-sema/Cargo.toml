@@ -1,0 +1,18 @@
+[package]
+name = "cpl-sema"
+version.workspace = true
+edition.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+cpl-hir.workspace = true
+cpl-project.workspace = true
+cpl-syntax.workspace = true
+cpl-diag.workspace = true
+# The builtin ids and the one Int division (toolchain 1.6, T70; stdlib S47).
+cpl-rtspec.workspace = true
+num-bigint.workspace = true
+num-traits.workspace = true
+serde_json.workspace = true

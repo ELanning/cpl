@@ -1,0 +1,5 @@
+module tests.bad
+
+test "" {
+    assert true
+}

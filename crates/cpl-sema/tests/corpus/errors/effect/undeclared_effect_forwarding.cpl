@@ -1,0 +1,40 @@
+module negative.undeclared_effect_forwarding
+
+// Forwarding a handle to a function with a non-empty bound requires the
+// substituted effects to lie within the caller's bound (4.4): `effect` is
+// `db.get` after substitution and `callee` is the forwarded-to function.
+
+pub capability Store {
+    fn get(key: Text) -> Int
+    fn put(key: Text) -> Int
+}
+
+fn read(key: Text, using s: Store) -> Int
+    effects { s.get }
+{
+    s.get(key)
+}
+
+fn write_then_read(key: Text, using s: Store) -> Int
+    effects { s.put, s.get }
+{
+    let _ = s.put(key)
+    s.get(key)
+}
+
+fn a(key: Text, using db: Store) -> Int {
+    read(key, using db) // expect-error: undeclared_effect
+}
+
+fn b(key: Text, using db: Store) -> Int
+    effects { db.get }
+{
+    write_then_read(key, using db) // expect-error: undeclared_effect
+}
+
+fn c(key: Text, using first: Store, using second: Store) -> Int
+    effects { first.get, second.put }
+{
+    let _ = first.get(key) + second.put(key)
+    read(key, using second) // expect-error: undeclared_effect
+}

@@ -1,0 +1,202 @@
+module tests.gens
+
+fn limit() -> Int {
+    3
+}
+
+property "int at least fifty"
+    for x in gen.int
+{
+    assert x < 50
+}
+
+property "int at most minus fifty"
+    for x in gen.int
+{
+    assert x > -50
+}
+
+property "int large"
+    for x in gen.int
+{
+    assert x < 1000000
+}
+
+property "int large negative"
+    for x in gen.int
+{
+    assert x > -1000000
+}
+
+property "positive seven"
+    for n in gen.positive_int
+{
+    assert n < 7
+}
+
+property "bool and int"
+    for b in gen.bool
+    for x in gen.int
+{
+    assert not b or x < 3
+}
+
+property "text three"
+    for t in gen.text
+{
+    assert t.len < 3
+}
+
+property "text z"
+    for t in gen.text
+{
+    assert not std.text.contains(t, "z")
+}
+
+property "list four"
+    for xs in gen.list(gen.int)
+{
+    assert xs.len < 4
+}
+
+property "list seven"
+    for xs in gen.list(gen.int)
+{
+    assert not xs.contains(7)
+}
+
+property "option five"
+    for o in gen.option(gen.int)
+{
+    assert o.unwrap_or(0) < 5
+}
+
+property "nested options"
+    for o in gen.option(gen.option(gen.bool))
+{
+    assert o != Some(Some(true))
+}
+
+property "range seven"
+    for r in gen.range(-20, 20)
+{
+    assert r < 7
+}
+
+property "negative range"
+    for r in gen.range(-20, -2)
+{
+    assert r > -9
+}
+
+property "high range"
+    for r in gen.range(10, 1000)
+{
+    assert r < 500
+}
+
+property "range from a function"
+    for r in gen.range(limit() - 6, limit())
+{
+    assert r < 2
+}
+
+property "nested lists"
+    for xss in gen.list(gen.list(gen.int))
+{
+    assert flatten(xss).len < 3
+}
+
+property "list of options"
+    for xs in gen.list(gen.option(gen.positive_int))
+{
+    assert xs.len < 2
+}
+
+property "option of list"
+    for o in gen.option(gen.list(gen.bool))
+{
+    assert o.unwrap_or([]).len < 2
+}
+
+property "list of ranges"
+    for xs in gen.list(gen.range(1, 3))
+{
+    assert xs.len < 3
+}
+
+property "list of texts"
+    for ts in gen.list(gen.text)
+{
+    assert ts.len < 2
+}
+
+property "sum"
+    for a in gen.int
+    for b in gen.int
+{
+    assert a + b < 30
+}
+
+property "three binders"
+    for xs in gen.list(gen.bool)
+    for n in gen.positive_int
+    for t in gen.text
+{
+    assert xs.len < n or t.len < 2
+}
+
+property "wide range"
+    for r in gen.range(0, 100000000000000000000000)
+{
+    assert r < 5
+}
+
+property "wide negative range"
+    for r in gen.range(-100000000000000000000000, -1)
+{
+    assert r > -5
+}
+
+property "two to the 64 values"
+    for r in gen.range(0, 18446744073709551615)
+{
+    assert r < 5
+}
+
+property "one less than two to the 64 values"
+    for r in gen.range(0, 18446744073709551614)
+{
+    assert r < 5
+}
+
+property "one value range"
+    for a in gen.range(5, 5)
+    for x in gen.int
+{
+    assert x < 3
+}
+
+property "option of range"
+    for o in gen.option(gen.range(-5, 5))
+{
+    assert o.unwrap_or(0) < 3
+}
+
+property "list of positives"
+    for ns in gen.list(gen.positive_int)
+{
+    assert not ns.contains(3)
+}
+
+property "list of a constant"
+    for xs in gen.list(gen.range(7, 7))
+{
+    assert xs.len < 5
+}
+
+property "qualified spelling"
+    for xs in std.gen.list(std.gen.range(0, 9))
+{
+    assert xs.len < 3
+}

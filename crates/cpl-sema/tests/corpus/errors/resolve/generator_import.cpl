@@ -1,0 +1,14 @@
+module negative.generator_import
+
+// No item of `std.gen` may be imported (semantics 1.6, stdlib S28): the
+// generators have the single spelling `gen.<name>`.
+
+use std.gen.{int} // expect-error: generator_import
+use std.gen.{Gen} // expect-error: generator_import
+
+property "ints commute"
+    for a in gen.int
+    for b in gen.int
+{
+    assert a + b == b + a
+}

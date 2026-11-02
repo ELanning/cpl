@@ -1,0 +1,27 @@
+module negative.capability_equality
+
+// Comparing a handle with `==` or `!=` is `capability_equality` (S17, S27).
+// Ruling: one diagnostic per handle operand, at that operand. S27's table
+// maps each occurrence of a handle as an operand of `==`/`!=` to the code,
+// S62 makes every misplaced handle its own S27 diagnostic (as
+// `gen.int == gen.int` carries two `generator_outside_for`), 9.4 gives the
+// code one `name`, and S63 (1) spans the operand that failed the check; so
+// a comparison of two handles carries two.
+
+pub capability Store {
+    fn get(key: Text) -> Int
+}
+
+fn a(key: Text, using db: Store, using other: Store) -> Bool
+    effects { db.get, other.get }
+{
+    let _ = db.get(key) + other.get(key)
+    db == other // expect-error: capability_equality, capability_equality
+}
+
+fn b(key: Text, using db: Store) -> Bool
+    effects { db.get }
+{
+    let _ = db.get(key)
+    db != db // expect-error: capability_equality, capability_equality
+}

@@ -1,0 +1,27 @@
+module negative.type_mismatch_match_arms
+
+// Match arm bodies are typed like the branches of `if` (semantics 3.8).
+
+fn a(o: Option<Int>) -> Int {
+    match o {
+        Some(v) => v
+        None => "none" // expect-error: type_mismatch
+    }
+}
+
+fn b(o: Option<Int>) -> Int {
+    let _ = match o {
+        Some(v) => v
+        None => false // expect-error: type_mismatch
+    }
+    1
+}
+
+fn c(o: Option<Int>) -> Text {
+    match o {
+        Some(v) => { // expect-error@+1: type_mismatch
+            v
+        }
+        None => "none"
+    }
+}

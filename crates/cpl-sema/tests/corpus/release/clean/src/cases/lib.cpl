@@ -1,0 +1,12 @@
+module cases.lib
+
+// Release case with no holes and no `@prove`: the only diagnostic is the
+// span-less `project_lock_missing` warning (T37); the check succeeds.
+// expect-warning(global): project_lock_missing
+
+pub type Positive = Int where self > 0
+
+pub fn paginate_ints(items: List<Int>, size: Int) -> Result<List<List<Int>>, ConstraintError> {
+    let checked_size = check<Positive>(size)?
+    Ok([items.take(checked_size)])
+}

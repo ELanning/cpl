@@ -1,0 +1,10 @@
+module negative.duplicate_import_single_form
+
+// List form and single form (D15) import the same name: still a duplicate.
+
+use std.text.{parse_int}
+use std.text.parse_int // expect-error: duplicate_import
+
+fn size(text: Text) -> Result<Int, ConstraintError> {
+    parse_int(text)
+}

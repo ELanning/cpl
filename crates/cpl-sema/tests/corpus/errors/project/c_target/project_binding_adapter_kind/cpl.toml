@@ -1,0 +1,15 @@
+[project]
+name = "project_binding_adapter_kind"
+edition = "0.1"
+
+[interop]
+targets = ["c"]
+
+[interop.c]
+prefix = "cases"
+
+[bindings.codec]
+capability = "cases.lib.Codec"
+backend = "c"
+adapter = "adapters/codec.h"
+isolation = "in_process"

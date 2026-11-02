@@ -1,0 +1,9 @@
+module cases.lib
+
+// Directory case: the backend-c adapter names no regular file under the
+// project root (toolchain 11.1).
+// expect-error(global): project_binding_adapter_missing
+
+pub capability Codec {
+    fn size(image: Bytes) -> Int
+}

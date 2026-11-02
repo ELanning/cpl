@@ -1,0 +1,17 @@
+[project]
+name = "project_fixture_capability_mismatch"
+edition = "0.1"
+
+[interop]
+targets = ["python"]
+
+[interop.c]
+prefix = "cases"
+
+[bindings.codec]
+capability = "cases.lib.Codec"
+backend = "python"
+adapter = "adapters.codec"
+
+[test.fixtures]
+"cases.lib.Other" = "codec"

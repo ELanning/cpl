@@ -1,0 +1,35 @@
+module negative.type_mismatch_contract_clause
+
+// `requires`, `ensures`, `invariant`, and `where` have type Bool; `decreases`
+// has strip type Int (semantics 5.1, 3.11, 1.8).
+
+fn a(n: Int) -> Int
+    requires n // expect-error: type_mismatch
+{
+    n
+}
+
+fn b(n: Int) -> Int
+    ensures result + 1 // expect-error: type_mismatch
+{
+    n
+}
+
+fn c(n: Int) -> Int
+    decreases true // expect-error: type_mismatch
+{
+    if n > 0 { c(n - 1) } else { 0 }
+}
+
+fn d(n: Int) -> Int {
+    var i = n
+    while i > 0
+        invariant i // expect-error: type_mismatch
+        decreases "i" // expect-error: type_mismatch
+    {
+        i = i - 1
+    }
+    i
+}
+
+pub type Odd = Int where self % 2 // expect-error: type_mismatch

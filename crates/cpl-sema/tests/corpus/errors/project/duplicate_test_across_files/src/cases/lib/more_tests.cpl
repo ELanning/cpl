@@ -1,0 +1,5 @@
+module cases.lib
+
+test "empty input" { // expect-error: duplicate_test_name
+    assert true
+}

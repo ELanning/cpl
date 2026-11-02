@@ -1,0 +1,20 @@
+module negative.method_not_called
+
+// A method used without a call (D43, semantics 3.8).
+
+fn a(xs: List<Int>) -> Bool {
+    xs.is_empty // expect-error: method_not_called
+}
+
+fn b(xs: List<Int>) -> Int {
+    let _ = xs.push // expect-error: method_not_called
+    1
+}
+
+fn c(n: Int) -> Int {
+    n.abs // expect-error: method_not_called
+}
+
+fn d(t: Text) -> Bool {
+    t.is_empty // expect-error: method_not_called
+}

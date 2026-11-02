@@ -1,0 +1,153 @@
+module pl.flow
+
+use std.text.{trim}
+
+fn helper() -> Int {
+    7
+}
+
+// Locals may hide module-level and universe names (semantics 2.3).
+fn hidden() -> Int {
+    let trim = 3
+    let helper = 4
+    let flatten = 5
+    let std = 6
+    trim + helper + flatten + std
+}
+
+// Sibling scopes reuse a name (S8).
+fn siblings(c: Bool) -> Int {
+    var total = 0
+    if c {
+        let y = 1
+        total = total + y
+    } else {
+        let y = 2
+        total = total + y
+    }
+    while total < 5
+        decreases 5 - total
+    {
+        let y = 3
+        total = total + y
+    }
+    match Some(total) {
+        Some(y) => y * 100
+        None => 0
+    }
+}
+
+fn find(xss: List<List<Int>>, v: Int) -> Option<Int>
+    ensures (match result {
+        Some(k) => k >= 0
+        None => true
+    })
+{
+    var i = 0
+    while i < xss.len
+        decreases xss.len - i
+    {
+        let row = xss.get(i).unwrap_or([])
+        var j = 0
+        while j < row.len
+            decreases row.len - j
+        {
+            match row.get(j) {
+                Some(x) => {
+                    if x == v {
+                        return Some(i * 100 + j)
+                    }
+                }
+                None => {}
+            }
+            j = j + 1
+        }
+        i = i + 1
+    }
+    None
+}
+
+fn unit_return(n: Int) -> Unit
+    ensures n != 13
+{
+    if n > 10 {
+        return
+    }
+    let _ = n
+}
+
+fn unit_statement(n: Int) -> Int {
+    unit_return(n)
+    n + 1
+}
+
+// `let _ = e` still evaluates `e` (D24).
+fn discard(n: Int) -> Int {
+    let _ = 10 / n
+    n
+}
+
+fn half(n: Int) -> Result<Int, Text> {
+    if n % 2 == 0 { Ok(n / 2) } else { Err("odd") }
+}
+
+// A `?` inside a `forall` predicate exits the function.
+fn halves_positive(xs: List<Int>) -> Result<Bool, Text> {
+    Ok(forall x in xs: half(x)? > 0)
+}
+
+fn block_values(c: Bool) -> List<Int> {
+    let v = if c {
+        let a = 1
+        a + 1
+    } else {
+        0
+    }
+    let w = match c {
+        true => {
+            let b = v * 10
+            b + 1
+        }
+        false => -1
+    }
+    [v, w]
+}
+
+fn unreachable_after_return(n: Int) -> Int {
+    return n
+    let _ = 1 / 0
+    n + 1
+}
+
+fn all_arms_return(o: Option<Int>) -> Int {
+    match o {
+        Some(n) => {
+            return n
+        }
+        None => {
+            return 0
+        }
+    }
+}
+
+@prove
+fn proved(n: Int) -> Int
+    requires n > 0
+    ensures result > 0
+{
+    n - 1
+}
+
+// A user function named like a std.text function; the std one is reached
+// through its qualified path.
+fn split(t: Text) -> Int {
+    t.len
+}
+
+fn both_splits(t: Text) -> List<Int> {
+    [split(t), std.text.split(t, ",").len]
+}
+
+fn and_or(n: Int) -> List<Bool> {
+    [n != 0 and 10 / n > 1, n == 0 or 10 / n > 1, not (n == 0) and 10 % n == 0]
+}

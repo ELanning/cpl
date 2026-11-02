@@ -1,0 +1,160 @@
+module laws.lists
+
+property "L1 take ++ drop"
+    for xs in gen.list(gen.int)
+    for n in gen.range(0, 12)
+{
+    assert xs.take(n) ++ xs.drop(n) == xs
+}
+
+property "L1 at other element types"
+    for xss in gen.list(gen.list(gen.text))
+    for os in gen.list(gen.option(gen.bool))
+    for n in gen.range(0, 6)
+{
+    assert xss.take(n) ++ xss.drop(n) == xss
+    assert os.take(n) ++ os.drop(n) == os
+    assert flatten(xss).len == flatten(xss.take(n)).len + flatten(xss.drop(n)).len
+}
+
+property "L2 take and drop of a concatenation"
+    for xs in gen.list(gen.int)
+    for ys in gen.list(gen.int)
+{
+    assert (xs ++ ys).take(xs.len) == xs
+    assert (xs ++ ys).drop(xs.len) == ys
+}
+
+property "L3 concatenation identities and associativity"
+    for xs in gen.list(gen.int)
+    for ys in gen.list(gen.int)
+    for zs in gen.list(gen.int)
+{
+    let empty: List<Int> = []
+    assert (empty ++ xs) == xs
+    assert (xs ++ empty) == xs
+    assert (xs ++ ys) ++ zs == xs ++ (ys ++ zs)
+}
+
+property "L4 length of a concatenation"
+    for xs in gen.list(gen.int)
+    for ys in gen.list(gen.int)
+{
+    assert (xs ++ ys).len == xs.len + ys.len
+}
+
+property "L5 push appends one element"
+    for xs in gen.list(gen.int)
+    for y in gen.int
+{
+    assert xs.push(y) == xs ++ [y]
+}
+
+property "L6 drop_last undoes push"
+    for xs in gen.list(gen.int)
+    for y in gen.int
+{
+    assert xs.push(y).drop_last() == xs
+    assert xs.push(y).len == xs.len + 1
+}
+
+property "L7 flatten"
+    for xss in gen.list(gen.list(gen.int))
+    for yss in gen.list(gen.list(gen.int))
+    for xs in gen.list(gen.int)
+{
+    let none: List<List<Int>> = []
+    assert flatten(none) == []
+    assert flatten([xs]) == xs
+    assert flatten(xss.push(xs)) == flatten(xss) ++ xs
+    assert flatten(xss ++ yss) == flatten(xss) ++ flatten(yss)
+}
+
+property "L8 forall over a concatenation"
+    for xs in gen.list(gen.int)
+    for ys in gen.list(gen.int)
+{
+    assert (forall x in xs ++ ys: x > 0) == ((forall x in xs: x > 0) and (forall x in ys: x > 0))
+}
+
+property "L9 forall over a push"
+    for xs in gen.list(gen.int)
+    for y in gen.int
+{
+    assert (forall x in xs.push(y): x > 0) == ((forall x in xs: x > 0) and y > 0)
+}
+
+property "L10 forall over empty and singleton lists"
+    for y in gen.int
+{
+    let empty: List<Int> = []
+    assert (forall x in empty: x > 0) == true
+    assert (forall x in [y]: x > 0) == (y > 0)
+}
+
+property "L11 take and drop never lengthen"
+    for xs in gen.list(gen.int)
+    for n in gen.range(0, 12)
+{
+    assert xs.take(n).len <= n
+    assert xs.take(n).len <= xs.len
+    assert xs.drop(n).len <= xs.len
+}
+
+property "L12 exact lengths"
+    for xs in gen.list(gen.int)
+    for n in gen.range(0, 12)
+{
+    assert not (n <= xs.len) or xs.take(n).len == n
+    assert not (n > 0 and xs.len > n) or xs.drop(n).len < xs.len
+}
+
+property "L13 empty means equal to the empty list"
+    for xs in gen.list(gen.int)
+{
+    assert (xs.len == 0) == (xs == [])
+}
+
+property "L14 forall survives take, drop, and drop_last"
+    for xs in gen.list(gen.int)
+    for n in gen.range(0, 12)
+{
+    assert not (forall x in xs: x > 0) or (forall x in xs.take(n): x > 0)
+    assert not (forall x in xs: x > 0) or (forall x in xs.drop(n): x > 0)
+    assert not (forall x in xs: x > 0) or (forall x in xs.drop_last(): x > 0)
+}
+
+property "L15 composed counts"
+    for xs in gen.list(gen.int)
+    for n in gen.range(0, 12)
+    for m in gen.range(0, 12)
+{
+    assert xs.take(n).take(m) == xs.take(n.min(m))
+    assert xs.drop(n).drop(m) == xs.drop(n + m)
+}
+
+property "L16 get"
+    for xs in gen.list(gen.range(0, 3))
+    for i in gen.range(-2, 12)
+    for v in gen.range(0, 3)
+{
+    assert (xs.get(i) == Some(v)) == (i >= 0 and i < xs.len and xs.drop(i).take(1) == [v])
+}
+
+property "L17 and L18 reverse"
+    for xs in gen.list(gen.int)
+    for y in gen.int
+{
+    let empty: List<Int> = []
+    assert xs.reverse().reverse() == xs
+    assert empty.reverse() == []
+    assert xs.push(y).reverse() == [y] ++ xs.reverse()
+}
+
+property "L19 contains over a concatenation"
+    for xs in gen.list(gen.range(0, 5))
+    for ys in gen.list(gen.range(0, 5))
+    for v in gen.range(0, 5)
+{
+    assert (xs ++ ys).contains(v) == (xs.contains(v) or ys.contains(v))
+}

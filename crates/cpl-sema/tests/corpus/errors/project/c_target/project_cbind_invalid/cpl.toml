@@ -1,0 +1,15 @@
+[project]
+name = "project_cbind_invalid"
+edition = "0.1"
+
+[interop]
+targets = ["c"]
+
+[interop.c]
+prefix = "cases"
+
+[bindings.codec]
+capability = "cases.lib.Codec"
+backend = "c"
+adapter = "adapters/codec.cbind.toml"
+isolation = "in_process"

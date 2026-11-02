@@ -1,0 +1,8 @@
+module tests.bad
+
+property "dependent"
+    for n in gen.positive_int
+    for xs in {range}
+{{
+    assert true
+}}

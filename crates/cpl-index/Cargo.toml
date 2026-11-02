@@ -1,0 +1,29 @@
+[package]
+name = "cpl-index"
+version.workspace = true
+edition.workspace = true
+
+[lints]
+workspace = true
+
+# `cpl-project` is the project loader (`cpl_sema::project` re-exports it):
+# stable ids, facets, revisions, the semantic diff, and receipts need a
+# loaded `Project` only. `cpl-sema` is the checker, needed by the one part
+# that reads a checked `Program`: the semantic index of Section 6 (`Index`,
+# callers, dependencies, obligations, `cpl inspect`), with the hole
+# dependencies and receipts the commands attach (toolchain 1.2, 1.8); the
+# HIR is reached through `cpl_sema::hir`.
+[dependencies]
+cpl-diag.workspace = true
+cpl-syntax.workspace = true
+cpl-project.workspace = true
+cpl-sema.workspace = true
+blake3.workspace = true
+rand.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+
+# Seeded generators for the identity tests (spec/toolchain.md 1.3).
+[dev-dependencies]
+rand_chacha.workspace = true

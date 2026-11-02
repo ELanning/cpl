@@ -1,0 +1,8 @@
+module cases.lib
+
+// Directory case (Milestone 3, spec/python.md, toolchain 11.1): a Python adapter that is a file path, not a dotted module path.
+// expect-error(global): project_binding_adapter_invalid
+
+pub capability Codec {
+    fn size(image: Bytes) -> Int
+}

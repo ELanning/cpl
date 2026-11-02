@@ -1,0 +1,7 @@
+module tests.nested
+
+property "few elements"
+    for xss in gen.list(gen.list(gen.int))
+{
+    assert flatten(xss).len < 5
+}

@@ -1,0 +1,20 @@
+module tests.unfinished
+
+fn twice(n: Int) -> Int {
+    n * 2
+}
+
+test "unfinished test" {
+    let n = twice(2)
+    assert n == ?expected
+}
+
+property "unfinished property"
+    for x in gen.int
+{
+    assert twice(x) == ?want
+}
+
+test "finished" {
+    assert twice(3) == 6
+}

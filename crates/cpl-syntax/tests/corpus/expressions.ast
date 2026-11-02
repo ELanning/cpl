@@ -1,0 +1,99 @@
+(module corpus.expressions
+  (docs "Every expression form of grammar 3.12 and every pattern of 3.13.")
+  (use corpus.items (items Pair Shape Positive) (trivia blank))
+  (fn precedence
+    (params (param a (ty Int)) (param b (ty Int)) (param c (ty Bool)))
+    (ret (ty Bool))
+    (block
+      (let sum (- (+ (name a) (* (name b) (int 2))) (% (/ (name a) (name b)) (int 3))))
+      (let joined (++ (list (name a)) (list (name b) (name sum))))
+      (let negated (* (neg (name a)) (neg (paren (+ (name b) (int 1))))))
+      (let compared (or (and (<= (name sum) (int 10)) (not (name c))) (!= (name a) (name b))))
+      (tail (== (name compared) (paren (> (name sum) (int 0))))))
+    (trivia blank))
+  (fn members
+    (params (param pair (ty Pair (ty List (ty Int)) (ty Text))))
+    (ret (ty Int))
+    (block
+      (let items (member (name pair) first))
+      (let n (member (name items) len))
+      (let rest (call (member (call (member (name items) drop) (int 1)) take) (- (name n) (int 1))))
+      (let empty (call (member (name rest) is_empty)))
+      (let checked (propagate (call (name check) (generics (ty Positive)) (name n))))
+      (let trimmed (call (member (member (name std) text) trim) (member (name pair) second)))
+      (tail
+        (if
+          (name empty)
+          (block (tail (int 0)))
+          (else
+            (if
+              (> (name checked) (int 2))
+              (block (tail (member (name rest) len)))
+              (else (block (tail (neg (int 1))))))))))
+    (trivia blank))
+  (fn quantifiers
+    (params (param pages (ty List (ty List (ty Int)))))
+    (ret (ty Bool))
+    (block
+      (tail
+        (forall page
+          (name pages)
+          (forall x (name page) (and (> (name x) (int 0)) (< (name x) (int 100)))))))
+    (trivia blank))
+  (fn literals
+    (params)
+    (ret (ty List (ty Text)))
+    (block
+      (let escaped (text "tab\t, newline\n, quote \", backslash \\, delete \u{7f}"))
+      (let unicode (text "naïve ∀ 漢字"))
+      (let flags (list (bool true) (bool false)))
+      (let nested (list (list (int 1) (int 2)) (list) (list (neg (int 3)))))
+      (tail (list (name escaped) (name unicode))))
+    (trivia blank))
+  (fn structs
+    (params (param pair (ty Pair (ty Int) (ty Int))))
+    (ret (ty Pair (ty Int) (ty Int)))
+    (block
+      (let copy (struct-lit Pair (spread (name pair)) (field second (member (name pair) first))))
+      (let fresh (struct-lit Pair (field first (int 1)) (field second (int 2))))
+      (let wrapped (call (member (member (name corpus) items) Name) (text "n")))
+      (let qualified (struct-lit corpus.items.Pair (field first (int 1)) (field second (int 2))))
+      (let chosen
+        (if
+          (> (member (name copy) first) (int 0))
+          (block (tail (member (name copy) first)))
+          (else (block (tail (int 0))))))
+      (tail (struct-lit Pair (spread (name copy)) (field first (name chosen)))))
+    (trivia blank))
+  (fn patterns
+    (params (param shape (ty Shape (ty Int))) (param result (ty Result (ty Int) (ty Text))))
+    (ret (ty Int))
+    (block
+      (let a
+        (match
+          (name shape)
+          (arm (ctor Dot) (int 0))
+          (arm (ctor Line (bind x) _) (name x))
+          (arm (ctor Shape.Many (bind items)) (member (name items) len))
+          (arm (ctor corpus.items.Shape.Line _ (bind y)) (name y))))
+      (let b
+        (match
+          (name result)
+          (arm (ctor Ok (pat-int 0)) (int 1))
+          (arm (ctor Ok (pat-int -1)) (int 2))
+          (arm (ctor Ok (bind n)) (name n))
+          (arm (ctor Err (pat-text "")) (int 3))
+          (arm (ctor Err _) (block (return (int 4))))))
+      (let c
+        (match (== (name a) (name b)) (arm (pat-bool true) (int 5)) (arm (pat-bool false) (int 6))))
+      (tail (+ (+ (+ (name a) (name b)) (name c)) (hole remaining))))
+    (trivia blank))
+  (fn forwarding
+    (params (param key (ty Text)) (using store (ty corpus.items.Store)))
+    (ret (ty Result (ty Text) (ty Unit)))
+    (effects store.get)
+    (block
+      (let value (propagate (call (member (name store) get) (name key))))
+      (let again (call (name load) (name key) (using (name store))))
+      (tail (call (name Ok) (name value))))
+    (trivia blank)))

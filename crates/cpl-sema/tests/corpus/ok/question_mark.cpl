@@ -1,0 +1,67 @@
+module positive.question_mark
+
+// `?` on Result operands whose error type is identical to the function's
+// (3.8): in `let` initializers, arguments, tails, scrutinees, chained with
+// member calls on the unwrapped value, and inside nested blocks; `ensures`
+// sees the whole Result.
+
+use std.text.{parse_int}
+
+pub enum StoreError {
+    Missing(Text)
+    Unavailable
+}
+
+fn lookup(key: Text) -> Result<Int, StoreError> {
+    if key.is_empty() { Err(Missing(key)) } else { Ok(key.len) }
+}
+
+fn sum(a: Text, b: Text) -> Result<Int, StoreError>
+    ensures match result {
+        Ok(v) => v >= 0
+        Err(_) => true
+    }
+{
+    let x = lookup(a)?
+    Ok(x + lookup(b)?)
+}
+
+fn chained(text: Text) -> Result<Int, ConstraintError> {
+    let magnitude = parse_int(text)?.abs()
+    let rendered = parse_int(text)?.to_text()
+    Ok(magnitude + rendered.len)
+}
+
+fn in_scrutinee(key: Text) -> Result<Text, StoreError> {
+    match lookup(key)? {
+        0 => Ok("none")
+        _ => Ok("some")
+    }
+}
+
+fn in_branches(key: Text, c: Bool) -> Result<Int, StoreError> {
+    if c {
+        let n = lookup(key)?
+        return Ok(n * 2)
+    }
+    let m = lookup(key ++ "!")?
+    Ok(m)
+}
+
+fn unit_result(key: Text) -> Result<Unit, StoreError> {
+    let _ = lookup(key)?
+    Ok(Unit)
+}
+
+fn through_option(xs: List<Text>) -> Result<Int, StoreError> {
+    let first = xs.first().ok_or(Unavailable)?
+    lookup(first)
+}
+
+fn convert_explicitly(text: Text) -> Result<Int, StoreError> {
+    let n = match parse_int(text) {
+        Ok(v) => v
+        Err(_) => { return Err(Unavailable) }
+    }
+    Ok(n)
+}

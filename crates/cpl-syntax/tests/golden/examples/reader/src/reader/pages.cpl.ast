@@ -1,0 +1,114 @@
+(module reader.pages
+  (use std.text (items trim) (trivia blank))
+  (use std.text
+    (items parse_int)
+    (trivia
+      (lead "// glue: parse_int is the standard-library decimal parser")
+      (lead "// (Text -> Result<Int, ConstraintError>) that parse_size delegates to.")))
+  (type PageId pub (wrapper (ty Text)) (trivia blank))
+  (type Positive pub (refinement (ty Int) (where (> (name self) (int 0)))))
+  (struct Page pub (field id (ty PageId)) (field text (ty Text)) (trivia blank))
+  (enum StoreError pub (variant Missing (ty PageId)) (variant Unavailable) (trivia blank))
+  (fn clean
+    (params (param page (ty Page)))
+    (ret (ty Page))
+    (block
+      (tail
+        (struct-lit Page
+          (spread (name page))
+          (field text (call (name trim) (member (name page) text))))))
+    (trivia blank))
+  (fn label
+    (params (param result (ty Result (ty Page) (ty StoreError))))
+    (ret (ty Text))
+    (block
+      (tail
+        (match
+          (name result)
+          (arm (ctor Ok (bind page)) (member (name page) text))
+          (arm (ctor Err (ctor Missing _)) (text "Missing page"))
+          (arm (ctor Err (ctor Unavailable)) (text "Storage unavailable")))))
+    (trivia blank))
+  (fn parse_size
+    (params (param text (ty Text)))
+    (ret (ty Result (ty Int) (ty ConstraintError)))
+    (block (tail (call (name parse_int) (call (name trim) (name text)))))
+    (trivia
+      (lead-blank "// glue: the design doc assumes parse_size returns Result<Int, ConstraintError>.")))
+  (fn positive_size
+    (params (param text (ty Text)))
+    (ret (ty Result (ty Positive) (ty ConstraintError)))
+    (block
+      (let n (propagate (call (name parse_size) (name text))))
+      (tail (call (name check) (generics (ty Positive)) (name n))))
+    (trivia blank))
+  (fn paginate pub
+    (annotation id (text "pgn_7c2d"))
+    (annotation prove)
+    (generics T)
+    (params (param items (ty List (ty T))) (param size (ty Positive)))
+    (ret (ty List (ty List (ty T))))
+    (ensures (== (call (name flatten) (name result)) (name items)))
+    (ensures
+      (forall page
+        (name result)
+        (and (> (member (name page) len) (int 0)) (<= (member (name page) len) (name size)))))
+    (ensures
+      (forall page
+        (call (member (name result) drop_last))
+        (== (member (name page) len) (name size))))
+    (block
+      (var pages (ty List (ty List (ty T))) (list))
+      (var rest (name items))
+      (while
+        (> (member (name rest) len) (name size))
+        (invariant (== (++ (call (name flatten) (name pages)) (name rest)) (name items)))
+        (invariant (forall page (name pages) (== (member (name page) len) (name size))))
+        (decreases (member (name rest) len))
+        (block
+          (assign pages
+            (call (member (name pages) push) (call (member (name rest) take) (name size))))
+          (assign rest (call (member (name rest) drop) (name size))))
+        (trivia blank))
+      (expr
+        (if
+          (not (call (member (name rest) is_empty)))
+          (block (assign pages (call (member (name pages) push) (name rest)))))
+        (trivia blank))
+      (tail (name pages) (trivia blank)))
+    (trivia blank))
+  (fn paginate_ints pub
+    (params (param items (ty List (ty Int))) (param size (ty Int)))
+    (ret (ty Result (ty List (ty List (ty Int))) (ty ConstraintError)))
+    (block
+      (let checked_size (propagate (call (name check) (generics (ty Positive)) (name size))))
+      (tail (call (name Ok) (call (name paginate) (name items) (name checked_size)))))
+    (trivia blank))
+  (capability PageRead pub
+    (op get (params (param id (ty PageId))) (ret (ty Result (ty Page) (ty StoreError))))
+    (trivia blank))
+  (capability PageWrite pub
+    (op put (params (param page (ty Page))) (ret (ty Result (ty Unit) (ty StoreError))))
+    (trivia blank))
+  (fn load_page pub
+    (params (param id (ty PageId)) (using db (ty PageRead)))
+    (ret (ty Result (ty Page) (ty StoreError)))
+    (effects db.get)
+    (block (tail (call (member (name db) get) (name id))))
+    (trivia blank))
+  (fn load_text pub
+    (params (param id (ty PageId)) (using db (ty PageRead)))
+    (ret (ty Result (ty Text) (ty StoreError)))
+    (effects db.get)
+    (block
+      (let page (propagate (call (name load_page) (name id) (using (name db)))))
+      (tail (call (name Ok) (member (name page) text))))
+    (trivia blank))
+  (fn divide_exactly
+    (params (param a (ty Int)) (param b (ty Int)))
+    (ret (ty Int))
+    (requires (!= (name b) (int 0)))
+    (requires (== (% (name a) (name b)) (int 0)))
+    (ensures (== (* (name result) (name b)) (name a)))
+    (block (tail (/ (name a) (name b))))
+    (trivia blank)))

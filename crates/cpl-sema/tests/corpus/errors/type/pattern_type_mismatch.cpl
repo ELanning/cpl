@@ -1,0 +1,54 @@
+module negative.pattern_type_mismatch
+
+// A pattern whose constructor or literal kind does not belong to the
+// scrutinee type (semantics 3.12), including a qualified constructor of
+// another type. Mismatched patterns bind nothing, so no cascade follows.
+
+pub type PageId(Text)
+
+pub enum StoreError {
+    Missing(PageId)
+    Unavailable
+}
+
+pub enum Signal {
+    Go
+    Stop
+}
+
+fn a(r: Result<Int, Text>) -> Int {
+    match r {
+        Some(_) => 0 // expect-error: pattern_type_mismatch
+        Ok(v) => v
+        Err(_) => 0
+    }
+}
+
+fn b(t: Text) -> Int {
+    match t {
+        0 => 0 // expect-error: pattern_type_mismatch
+        _ => 1
+    }
+}
+
+fn c(e: StoreError) -> Int {
+    match e {
+        Signal.Go => 1 // expect-error: pattern_type_mismatch
+        Missing(_) => 2
+        Unavailable => 3
+    }
+}
+
+fn d(n: Int) -> Int {
+    match n {
+        true => 1 // expect-error: pattern_type_mismatch
+        _ => 0
+    }
+}
+
+fn e(id: PageId) -> Int {
+    match id {
+        "literal" => 1 // expect-error: pattern_type_mismatch
+        PageId(_) => 2
+    }
+}

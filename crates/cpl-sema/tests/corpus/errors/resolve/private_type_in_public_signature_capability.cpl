@@ -1,0 +1,22 @@
+module negative.private_type_in_public_signature_capability
+
+// A `using` parameter's capability type and a public capability's operation
+// types are part of the public signature (semantics 1.5).
+
+capability Hidden {
+    fn peek(key: Text) -> Int
+}
+
+struct Record {
+    value: Int
+}
+
+pub fn look(key: Text, using h: Hidden) -> Int // expect-error: private_type_in_public_signature
+    effects { h.peek }
+{
+    h.peek(key)
+}
+
+pub capability Store { // expect-error@+1: private_type_in_public_signature
+    fn fetch(key: Text) -> Record
+}

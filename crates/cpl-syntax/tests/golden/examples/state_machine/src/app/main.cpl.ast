@@ -1,0 +1,109 @@
+(module app.main
+  (struct Settings
+    (field retries (ty Int))
+    (where
+      (and (>= (member (name self) retries) (int 0)) (<= (member (name self) retries) (int 5))))
+    (trivia blank))
+  (enum Download
+    (variant Ready)
+    (variant Fetching (ty Int) (ty Text))
+    (variant Done (ty Text))
+    (variant Failed (ty Text))
+    (trivia blank))
+  (program App (field settings (ty Settings)) (field download (ty Download)) (trivia blank))
+  (enum Event
+    (variant Start (ty Int) (ty Text))
+    (variant Received (ty Int) (ty Text))
+    (variant RequestFailed (ty Int) (ty Text))
+    (variant Cancel)
+    (trivia blank))
+  (enum Command (variant HttpGet (ty Int) (ty Text)) (trivia blank))
+  (struct Step (generics S C) (field state (ty S)) (field commands (ty List (ty C))) (trivia blank))
+  (interface Http
+    (op get (params (param url (ty Text))) (ret (ty Result (ty Text) (ty Text))))
+    (trivia blank))
+  (initial fn start
+    (params)
+    (ret (ty App))
+    (block
+      (tail
+        (struct-lit App
+          (field settings (struct-lit Settings (field retries (int 3))))
+          (field download (name Ready)))))
+    (trivia blank))
+  (machine download
+    (params (param state (ty Download)) (param event (ty Event)))
+    (ret (ty Step (ty Download) (ty Command)))
+    (block
+      (tail
+        (match
+          (name event)
+          (arm
+            (ctor Start (bind id) (bind url))
+            (struct-lit Step
+              (field state (call (name Fetching) (name id) (name url)))
+              (field commands (list (call (name HttpGet) (name id) (name url))))))
+          (arm
+            (ctor Received (bind id) (bind body))
+            (match
+              (name state)
+              (arm
+                (ctor Fetching (bind current) _)
+                (if
+                  (== (name current) (name id))
+                  (block
+                    (tail
+                      (struct-lit Step
+                        (field state (call (name Done) (name body)))
+                        (field commands (list)))))
+                  (else
+                    (block
+                      (tail (struct-lit Step (field state (name state)) (field commands (list))))))))
+              (arm _ (struct-lit Step (field state (name state)) (field commands (list))))))
+          (arm
+            (ctor RequestFailed (bind id) (bind message))
+            (match
+              (name state)
+              (arm
+                (ctor Fetching (bind current) _)
+                (if
+                  (== (name current) (name id))
+                  (block
+                    (tail
+                      (struct-lit Step
+                        (field state (call (name Failed) (name message)))
+                        (field commands (list)))))
+                  (else
+                    (block
+                      (tail (struct-lit Step (field state (name state)) (field commands (list))))))))
+              (arm _ (struct-lit Step (field state (name state)) (field commands (list))))))
+          (arm (ctor Cancel) (struct-lit Step (field state (name Ready)) (field commands (list)))))))
+    (trivia
+      (lead-blank "// Scoped child machine. Only the currently outstanding request may finish.")))
+  (machine reduce
+    (params (param state (ty App)) (param event (ty Event)))
+    (ret (ty Step (ty App) (ty Command)))
+    (block
+      (let next (call (name download) (member (name state) download) (name event)))
+      (tail
+        (struct-lit Step
+          (field state
+            (struct-lit App (spread (name state)) (field download (member (name next) state))))
+          (field commands (member (name next) commands)))))
+    (trivia (lead-blank "// Only this reducer can construct an updated application root.")))
+  (mutate fn perform
+    (params (param command (ty Command)) (using http (ty Http)))
+    (ret (ty Event))
+    (effects http.get)
+    (block
+      (tail
+        (match
+          (name command)
+          (arm
+            (ctor HttpGet (bind id) (bind url))
+            (match
+              (call (member (name http) get) (name url))
+              (arm (ctor Ok (bind body)) (call (name Received) (name id) (name body)))
+              (arm (ctor Err (bind message)) (call (name RequestFailed) (name id) (name message))))))))
+    (trivia
+      (lead-blank "// The host runs commands after commit and dispatches each returned event."))))

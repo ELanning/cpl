@@ -1,0 +1,59 @@
+module positive.list_members
+
+// The closed member table of List<T> (semantics 3.9, stdlib 4): `len` is a
+// property, everything else a method; `push` returns a new list that must be
+// used (bound, assigned to a var, or discarded with `let _`).
+
+fn lengths(xs: List<Int>) -> Int {
+    let n = xs.len
+    let empty = xs.is_empty()
+    if empty { 0 } else { n }
+}
+
+fn slicing(xs: List<Text>) -> List<Text> {
+    let head = xs.take(2)
+    let tail = xs.drop(2)
+    let shorter = xs.drop_last()
+    head ++ tail ++ shorter
+}
+
+fn pushing(xs: List<Int>) -> List<Int> {
+    var out = xs
+    out = out.push(1)
+    out = out.push(2).push(3)
+    let _ = out.push(99)
+    let also = out.push(4)
+    also
+}
+
+fn accessors(xs: List<Int>) -> Int {
+    let first = xs.first().unwrap_or(0)
+    let last = xs.last().unwrap_or(0)
+    let middle = xs.get(1).unwrap_or(0)
+    let reversed = xs.reverse()
+    let present = xs.contains(3)
+    if present { first + last + middle + reversed.len } else { 0 }
+}
+
+fn flattening(xss: List<List<Int>>) -> List<Int> {
+    let flat = flatten(xss)
+    let again = flatten([[1, 2], [], [3]])
+    flat ++ again
+}
+
+fn nested(xs: List<List<List<Int>>>) -> Int {
+    flatten(flatten(xs)).len
+}
+
+test "list member values" {
+    assert [1, 2, 3].take(5) == [1, 2, 3]
+    assert [1, 2, 3].drop(2) == [3]
+    assert [1, 2, 3].drop_last() == [1, 2]
+    assert [1].push(2) == [1, 2]
+    assert [1, 2, 3].get(3) == None
+    assert [1, 2, 3].reverse() == [3, 2, 1]
+    assert flatten([[1, 2], [], [3]]) == [1, 2, 3]
+    let empty: List<Int> = []
+    assert empty.drop_last() == []
+    assert empty.is_empty()
+}

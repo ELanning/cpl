@@ -1,0 +1,28 @@
+module vr.user
+
+// Only functions are imported: `StoreError` and `PageId` are not in scope by
+// name, yet `Missing(...)`, `Unavailable`, and `PageId(...)` resolve through
+// the expected type (S10 step 1) in arguments and in patterns, and the
+// qualified forms resolve through the module path (2.4).
+
+use vr.lib.{describe, fetch, make_id}
+
+fn by_argument() -> Text {
+    describe(Missing(make_id("page-1"))) ++ describe(Unavailable)
+}
+
+fn by_pattern(text: Text) -> Text {
+    match fetch(make_id(text)) {
+        Ok(page) => page.text
+        Err(Missing(_)) => "Missing page"
+        Err(Unavailable) => "Storage unavailable"
+    }
+}
+
+fn by_qualified_path() -> Text {
+    describe(vr.lib.StoreError.Unavailable) ++ describe(vr.lib.StoreError.Missing(vr.lib.PageId("p")))
+}
+
+fn wrapper_by_expected_type() -> Text {
+    describe(Missing(PageId("direct")))
+}

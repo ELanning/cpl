@@ -1,0 +1,14 @@
+module negative.propagate_not_result
+
+// `?` is defined on Result only (semantics 3.8, stdlib S20): an Option or
+// any other operand is `propagate_not_result`.
+
+fn a(o: Option<Int>) -> Result<Int, Text> {
+    let _ = o? // expect-error: propagate_not_result
+    Ok(1)
+}
+
+fn b(n: Int) -> Result<Int, Text> {
+    let _ = n? // expect-error: propagate_not_result
+    Ok(1)
+}

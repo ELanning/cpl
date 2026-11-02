@@ -1,0 +1,20 @@
+module negative.type_mismatch_return
+
+// The tail of a function body and every `return` operand check against the
+// declared return type (semantics 3.10, 3.11). (A body with no tail is in
+// errors/ambiguous: the span of the "missing tail expression" report.)
+
+fn a(n: Int) -> Text {
+    n // expect-error: type_mismatch
+}
+
+fn b(n: Int) -> Int {
+    if n > 0 {
+        return "positive" // expect-error: type_mismatch
+    }
+    n
+}
+
+fn d(n: Int) -> Unit {
+    n + 1 // expect-error: type_mismatch
+}

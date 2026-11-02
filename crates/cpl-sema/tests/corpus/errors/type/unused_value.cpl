@@ -1,0 +1,30 @@
+module negative.unused_value
+
+// A non-tail expression statement must have type Unit; a failure is
+// `unused_value` with the note "use let _ = ..." (semantics 3.11; stdlib
+// 4.6: `xs.push(1)` as a statement).
+
+fn a(xs: List<Int>) -> List<Int> {
+    xs.push(1) // expect-error: unused_value
+    xs
+}
+
+fn b(n: Int) -> Int {
+    n + 1 // expect-error: unused_value
+    n
+}
+
+fn c(xs: List<Int>) -> Int {
+    flatten([xs]) // expect-error: unused_value
+    xs.len
+}
+
+fn e(t: Text) -> Int {
+    "literal" // expect-error: unused_value
+    t.len
+}
+
+fn f(n: Int) -> Int {
+    n.abs() // expect-error: unused_value
+    n
+}

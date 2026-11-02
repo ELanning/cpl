@@ -1,0 +1,31 @@
+module negative.unreachable_arm
+
+// An arm matched by no value that earlier arms miss is a warning (3.13).
+
+pub enum Signal {
+    Go
+    Stop
+}
+
+fn a(s: Signal) -> Int {
+    match s {
+        _ => 0
+        Go => 1 // expect-warning: unreachable_arm
+    }
+}
+
+fn b(o: Option<Int>) -> Int {
+    match o {
+        Some(v) => v
+        None => 0
+        Some(_) => 1 // expect-warning: unreachable_arm
+    }
+}
+
+fn c(flag: Bool) -> Int {
+    match flag {
+        true => 1
+        false => 0
+        _ => 2 // expect-warning: unreachable_arm
+    }
+}

@@ -1,0 +1,26 @@
+module reader.pages
+
+pub type Positive = Int where self > 0
+
+test "check results" {
+    assert check<Positive>(3) == Ok(3)
+    assert check<Positive>(0).is_err()
+}
+
+test "type names of a failed check" {
+    let mine = match check<Positive>(0) {
+        Err(e) => e.type_name
+        Ok(_) => ""
+    }
+    let library = match check<gen.Positive>(0) {
+        Err(e) => e.type_name
+        Ok(_) => ""
+    }
+    let parsed = match std.text.parse_int("x") {
+        Err(e) => e.type_name
+        Ok(_) => ""
+    }
+    assert mine == "reader.pages.Positive"
+    assert library == "std.gen.Positive"
+    assert parsed == "Int"
+}

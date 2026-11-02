@@ -1,0 +1,13 @@
+module cases.lib
+
+// Directory case: an export target that is private; only `pub fn`s are
+// exported (toolchain 11.1, T74).
+// expect-error(global): project_export_not_public
+
+fn hidden() -> Int {
+    1
+}
+
+pub fn one() -> Int {
+    hidden()
+}

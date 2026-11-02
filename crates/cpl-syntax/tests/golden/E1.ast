@@ -1,0 +1,15 @@
+(module reader.pages
+  (use std.text (items trim) (trivia blank))
+  (type PageId pub (wrapper (ty Text)) (trivia blank))
+  (type Positive pub (refinement (ty Int) (where (> (name self) (int 0)))))
+  (struct Page pub (field id (ty PageId)) (field text (ty Text)) (trivia blank))
+  (enum StoreError pub (variant Missing (ty PageId)) (variant Unavailable) (trivia blank))
+  (fn clean
+    (params (param page (ty Page)))
+    (ret (ty Page))
+    (block
+      (tail
+        (struct-lit Page
+          (spread (name page))
+          (field text (call (name trim) (member (name page) text))))))
+    (trivia blank)))

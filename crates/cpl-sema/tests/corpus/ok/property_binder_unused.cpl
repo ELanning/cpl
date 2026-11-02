@@ -1,0 +1,16 @@
+module positive.property_binder_unused
+
+// Ruling [D-234] (semantics S67): `unused_binding` is for let/var/pattern
+// bindings only; an unused parameter or property `for` binder is never
+// diagnosed.
+
+fn ignores(n: Int, unused: Text) -> Int {
+    n
+}
+
+property "binder never read"
+    for n in gen.int
+    for ignored in gen.text
+{
+    assert n == n
+}

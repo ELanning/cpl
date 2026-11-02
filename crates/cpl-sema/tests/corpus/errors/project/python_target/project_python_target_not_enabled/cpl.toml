@@ -1,0 +1,12 @@
+[project]
+name = "project_python_target_not_enabled"
+edition = "0.1"
+
+[interop]
+targets = ["c"]
+
+[interop.c]
+prefix = "cases"
+
+[interop.python]
+package = "cases_py"

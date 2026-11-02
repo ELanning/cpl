@@ -1,0 +1,9 @@
+module cases.lib
+
+// Directory case: `[bindings.codec] capability` does not resolve to a `pub
+// capability` (toolchain 11.1, Appendix B).
+// expect-error(global): project_binding_unknown_capability
+
+pub capability Codec {
+    fn size(image: Bytes) -> Int
+}

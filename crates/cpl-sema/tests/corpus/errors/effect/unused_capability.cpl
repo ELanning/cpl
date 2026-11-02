@@ -1,0 +1,22 @@
+module negative.unused_capability
+
+// A `using` parameter that appears in no operation call and no `using`
+// argument is a warning (S29); a wide bound is not.
+
+pub capability PageRead {
+    fn get(key: Text) -> Int
+}
+
+pub capability PageWrite {
+    fn put(key: Text) -> Int
+}
+
+fn a(key: Text, using db: PageRead) -> Int { // expect-warning: unused_capability
+    key.len
+}
+
+fn b(key: Text, using db: PageRead, using out: PageWrite) -> Int // expect-warning: unused_capability
+    effects { db.get, out.put }
+{
+    db.get(key)
+}

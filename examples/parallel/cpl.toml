@@ -1,0 +1,6 @@
+[project]
+name = "parallel"
+edition = "0.1"
+
+[interop]
+targets = ["c"]

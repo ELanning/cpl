@@ -1,0 +1,54 @@
+module tests.setup
+
+property "lo before hi"
+    for x in gen.range(7 / 0, 9 % 0)
+{
+    assert x == x
+}
+
+property "a faulting hi before the range check"
+    for x in gen.range(10, 1 / 0)
+{
+    assert x == x
+}
+
+property "first clause first"
+    for a in gen.range(0, 3 / 0)
+    for b in gen.range(4 % 0, 5)
+{
+    assert a == b
+}
+
+property "an empty range before a later fault"
+    for a in gen.range(5, 1)
+    for b in gen.range(1 / 0, 2)
+{
+    assert a == b
+}
+
+property "an empty range after a generator without setup"
+    for a in gen.bool
+    for b in gen.list(gen.range(2, 1))
+{
+    assert a == a
+}
+
+property "an empty range in an option"
+    for o in gen.option(gen.range(0, -1))
+{
+    assert o == o
+}
+
+@id("prop_setup_e1")
+property "annotated empty range"
+    for x in gen.range(3, 2)
+{
+    assert x == x
+}
+
+@id("prop_setup_f1")
+property "annotated faulting bound"
+    for x in gen.range(0, 2 / 0)
+{
+    assert x == x
+}

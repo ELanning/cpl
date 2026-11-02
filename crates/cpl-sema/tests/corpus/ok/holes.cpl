@@ -1,0 +1,93 @@
+module positive.holes
+
+// Holes in development mode: each takes its expected type (S56 check-mode
+// positions) and is the `hole` diagnostic with severity info; the program
+// checks successfully. Names may repeat (8.1).
+
+pub type PageId(Text)
+
+pub struct Page {
+    id: PageId
+    text: Text
+}
+
+fn summarize(page: Page) -> Text {
+    ?summary // expect-info: hole
+}
+
+fn annotated(page: Page) -> Int {
+    let n: Int = ?count // expect-info: hole
+    n + page.text.len
+}
+
+fn argument(xs: List<Int>) -> List<Int> {
+    xs.take(?how_many) // expect-info: hole
+}
+
+fn operand(n: Int) -> Int {
+    n + ?delta // expect-info: hole
+}
+
+fn condition(n: Int) -> Int {
+    if ?ready { n } else { 0 } // expect-info: hole
+}
+
+fn returned(n: Int) -> Int {
+    if n > 0 {
+        return ?early // expect-info: hole
+    }
+    n
+}
+
+fn asserted(n: Int) -> Int {
+    assert ?invariant_holds // expect-info: hole
+    n
+}
+
+fn statement_hole(n: Int) -> Int {
+    ?log_items // expect-info: hole
+    n
+}
+
+fn field(page: Page) -> Page {
+    Page { ..page, text: ?cleaned } // expect-info: hole
+}
+
+fn element() -> List<Int> {
+    [1, ?second] // expect-info: hole
+}
+
+fn branch(c: Bool) -> Text {
+    if c { "known" } else { ?unknown } // expect-info: hole
+}
+
+fn arm(o: Option<Int>) -> Int {
+    match o {
+        Some(v) => v
+        None => ?fallback // expect-info: hole
+    }
+}
+
+fn assigned(n: Int) -> Int {
+    var total = n
+    total = ?recomputed // expect-info: hole
+    total
+}
+
+fn equality(n: Int) -> Bool {
+    n == ?expected // expect-info: hole
+}
+
+fn repeated(a: Int, b: Int) -> Int {
+    let x: Int = ?todo // expect-info: hole
+    let y: Int = ?todo // expect-info: hole
+    x + y + a + b
+}
+
+fn callers_typecheck(page: Page) -> Int {
+    summarize(page).len + annotated(page)
+}
+
+test "a hole in a test body" {
+    assert ?claim // expect-info: hole
+}

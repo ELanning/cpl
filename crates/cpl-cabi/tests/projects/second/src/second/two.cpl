@@ -1,0 +1,11 @@
+module second.two
+
+// A minimal second package for host_two_packages (spec/toolchain.md 12.7).
+
+pub fn double(n: Int) -> Int {
+    n * 2
+}
+
+pub fn greet(name: Text) -> Text {
+    "hello, " ++ name
+}

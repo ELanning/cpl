@@ -1,0 +1,13 @@
+module negative.empty_test_name
+
+// A test or property name must be non-empty (S42).
+
+test "" { // expect-error: empty_test_name
+    assert true
+}
+
+property "" // expect-error: empty_test_name
+    for n in gen.int
+{
+    assert n == n
+}

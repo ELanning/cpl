@@ -1,0 +1,14 @@
+module negative.type_mismatch_wrapper
+
+// A nominal wrapper never converts to or from its payload (semantics 3.1,
+// 3.4).
+
+pub type PageId(Text)
+
+fn to_text(id: PageId) -> Text {
+    id // expect-error: type_mismatch
+}
+
+fn to_id(text: Text) -> PageId {
+    text // expect-error: type_mismatch
+}

@@ -1,0 +1,28 @@
+[project]
+name = "cfaults"
+edition = "0.1"
+
+[interop]
+targets = ["c"]
+
+[interop.c]
+prefix = "cfaults"
+abi = 1
+exports = [
+    "cfaults.faults.divide_exactly",
+    "cfaults.faults.half",
+    "cfaults.faults.bad_loop",
+    "cfaults.faults.stuck",
+    "cfaults.faults.bad_rec",
+    "cfaults.faults.ratio",
+    "cfaults.faults.summarize",
+    "cfaults.faults.guarded",
+    "cfaults.faults.twice",
+    "cfaults.faults.depth",
+    "cfaults.faults.spin",
+    "cfaults.faults.total",
+    "cfaults.faults.choose",
+    "cfaults.faults.draw",
+    "cfaults.faults.ping_other",
+    { function = "cfaults.faults.cube", symbol = "cfaults_cube_i64", int = "int64" },
+]

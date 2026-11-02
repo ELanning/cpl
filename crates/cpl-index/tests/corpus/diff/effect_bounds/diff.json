@@ -1,0 +1,78 @@
+{
+  "old": {
+    "commit": null,
+    "state": "worktree",
+    "digest": "7cbe9367841bf809558ccc6002b40fa405d85eea0109acc0093800624088ba7e"
+  },
+  "new": {
+    "commit": null,
+    "state": "worktree",
+    "digest": "591286ece6a51ee20830ec1df52f9794a782749b21e4413523d2c7176686e54e"
+  },
+  "statements": [
+    {
+      "statement": "effect_bound_widened",
+      "id": "io.bounds.bound_added",
+      "path": "io.bounds.bound_added",
+      "kind": "fn",
+      "facet": "effects",
+      "detail": {
+        "added": [
+          "db.get"
+        ]
+      }
+    },
+    {
+      "statement": "effect_bound_narrowed",
+      "id": "io.bounds.narrow",
+      "path": "io.bounds.narrow",
+      "kind": "fn",
+      "facet": "effects",
+      "detail": {
+        "removed": [
+          "db.put"
+        ]
+      }
+    },
+    {
+      "statement": "effect_bound_widened",
+      "id": "io.bounds.swap",
+      "path": "io.bounds.swap",
+      "kind": "fn",
+      "facet": "effects",
+      "detail": {
+        "added": [
+          "db.put"
+        ]
+      }
+    },
+    {
+      "statement": "effect_bound_narrowed",
+      "id": "io.bounds.swap",
+      "path": "io.bounds.swap",
+      "kind": "fn",
+      "facet": "effects",
+      "detail": {
+        "removed": [
+          "db.get"
+        ]
+      }
+    },
+    {
+      "statement": "effect_bound_widened",
+      "id": "io.bounds.widen",
+      "path": "io.bounds.widen",
+      "kind": "fn",
+      "facet": "effects",
+      "detail": {
+        "added": [
+          "db.put"
+        ]
+      }
+    }
+  ],
+  "duplicates": {
+    "old": [],
+    "new": []
+  }
+}

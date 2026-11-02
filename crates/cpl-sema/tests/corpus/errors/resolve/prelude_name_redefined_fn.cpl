@@ -1,0 +1,8 @@
+module negative.prelude_name_redefined_fn
+
+// A module-level declaration whose name is a prelude name is an error (S6;
+// stdlib 12 lists exactly this `flatten`).
+
+fn flatten(xs: List<Int>) -> Int { // expect-error: prelude_name_redefined
+    xs.len
+}

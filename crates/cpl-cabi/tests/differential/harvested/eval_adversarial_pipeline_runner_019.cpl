@@ -1,0 +1,22 @@
+module tests.budget
+
+fn forever(n: Int) -> Int {
+    var i = n
+    while i >= 0 {
+        i = i + 1
+    }
+    i
+}
+
+test "a spins" {
+    while true {
+    }
+}
+
+test "b calls forever" {
+    let _ = forever(0)
+}
+
+test "c passes" {
+    assert true
+}

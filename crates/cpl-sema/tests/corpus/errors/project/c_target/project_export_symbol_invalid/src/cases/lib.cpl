@@ -1,0 +1,13 @@
+module cases.lib
+
+// Directory case: an explicit export symbol in the reserved family
+// `cases_type_*` of the type accessors (toolchain 11.1, spec/cabi.md 5.2).
+// expect-error(global): project_export_symbol_invalid
+
+pub struct Point {
+    x: Int
+}
+
+pub fn one() -> Int {
+    1
+}

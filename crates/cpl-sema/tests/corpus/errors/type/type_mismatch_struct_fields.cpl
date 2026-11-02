@@ -1,0 +1,28 @@
+module negative.type_mismatch_struct_fields
+
+// Field initializers check against the field types; a spread base must have
+// the struct's type (semantics 3.8).
+
+pub type PageId(Text)
+
+pub struct Page {
+    id: PageId
+    text: Text
+}
+
+pub struct Size {
+    width: Int
+    height: Int
+}
+
+fn a() -> Page {
+    Page { id: "page-1", text: "t" } // expect-error: type_mismatch
+}
+
+fn b() -> Page {
+    Page { id: PageId("p"), text: 3 } // expect-error: type_mismatch
+}
+
+fn c(s: Size) -> Page {
+    Page { ..s, text: "t" } // expect-error: type_mismatch
+}

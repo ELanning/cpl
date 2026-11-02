@@ -1,0 +1,44 @@
+module negative.missing_decreases
+
+// A `@prove` function that is recursive (directly or through another
+// function) without a header `decreases`, and every `while` without
+// `decreases` in a `@prove` body, are the warning `missing_decreases` (5.4).
+// Spans per semantics S63 [D-230]: the function form spans the function's
+// name (the `fn` line), the loop form the loop (the `while` line). Each
+// `@prove` declaration also yields the `verification_result` info (S36),
+// which spans the function's name as well.
+
+// expect-info@+2: verification_result
+@prove
+fn fact(n: Int) -> Int // expect-warning: missing_decreases
+    requires n >= 0
+{
+    if n <= 1 { 1 } else { n * fact(n - 1) }
+}
+
+// expect-info@+2: verification_result
+@prove
+fn ping(n: Int) -> Int { // expect-warning: missing_decreases
+    if n <= 0 { 0 } else { pong(n - 1) }
+}
+
+fn pong(n: Int) -> Int {
+    if n <= 0 { 0 } else { ping(n - 1) }
+}
+
+@prove
+fn count_down(n: Int) -> Int // expect-info: verification_result
+    ensures result == 0 or n < 0
+{
+    var i = n
+    while i > 0 // expect-warning: missing_decreases
+        invariant i >= 0 or n < 0
+    {
+        i = i - 1
+    }
+    i
+}
+
+fn not_proved(n: Int) -> Int {
+    if n <= 1 { 1 } else { n * not_proved(n - 1) }
+}

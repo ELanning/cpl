@@ -1,0 +1,38 @@
+// Every production of grammar 4.1-4.4.
+use reader.pages.{paginate, Positive}
+use tests.pagination
+
+/// The first change.
+change first_change {
+    base git("main")
+    target git("refs/heads/main")
+    workers 2
+
+    /// The first task.
+    task build {
+        write { paginate.body, project.manifest }
+        add { tests.pagination.* }
+        depend { paginate.contract, Positive.definition, reader.pages.Page }
+        preserve { paginate.signature, paginate.effects }
+        goal "Build it."
+    }
+
+    task review_it after build {
+        write {}
+        goal "Check it."
+    }
+
+    integrate {
+        require typecheck
+        require no_holes
+        require no_unresolved_assumptions
+        require prove(paginate)
+        require test(tests.pagination.*)
+        require review(review_it)
+    }
+}
+
+change second {
+    base git("v1.0")
+    target git("main")
+}

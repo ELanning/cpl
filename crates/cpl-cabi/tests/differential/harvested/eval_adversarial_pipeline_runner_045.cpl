@@ -1,0 +1,5 @@
+module tests.two
+
+test "a" {
+    assert true
+}

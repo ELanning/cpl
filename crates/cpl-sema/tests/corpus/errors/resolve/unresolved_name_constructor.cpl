@@ -1,0 +1,22 @@
+module negative.unresolved_name_constructor
+
+// An unqualified constructor with no candidate in the expected type or the
+// lexical scope (S10 step 2: none is `unresolved_name`), in an expression
+// and in a pattern.
+
+pub enum StoreError {
+    Missing(Text)
+    Unavailable
+}
+
+fn make() -> StoreError {
+    Vanished // expect-error: unresolved_name
+}
+
+fn label(e: StoreError) -> Text {
+    match e {
+        Missing(_) => "missing"
+        Gone => "gone" // expect-error: unresolved_name
+        Unavailable => "unavailable"
+    }
+}

@@ -1,0 +1,18 @@
+module negative.if_statement_non_unit_branches
+
+// Ruling [D-235] (semantics S68, 3.11, S19): `unused_value` is for the
+// statement's own expression; when the statement is an `if`, `Unit` flows
+// into its branches and each non-Unit branch tail is `type_mismatch` there,
+// with or without `else`.
+
+fn a(c: Bool, xs: List<Int>) -> Int {
+    if c { xs.push(1) } else { xs.push(2) } // expect-error: type_mismatch, type_mismatch
+    xs.len
+}
+
+fn b(c: Bool, xs: List<Int>) -> Int {
+    if c {
+        xs.push(1) // expect-error: type_mismatch
+    }
+    xs.len
+}

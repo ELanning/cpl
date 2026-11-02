@@ -1,0 +1,21 @@
+module negative.cannot_prove_refinement_predicate_call
+
+// A predicate outside the compile-time evaluable subset (here a call to a
+// user function) makes the proof fail even for a constant (S16 step 2), with
+// the note "predicate of R calls f; use check<R>(...)". The predicate of
+// the public `Small` calls the private `is_small`, which is also
+// `private_in_public_contract` (S4 names a public refinement's `where`).
+
+fn is_small(n: Int) -> Bool {
+    n < 10
+}
+
+pub type Small = Int where is_small(self) // expect-error: private_in_public_contract
+
+fn a() -> Small {
+    3 // expect-error: cannot_prove_refinement
+}
+
+fn b() -> Result<Small, ConstraintError> {
+    check<Small>(3)
+}

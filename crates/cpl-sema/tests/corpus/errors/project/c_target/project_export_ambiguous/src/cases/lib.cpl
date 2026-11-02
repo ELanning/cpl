@@ -1,0 +1,9 @@
+module cases.lib
+
+// Directory case: an `[interop.c] exports` target, the bare name `size`,
+// that names two definitions (toolchain 11.1, 6.1).
+// expect-error(global): project_export_ambiguous
+
+pub fn size() -> Int {
+    1
+}

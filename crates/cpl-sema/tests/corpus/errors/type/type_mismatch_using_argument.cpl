@@ -1,0 +1,26 @@
+module negative.type_mismatch_using_argument
+
+// A `using` argument must name a `using` parameter whose capability type is
+// identical to the callee's parameter type (S28). Both capabilities declare
+// `get`, so the substituted effect `b.get` lies within the caller's bound
+// and only the type error is reported.
+
+pub capability Primary {
+    fn get(key: Text) -> Int
+}
+
+pub capability Replica {
+    fn get(key: Text) -> Int
+}
+
+fn read(key: Text, using db: Primary) -> Int
+    effects { db.get }
+{
+    db.get(key)
+}
+
+fn read_replica(key: Text, using b: Replica) -> Int
+    effects { b.get }
+{
+    read(key, using b) // expect-error: type_mismatch
+}

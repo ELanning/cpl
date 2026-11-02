@@ -1,0 +1,716 @@
+{
+  "project": "examples/holes",
+  "development": {
+    "diagnostics": [
+      {
+        "code": "verification_result",
+        "category": "contract",
+        "severity": "info",
+        "message": "paginate: unknown (verifier unavailable)",
+        "span": {
+          "file": "src/holes/pages.cpl",
+          "line": 15,
+          "col": 8,
+          "end_line": 15,
+          "end_col": 16
+        },
+        "symbol": "pgn_7c2d",
+        "qualified_name": "holes.pages.paginate",
+        "facet": "verification_policy",
+        "reason": "verifier_unavailable",
+        "receipt": {
+          "assumptions": [],
+          "check_configuration": {
+            "release": false
+          },
+          "modules": [
+            {
+              "content_hash": "b1d4c2b1f44b0cd3cbf35bebb96de186be1922bb07a941c1df93840f9928c1c4",
+              "module": "holes.pages"
+            }
+          ],
+          "source_revision": "unversioned",
+          "toolchain": {
+            "cpl": "0.1.0",
+            "edition": "0.1",
+            "std": "42236a5efaffeb1110f986d858c30c7dabeb7efa54a3d80ec548b77135351388"
+          }
+        },
+        "status": "unknown"
+      },
+      {
+        "code": "hole",
+        "category": "hole",
+        "severity": "info",
+        "message": "unfinished expression ?build_pages",
+        "span": {
+          "file": "src/holes/pages.cpl",
+          "line": 20,
+          "col": 5,
+          "end_line": 20,
+          "end_col": 17
+        },
+        "symbol": "pgn_7c2d",
+        "qualified_name": "holes.pages.paginate",
+        "facet": "body",
+        "bindings": [
+          {
+            "kind": "parameter",
+            "name": "size",
+            "type": "Positive"
+          },
+          {
+            "kind": "parameter",
+            "name": "items",
+            "type": "List<T>"
+          }
+        ],
+        "capabilities": [],
+        "dependencies": {
+          "modules": [
+            {
+              "content_hash": "b1d4c2b1f44b0cd3cbf35bebb96de186be1922bb07a941c1df93840f9928c1c4",
+              "module": "holes.pages"
+            }
+          ],
+          "source_revision": "unversioned",
+          "symbols": [
+            {
+              "definition": "8fff0c8cebffc7c003af5f9fe86e96db",
+              "facets": {
+                "contract": "7d06c1a8e4e1bc964308ba7137dcf4c0",
+                "docs": "af1349b9f5f9a1a6a0404dea36dcc949",
+                "identity": "274e961f2d7ec890876483504ae661d0",
+                "name": "1cc069928bda005fad0cccd59fe91ed2",
+                "signature": "ba8510c2ef6c449e99d7160e160be102"
+              },
+              "id": "holes.pages.Positive",
+              "path": "holes.pages.Positive",
+              "provisional": true
+            },
+            {
+              "definition": "76e08b68f048860dc4d5f28cabaa9779",
+              "facets": {
+                "docs": "6c9d2b667a6873d564c60a5b07eef786",
+                "identity": "e023f20d653cc0d1307d5d87e1fd5ca9",
+                "name": "f8ab3dba7a014a9be0bbede1a593235b",
+                "signature": "54c224941a90302904d92e3b0a86c60e"
+              },
+              "id": "std.prelude.List",
+              "path": "std.prelude.List",
+              "provisional": true
+            },
+            {
+              "definition": "3db926bceaf6fac9be1aac4c9fadc8c3",
+              "facets": {
+                "body": "af1349b9f5f9a1a6a0404dea36dcc949",
+                "contract": "3a4f6bf9b63371f7a78632fa79604e0a",
+                "docs": "55070e3d3d2e5e0513e18c503deb8e29",
+                "effects": "af1349b9f5f9a1a6a0404dea36dcc949",
+                "identity": "092d433a1bef3210cc589336ebfb72d6",
+                "name": "13a680143afe47bdc2fbe56be2ab87cb",
+                "signature": "32d0ecac598bcbcd3800181c3b494f7e",
+                "verification_policy": "af1349b9f5f9a1a6a0404dea36dcc949"
+              },
+              "id": "std.prelude.List.drop_last",
+              "path": "std.prelude.List.drop_last",
+              "provisional": true
+            },
+            {
+              "definition": "b71ec391e93f46b3adbae1a9ec76a2fa",
+              "facets": {
+                "body": "af1349b9f5f9a1a6a0404dea36dcc949",
+                "contract": "3b455c8135fe8cea8c594a6aed2b77d1",
+                "docs": "d55c69c8100872a3db28f3028d6dea22",
+                "effects": "af1349b9f5f9a1a6a0404dea36dcc949",
+                "identity": "f19133b5e97047801a0c8e3244b0a504",
+                "name": "7d0f6d0f178ceedc363d520c14de9cdc",
+                "signature": "a56593fdfcc2860dcde71a4b22dd32f3",
+                "verification_policy": "af1349b9f5f9a1a6a0404dea36dcc949"
+              },
+              "id": "std.prelude.List.len",
+              "path": "std.prelude.List.len",
+              "provisional": true
+            },
+            {
+              "definition": "5ad0ed9c89bf29cc3c92b0521f4c7fd7",
+              "facets": {
+                "body": "af1349b9f5f9a1a6a0404dea36dcc949",
+                "contract": "c322ded6d51286a011ea0966ffdf2fa8",
+                "docs": "f62bb82488ce1f0949c3f657dc589d38",
+                "effects": "af1349b9f5f9a1a6a0404dea36dcc949",
+                "identity": "8d7c48f3a462e75c46f41ef055a68ab4",
+                "name": "be2ddfa41fa60eeb51acb25611c156b0",
+                "signature": "7160609903cbcdc5f89ccc45d3753645",
+                "verification_policy": "af1349b9f5f9a1a6a0404dea36dcc949"
+              },
+              "id": "std.prelude.flatten",
+              "path": "std.prelude.flatten",
+              "provisional": true
+            }
+          ],
+          "toolchain": {
+            "cpl": "0.1.0",
+            "edition": "0.1",
+            "std": "42236a5efaffeb1110f986d858c30c7dabeb7efa54a3d80ec548b77135351388"
+          }
+        },
+        "ensures": [
+          "flatten(result) == items",
+          "forall page in result: page.len > 0 and page.len <= size",
+          "forall page in result.drop_last(): page.len == size"
+        ],
+        "expected_type": "List<List<T>>",
+        "hole": "build_pages",
+        "invariants": [],
+        "requires": []
+      },
+      {
+        "code": "hole",
+        "category": "hole",
+        "severity": "info",
+        "message": "unfinished expression ?summary",
+        "span": {
+          "file": "src/holes/pages.cpl",
+          "line": 24,
+          "col": 5,
+          "end_line": 24,
+          "end_col": 13
+        },
+        "symbol": "holes.pages.summarize",
+        "qualified_name": "holes.pages.summarize",
+        "facet": "body",
+        "bindings": [
+          {
+            "kind": "parameter",
+            "name": "page",
+            "type": "Page"
+          }
+        ],
+        "capabilities": [],
+        "dependencies": {
+          "modules": [
+            {
+              "content_hash": "b1d4c2b1f44b0cd3cbf35bebb96de186be1922bb07a941c1df93840f9928c1c4",
+              "module": "holes.pages"
+            }
+          ],
+          "source_revision": "unversioned",
+          "symbols": [
+            {
+              "definition": "7d45f5b4ec14f3bcafb8416b53dc374c",
+              "facets": {
+                "docs": "af1349b9f5f9a1a6a0404dea36dcc949",
+                "identity": "3df59ed3481e8098f9d226101cda9b63",
+                "name": "aad750000ca90954ca8d977843c7a579",
+                "signature": "242cfb7e1311c76883f6fa79cfad6791"
+              },
+              "id": "holes.pages.Page",
+              "path": "holes.pages.Page",
+              "provisional": true
+            },
+            {
+              "definition": "81f31ff05f6d14350effe7f0999d138d",
+              "facets": {
+                "docs": "56ad8c17d90d2055900be98a7d54e128",
+                "identity": "f96edfc595c8029b9005d13e66ba6050",
+                "name": "75a3cf7e0e5a9287d781c144f3c8e661",
+                "signature": "53060a541a411a9f8263019a970a5a1b"
+              },
+              "id": "std.prelude.Text",
+              "path": "std.prelude.Text",
+              "provisional": true
+            }
+          ],
+          "toolchain": {
+            "cpl": "0.1.0",
+            "edition": "0.1",
+            "std": "42236a5efaffeb1110f986d858c30c7dabeb7efa54a3d80ec548b77135351388"
+          }
+        },
+        "ensures": [],
+        "expected_type": "Text",
+        "hole": "summary",
+        "invariants": [],
+        "requires": []
+      }
+    ],
+    "output": {
+      "release": false,
+      "summary": {
+        "errors": 0,
+        "warnings": 0,
+        "holes": 2,
+        "definitions": 5,
+        "modules": 1,
+        "files": 1
+      },
+      "holes": [
+        {
+          "hole": "build_pages",
+          "expected_type": "List<List<T>>",
+          "bindings": [
+            {
+              "name": "size",
+              "type": "Positive",
+              "kind": "parameter"
+            },
+            {
+              "name": "items",
+              "type": "List<T>",
+              "kind": "parameter"
+            }
+          ],
+          "capabilities": [],
+          "requires": [],
+          "ensures": [
+            "flatten(result) == items",
+            "forall page in result: page.len > 0 and page.len <= size",
+            "forall page in result.drop_last(): page.len == size"
+          ],
+          "invariants": [],
+          "dependencies": {
+            "source_revision": "unversioned",
+            "toolchain": {
+              "cpl": "0.1.0",
+              "edition": "0.1",
+              "std": "42236a5efaffeb1110f986d858c30c7dabeb7efa54a3d80ec548b77135351388"
+            },
+            "modules": [
+              {
+                "module": "holes.pages",
+                "content_hash": "b1d4c2b1f44b0cd3cbf35bebb96de186be1922bb07a941c1df93840f9928c1c4"
+              }
+            ],
+            "symbols": [
+              {
+                "id": "holes.pages.Positive",
+                "path": "holes.pages.Positive",
+                "provisional": true,
+                "facets": {
+                  "identity": "274e961f2d7ec890876483504ae661d0",
+                  "name": "1cc069928bda005fad0cccd59fe91ed2",
+                  "signature": "ba8510c2ef6c449e99d7160e160be102",
+                  "contract": "7d06c1a8e4e1bc964308ba7137dcf4c0",
+                  "docs": "af1349b9f5f9a1a6a0404dea36dcc949"
+                },
+                "definition": "8fff0c8cebffc7c003af5f9fe86e96db"
+              },
+              {
+                "id": "std.prelude.List",
+                "path": "std.prelude.List",
+                "provisional": true,
+                "facets": {
+                  "identity": "e023f20d653cc0d1307d5d87e1fd5ca9",
+                  "name": "f8ab3dba7a014a9be0bbede1a593235b",
+                  "signature": "54c224941a90302904d92e3b0a86c60e",
+                  "docs": "6c9d2b667a6873d564c60a5b07eef786"
+                },
+                "definition": "76e08b68f048860dc4d5f28cabaa9779"
+              },
+              {
+                "id": "std.prelude.List.drop_last",
+                "path": "std.prelude.List.drop_last",
+                "provisional": true,
+                "facets": {
+                  "identity": "092d433a1bef3210cc589336ebfb72d6",
+                  "name": "13a680143afe47bdc2fbe56be2ab87cb",
+                  "signature": "32d0ecac598bcbcd3800181c3b494f7e",
+                  "contract": "3a4f6bf9b63371f7a78632fa79604e0a",
+                  "effects": "af1349b9f5f9a1a6a0404dea36dcc949",
+                  "body": "af1349b9f5f9a1a6a0404dea36dcc949",
+                  "docs": "55070e3d3d2e5e0513e18c503deb8e29",
+                  "verification_policy": "af1349b9f5f9a1a6a0404dea36dcc949"
+                },
+                "definition": "3db926bceaf6fac9be1aac4c9fadc8c3"
+              },
+              {
+                "id": "std.prelude.List.len",
+                "path": "std.prelude.List.len",
+                "provisional": true,
+                "facets": {
+                  "identity": "f19133b5e97047801a0c8e3244b0a504",
+                  "name": "7d0f6d0f178ceedc363d520c14de9cdc",
+                  "signature": "a56593fdfcc2860dcde71a4b22dd32f3",
+                  "contract": "3b455c8135fe8cea8c594a6aed2b77d1",
+                  "effects": "af1349b9f5f9a1a6a0404dea36dcc949",
+                  "body": "af1349b9f5f9a1a6a0404dea36dcc949",
+                  "docs": "d55c69c8100872a3db28f3028d6dea22",
+                  "verification_policy": "af1349b9f5f9a1a6a0404dea36dcc949"
+                },
+                "definition": "b71ec391e93f46b3adbae1a9ec76a2fa"
+              },
+              {
+                "id": "std.prelude.flatten",
+                "path": "std.prelude.flatten",
+                "provisional": true,
+                "facets": {
+                  "identity": "8d7c48f3a462e75c46f41ef055a68ab4",
+                  "name": "be2ddfa41fa60eeb51acb25611c156b0",
+                  "signature": "7160609903cbcdc5f89ccc45d3753645",
+                  "contract": "c322ded6d51286a011ea0966ffdf2fa8",
+                  "effects": "af1349b9f5f9a1a6a0404dea36dcc949",
+                  "body": "af1349b9f5f9a1a6a0404dea36dcc949",
+                  "docs": "f62bb82488ce1f0949c3f657dc589d38",
+                  "verification_policy": "af1349b9f5f9a1a6a0404dea36dcc949"
+                },
+                "definition": "5ad0ed9c89bf29cc3c92b0521f4c7fd7"
+              }
+            ]
+          }
+        },
+        {
+          "hole": "summary",
+          "expected_type": "Text",
+          "bindings": [
+            {
+              "name": "page",
+              "type": "Page",
+              "kind": "parameter"
+            }
+          ],
+          "capabilities": [],
+          "requires": [],
+          "ensures": [],
+          "invariants": [],
+          "dependencies": {
+            "source_revision": "unversioned",
+            "toolchain": {
+              "cpl": "0.1.0",
+              "edition": "0.1",
+              "std": "42236a5efaffeb1110f986d858c30c7dabeb7efa54a3d80ec548b77135351388"
+            },
+            "modules": [
+              {
+                "module": "holes.pages",
+                "content_hash": "b1d4c2b1f44b0cd3cbf35bebb96de186be1922bb07a941c1df93840f9928c1c4"
+              }
+            ],
+            "symbols": [
+              {
+                "id": "holes.pages.Page",
+                "path": "holes.pages.Page",
+                "provisional": true,
+                "facets": {
+                  "identity": "3df59ed3481e8098f9d226101cda9b63",
+                  "name": "aad750000ca90954ca8d977843c7a579",
+                  "signature": "242cfb7e1311c76883f6fa79cfad6791",
+                  "docs": "af1349b9f5f9a1a6a0404dea36dcc949"
+                },
+                "definition": "7d45f5b4ec14f3bcafb8416b53dc374c"
+              },
+              {
+                "id": "std.prelude.Text",
+                "path": "std.prelude.Text",
+                "provisional": true,
+                "facets": {
+                  "identity": "f96edfc595c8029b9005d13e66ba6050",
+                  "name": "75a3cf7e0e5a9287d781c144f3c8e661",
+                  "signature": "53060a541a411a9f8263019a970a5a1b",
+                  "docs": "56ad8c17d90d2055900be98a7d54e128"
+                },
+                "definition": "81f31ff05f6d14350effe7f0999d138d"
+              }
+            ]
+          }
+        }
+      ],
+      "verification": [
+        {
+          "symbol": "pgn_7c2d",
+          "qualified_name": "holes.pages.paginate",
+          "status": "unknown",
+          "reason": "verifier_unavailable"
+        }
+      ]
+    }
+  },
+  "release": {
+    "diagnostics": [
+      {
+        "code": "verification_unsatisfied",
+        "category": "release_policy",
+        "severity": "error",
+        "message": "`paginate` is `@prove` but its verification status is unknown (no verifier is available in this toolchain); a release build requires its obligations to be proved",
+        "span": {
+          "file": "src/holes/pages.cpl",
+          "line": 15,
+          "col": 8,
+          "end_line": 15,
+          "end_col": 16
+        },
+        "symbol": "pgn_7c2d",
+        "qualified_name": "holes.pages.paginate",
+        "facet": "verification_policy",
+        "status": "unknown"
+      },
+      {
+        "code": "verification_result",
+        "category": "contract",
+        "severity": "info",
+        "message": "paginate: unknown (verifier unavailable)",
+        "span": {
+          "file": "src/holes/pages.cpl",
+          "line": 15,
+          "col": 8,
+          "end_line": 15,
+          "end_col": 16
+        },
+        "symbol": "pgn_7c2d",
+        "qualified_name": "holes.pages.paginate",
+        "facet": "verification_policy",
+        "reason": "verifier_unavailable",
+        "receipt": {
+          "assumptions": [],
+          "check_configuration": {
+            "release": true
+          },
+          "modules": [
+            {
+              "content_hash": "b1d4c2b1f44b0cd3cbf35bebb96de186be1922bb07a941c1df93840f9928c1c4",
+              "module": "holes.pages"
+            }
+          ],
+          "source_revision": "unversioned",
+          "toolchain": {
+            "cpl": "0.1.0",
+            "edition": "0.1",
+            "std": "42236a5efaffeb1110f986d858c30c7dabeb7efa54a3d80ec548b77135351388"
+          }
+        },
+        "status": "unknown"
+      },
+      {
+        "code": "hole_in_release",
+        "category": "release_policy",
+        "severity": "error",
+        "message": "unfinished expression ?build_pages: a release build rejects holes in the linked program",
+        "span": {
+          "file": "src/holes/pages.cpl",
+          "line": 20,
+          "col": 5,
+          "end_line": 20,
+          "end_col": 17
+        },
+        "symbol": "pgn_7c2d",
+        "qualified_name": "holes.pages.paginate",
+        "facet": "body",
+        "expected_type": "List<List<T>>",
+        "hole": "build_pages"
+      },
+      {
+        "code": "hole_in_release",
+        "category": "release_policy",
+        "severity": "error",
+        "message": "unfinished expression ?summary: a release build rejects holes in the linked program",
+        "span": {
+          "file": "src/holes/pages.cpl",
+          "line": 24,
+          "col": 5,
+          "end_line": 24,
+          "end_col": 13
+        },
+        "symbol": "holes.pages.summarize",
+        "qualified_name": "holes.pages.summarize",
+        "facet": "body",
+        "expected_type": "Text",
+        "hole": "summary"
+      },
+      {
+        "code": "project_lock_missing",
+        "category": "project",
+        "severity": "warning",
+        "message": "cpl.lock is missing: a release check needs the locked build inputs; run `cpl check --lock`"
+      }
+    ],
+    "output": {
+      "release": true,
+      "summary": {
+        "errors": 3,
+        "warnings": 1,
+        "holes": 2,
+        "definitions": 5,
+        "modules": 1,
+        "files": 1
+      },
+      "holes": [
+        {
+          "hole": "build_pages",
+          "expected_type": "List<List<T>>",
+          "bindings": [
+            {
+              "name": "size",
+              "type": "Positive",
+              "kind": "parameter"
+            },
+            {
+              "name": "items",
+              "type": "List<T>",
+              "kind": "parameter"
+            }
+          ],
+          "capabilities": [],
+          "requires": [],
+          "ensures": [
+            "flatten(result) == items",
+            "forall page in result: page.len > 0 and page.len <= size",
+            "forall page in result.drop_last(): page.len == size"
+          ],
+          "invariants": [],
+          "dependencies": {
+            "source_revision": "unversioned",
+            "toolchain": {
+              "cpl": "0.1.0",
+              "edition": "0.1",
+              "std": "42236a5efaffeb1110f986d858c30c7dabeb7efa54a3d80ec548b77135351388"
+            },
+            "modules": [
+              {
+                "module": "holes.pages",
+                "content_hash": "b1d4c2b1f44b0cd3cbf35bebb96de186be1922bb07a941c1df93840f9928c1c4"
+              }
+            ],
+            "symbols": [
+              {
+                "id": "holes.pages.Positive",
+                "path": "holes.pages.Positive",
+                "provisional": true,
+                "facets": {
+                  "identity": "274e961f2d7ec890876483504ae661d0",
+                  "name": "1cc069928bda005fad0cccd59fe91ed2",
+                  "signature": "ba8510c2ef6c449e99d7160e160be102",
+                  "contract": "7d06c1a8e4e1bc964308ba7137dcf4c0",
+                  "docs": "af1349b9f5f9a1a6a0404dea36dcc949"
+                },
+                "definition": "8fff0c8cebffc7c003af5f9fe86e96db"
+              },
+              {
+                "id": "std.prelude.List",
+                "path": "std.prelude.List",
+                "provisional": true,
+                "facets": {
+                  "identity": "e023f20d653cc0d1307d5d87e1fd5ca9",
+                  "name": "f8ab3dba7a014a9be0bbede1a593235b",
+                  "signature": "54c224941a90302904d92e3b0a86c60e",
+                  "docs": "6c9d2b667a6873d564c60a5b07eef786"
+                },
+                "definition": "76e08b68f048860dc4d5f28cabaa9779"
+              },
+              {
+                "id": "std.prelude.List.drop_last",
+                "path": "std.prelude.List.drop_last",
+                "provisional": true,
+                "facets": {
+                  "identity": "092d433a1bef3210cc589336ebfb72d6",
+                  "name": "13a680143afe47bdc2fbe56be2ab87cb",
+                  "signature": "32d0ecac598bcbcd3800181c3b494f7e",
+                  "contract": "3a4f6bf9b63371f7a78632fa79604e0a",
+                  "effects": "af1349b9f5f9a1a6a0404dea36dcc949",
+                  "body": "af1349b9f5f9a1a6a0404dea36dcc949",
+                  "docs": "55070e3d3d2e5e0513e18c503deb8e29",
+                  "verification_policy": "af1349b9f5f9a1a6a0404dea36dcc949"
+                },
+                "definition": "3db926bceaf6fac9be1aac4c9fadc8c3"
+              },
+              {
+                "id": "std.prelude.List.len",
+                "path": "std.prelude.List.len",
+                "provisional": true,
+                "facets": {
+                  "identity": "f19133b5e97047801a0c8e3244b0a504",
+                  "name": "7d0f6d0f178ceedc363d520c14de9cdc",
+                  "signature": "a56593fdfcc2860dcde71a4b22dd32f3",
+                  "contract": "3b455c8135fe8cea8c594a6aed2b77d1",
+                  "effects": "af1349b9f5f9a1a6a0404dea36dcc949",
+                  "body": "af1349b9f5f9a1a6a0404dea36dcc949",
+                  "docs": "d55c69c8100872a3db28f3028d6dea22",
+                  "verification_policy": "af1349b9f5f9a1a6a0404dea36dcc949"
+                },
+                "definition": "b71ec391e93f46b3adbae1a9ec76a2fa"
+              },
+              {
+                "id": "std.prelude.flatten",
+                "path": "std.prelude.flatten",
+                "provisional": true,
+                "facets": {
+                  "identity": "8d7c48f3a462e75c46f41ef055a68ab4",
+                  "name": "be2ddfa41fa60eeb51acb25611c156b0",
+                  "signature": "7160609903cbcdc5f89ccc45d3753645",
+                  "contract": "c322ded6d51286a011ea0966ffdf2fa8",
+                  "effects": "af1349b9f5f9a1a6a0404dea36dcc949",
+                  "body": "af1349b9f5f9a1a6a0404dea36dcc949",
+                  "docs": "f62bb82488ce1f0949c3f657dc589d38",
+                  "verification_policy": "af1349b9f5f9a1a6a0404dea36dcc949"
+                },
+                "definition": "5ad0ed9c89bf29cc3c92b0521f4c7fd7"
+              }
+            ]
+          }
+        },
+        {
+          "hole": "summary",
+          "expected_type": "Text",
+          "bindings": [
+            {
+              "name": "page",
+              "type": "Page",
+              "kind": "parameter"
+            }
+          ],
+          "capabilities": [],
+          "requires": [],
+          "ensures": [],
+          "invariants": [],
+          "dependencies": {
+            "source_revision": "unversioned",
+            "toolchain": {
+              "cpl": "0.1.0",
+              "edition": "0.1",
+              "std": "42236a5efaffeb1110f986d858c30c7dabeb7efa54a3d80ec548b77135351388"
+            },
+            "modules": [
+              {
+                "module": "holes.pages",
+                "content_hash": "b1d4c2b1f44b0cd3cbf35bebb96de186be1922bb07a941c1df93840f9928c1c4"
+              }
+            ],
+            "symbols": [
+              {
+                "id": "holes.pages.Page",
+                "path": "holes.pages.Page",
+                "provisional": true,
+                "facets": {
+                  "identity": "3df59ed3481e8098f9d226101cda9b63",
+                  "name": "aad750000ca90954ca8d977843c7a579",
+                  "signature": "242cfb7e1311c76883f6fa79cfad6791",
+                  "docs": "af1349b9f5f9a1a6a0404dea36dcc949"
+                },
+                "definition": "7d45f5b4ec14f3bcafb8416b53dc374c"
+              },
+              {
+                "id": "std.prelude.Text",
+                "path": "std.prelude.Text",
+                "provisional": true,
+                "facets": {
+                  "identity": "f96edfc595c8029b9005d13e66ba6050",
+                  "name": "75a3cf7e0e5a9287d781c144f3c8e661",
+                  "signature": "53060a541a411a9f8263019a970a5a1b",
+                  "docs": "56ad8c17d90d2055900be98a7d54e128"
+                },
+                "definition": "81f31ff05f6d14350effe7f0999d138d"
+              }
+            ]
+          }
+        }
+      ],
+      "verification": [
+        {
+          "symbol": "pgn_7c2d",
+          "qualified_name": "holes.pages.paginate",
+          "status": "unknown",
+          "reason": "verifier_unavailable"
+        }
+      ]
+    }
+  }
+}

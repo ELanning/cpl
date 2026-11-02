@@ -1,0 +1,3 @@
+[project]
+name = "variant_resolution"
+edition = "0.1"

@@ -1,0 +1,9 @@
+module cases.lib
+
+// Directory case: a backend-c adapter that ends neither in `.c` nor in
+// `.cbind.toml` (toolchain 11.1).
+// expect-error(global): project_binding_adapter_kind
+
+pub capability Codec {
+    fn size(image: Bytes) -> Int
+}

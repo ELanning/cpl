@@ -1,0 +1,3 @@
+[
+  {"function": "corpus.holes.summarize", "args": [{"$type": "corpus.holes.Page", "id": {"$type": "corpus.holes.PageId", "$payload": ["p"]}, "text": "t"}], "expect": {"fault": "unresolved_hole"}}
+]

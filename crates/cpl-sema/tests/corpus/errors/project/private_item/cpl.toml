@@ -1,0 +1,3 @@
+[project]
+name = "private_item"
+edition = "0.1"

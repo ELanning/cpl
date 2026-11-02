@@ -1,0 +1,10 @@
+module reader.pages
+
+pub fn paginate_ints(
+    items: List<Int>,
+    size: Int,
+) -> Result<List<List<Int>>, ConstraintError>
+{
+    let checked_size = check<Positive>(size)?
+    Ok(paginate(items, checked_size))
+}

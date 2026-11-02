@@ -1,0 +1,121 @@
+module positive.contracts
+
+// Contract clauses typed with `result` in `ensures`, sequential `requires`
+// (the remainder is safe after `b != 0`), `ensures` over a whole Result,
+// `decreases` on a recursive function, contract sub-blocks with `let` (S32),
+// `forall` in clauses, public contracts calling public functions, private
+// contracts calling private helpers, and clauses in any order (D66).
+
+pub type Positive = Int where self > 0
+
+fn divide_exactly(a: Int, b: Int) -> Int
+    requires b != 0
+    requires a % b == 0
+    ensures result * b == a
+{
+    a / b
+}
+
+pub fn is_small(n: Int) -> Bool {
+    n < 10
+}
+
+fn private_small(n: Int) -> Bool {
+    n < 100
+}
+
+pub fn bounded(n: Int) -> Int
+    requires is_small(n)
+    ensures is_small(result) or result == n
+{
+    n
+}
+
+fn relaxed(n: Int) -> Int
+    requires private_small(n)
+    ensures private_small(result)
+{
+    n
+}
+
+fn safe_half(n: Int) -> Result<Int, Text>
+    ensures match result {
+        Ok(v) => v * 2 == n
+        Err(_) => n % 2 != 0
+    }
+{
+    if n % 2 == 0 { Ok(n / 2) } else { Err("odd") }
+}
+
+fn with_let_block(xs: List<Int>, size: Positive) -> List<List<Int>>
+    ensures if xs.is_empty() {
+        let pages = result
+        pages.is_empty()
+    } else {
+        let first = result.first()
+        first.is_some()
+    }
+{
+    if xs.is_empty() { [] } else { [xs.take(size)] }
+}
+
+fn countdown(n: Int) -> Int
+    requires n >= 0
+    ensures result == 0
+    decreases n
+{
+    if n == 0 { 0 } else { countdown(n - 1) }
+}
+
+fn clauses_in_any_order(n: Int) -> Int
+    ensures result >= n
+    decreases n
+    requires n >= 0
+{
+    if n == 0 { 0 } else { 1 + clauses_in_any_order(n - 1) }
+}
+
+fn quantified(pages: List<List<Int>>, size: Positive) -> List<List<Int>>
+    requires forall page in pages: page.len <= size
+    ensures forall page in result: page.len > 0 and page.len <= size
+    ensures forall page in result.drop_last(): page.len == size
+    ensures (forall page in result: page.len > 0) and result.len <= pages.len
+{
+    var kept: List<List<Int>> = []
+    var rest = pages
+    while not rest.is_empty()
+        invariant forall page in kept: page.len == size
+        invariant kept.len + rest.len == pages.len
+        decreases rest.len
+    {
+        let page = rest.first().unwrap_or([])
+        if page.len == size {
+            kept = kept.push(page)
+        }
+        rest = rest.drop(1)
+    }
+    kept
+}
+
+pub type Even = Int where self % 2 == 0
+pub type Checked = Int where if self > 0 { self < 1000 } else { true }
+
+fn predicates_as_contracts(n: Int) -> Result<Even, ConstraintError> {
+    let e = check<Even>(n)?
+    let c = check<Checked>(e)?
+    let _ = c
+    Ok(e)
+}
+
+pub capability Counter {
+    fn next(limit: Int) -> Int
+        requires limit > 0
+        ensures result >= 0 and result < limit
+}
+
+pub fn draw(limit: Int, using c: Counter) -> Int
+    requires limit > 0
+    effects { c.next }
+{
+    c.next(limit)
+}

@@ -1,0 +1,26 @@
+module negative.not_a_value
+
+// A module alias, the prelude alias `gen`, or a function in value position
+// is `not_a_value` (S11, semantics 2.2, 3.8).
+
+use std.text.{trim}
+
+fn a() -> Int {
+    let _ = gen // expect-error: not_a_value
+    1
+}
+
+fn b() -> Int {
+    let _ = flatten // expect-error: not_a_value
+    1
+}
+
+fn c() -> Int {
+    let _ = trim // expect-error: not_a_value
+    1
+}
+
+fn d() -> Int {
+    let _ = std.text // expect-error: not_a_value
+    1
+}

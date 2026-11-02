@@ -1,0 +1,64 @@
+(module corpus.layout
+  (use std.text (items trim))
+  (use std.text (items parse_int))
+  (fn reorder
+    (params (param a (ty Int)) (using db (ty Store)))
+    (ret (ty Int))
+    (decreases (name a))
+    (ensures (> (name result) (int 0)))
+    (requires (> (name a) (int 0)))
+    (effects db.get)
+    (requires (< (name a) (int 1000000)))
+    (block
+      (let big (int 1000000))
+      (let escapes (text "😀 é \u{1} \u{7f}"))
+      (let chosen (if (> (name a) (int 0)) (block (tail (name a))) (else (block (tail (int 0))))))
+      (let neg (neg (int 5)))
+      (let flipped (not (paren (> (name a) (int 0)))))
+      (let sum (+ (name a) (* (name big) (int 2))))
+      (let long_list
+        (list
+          (int 1000000000)
+          (int 2000000000)
+          (int 3000000000)
+          (int 4000000000)
+          (int 5000000000)
+          (int 6000000000)
+          (int 7000000000)))
+      (let total (paren (+ (name a) (name big))))
+      (tail
+        (call (member (name db) get) (name a))
+        (trivia (trail "// trailing, after extra spaces"))))
+    (trivia (lead "// Clauses in any order (D66), the formatter's canonical order (2.4 rule 7).")))
+  (fn g (params) (ret (ty Int)) (block (tail (int 1))))
+  (fn braces
+    (docs "Docs written after the annotation print before it (2.4 rule 5).")
+    (annotation id (text "fn_bbbbbbbbbbbbbbbb"))
+    (params (param a (ty Int)))
+    (ret (ty Int))
+    (block
+      (let b (match (name a) (arm (pat-int 0) (int 1)) (arm _ (int 2))))
+      (expr (if (> (name b) (int 1)) (block (return (name b)))))
+      (tail (name a))))
+  (fn long_parameters
+    (params
+      (param first_parameter (ty List (ty Int)))
+      (param second_parameter (ty List (ty Text)))
+      (param third_parameter (ty Bool)))
+    (ret (ty Int))
+    (block
+      (let nested
+        (call
+          (name combine)
+          (list (int 1) (int 2) (int 3))
+          (list (int 4) (int 5) (int 6))
+          (list (int 7) (int 8) (int 9))
+          (list (int 10) (int 11) (int 12))
+          (list (int 13) (int 14) (int 15))
+          (list (int 16) (int 17) (int 18))
+          (list (int 19))))
+      (tail (int 0))))
+  (struct S (field a (ty Int)))
+  (type A (refinement (ty Int) (where (> (name self) (int 0)))))
+  (type B pub (wrapper (ty Text)))
+  (enum E (variant X) (variant Y) (trivia blank)))

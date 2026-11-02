@@ -1,0 +1,42 @@
+module negative.hole_type_unknown
+
+// Ruling [D-231] (semantics S64, S56): a hole in an infer-only position is
+// `hole_type_unknown` only; the development-mode `hole` info needs an
+// expected type and is not emitted beside the error.
+
+fn a() -> Int {
+    let _x = ?init // expect-error: hole_type_unknown
+    1
+}
+
+fn b() -> Int {
+    match ?scrutinee { // expect-error: hole_type_unknown
+        _ => 1
+    }
+}
+
+fn c(c: Bool) -> Int {
+    let _ = if c { ?first } else { 2 } // expect-error: hole_type_unknown
+    1
+}
+
+fn d() -> Int {
+    let _ = [?head, 1] // expect-error: hole_type_unknown
+    1
+}
+
+fn e() -> Int {
+    (?receiver).len // expect-error: hole_type_unknown
+}
+
+fn f() -> Bool {
+    ?left == 1 // expect-error: hole_type_unknown
+}
+
+fn g() -> List<Int> {
+    ?prefix ++ [1] // expect-error: hole_type_unknown
+}
+
+fn h() -> Bool {
+    forall x in ?range: true // expect-error: hole_type_unknown
+}

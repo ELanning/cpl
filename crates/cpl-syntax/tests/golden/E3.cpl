@@ -1,0 +1,11 @@
+module holes.pages
+
+@id("pgn_7c2d")
+@prove
+pub fn paginate<T>(items: List<T>, size: Positive) -> List<List<T>>
+    ensures flatten(result) == items
+    ensures forall page in result: page.len > 0 and page.len <= size
+    ensures forall page in result.drop_last(): page.len == size
+{
+    ?build_pages
+}

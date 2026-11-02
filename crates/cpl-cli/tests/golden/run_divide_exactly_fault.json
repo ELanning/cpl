@@ -1,0 +1,96 @@
+{
+  "command": "run",
+  "toolchain": {
+    "version": "0.1.0",
+    "edition": "0.1",
+    "json_schema": 1
+  },
+  "revision": {
+    "commit": "<commit>",
+    "state": "clean",
+    "digest": "<digest>"
+  },
+  "status": "unsuccessful",
+  "diagnostics": [
+    {
+      "code": "contract_violation",
+      "category": "contract",
+      "severity": "error",
+      "message": "requires clause failed: b != 0",
+      "span": {
+        "file": "src/reader/pages.cpl",
+        "line": 106,
+        "col": 5,
+        "end_line": 106,
+        "end_col": 20
+      },
+      "symbol": "reader.pages.divide_exactly",
+      "qualified_name": "reader.pages.divide_exactly",
+      "facet": "contract",
+      "backtrace": [
+        {
+          "qualified_name": "reader.pages.divide_exactly"
+        }
+      ],
+      "attributed_to": "caller",
+      "clause": "b != 0",
+      "clause_kind": "requires",
+      "input": {
+        "a": 7,
+        "b": 0
+      },
+      "status": "failed"
+    }
+  ],
+  "function": {
+    "id": "reader.pages.divide_exactly",
+    "path": "reader.pages.divide_exactly",
+    "provisional": true,
+    "facets": {
+      "identity": "8889f07ba443fde3a19de33d35e67cc7",
+      "name": "1fe4a946d2a3d764ff801c7071d47a42",
+      "signature": "d9700e01cbb53480d7930c14c31a5490",
+      "contract": "6ce52c7c269a5053205d8950768d4d43",
+      "effects": "af1349b9f5f9a1a6a0404dea36dcc949",
+      "body": "01633d1afd31c5dc69d43b5588a9c3eb",
+      "docs": "af1349b9f5f9a1a6a0404dea36dcc949",
+      "verification_policy": "af1349b9f5f9a1a6a0404dea36dcc949"
+    },
+    "definition": "c2279c1a5c51cd31b4f1e2a2d1b00630"
+  },
+  "arguments": [
+    7,
+    0
+  ],
+  "result": null,
+  "result_text": null,
+  "fault": {
+    "code": "contract_violation",
+    "category": "contract",
+    "severity": "error",
+    "message": "requires clause failed: b != 0",
+    "span": {
+      "file": "src/reader/pages.cpl",
+      "line": 106,
+      "col": 5,
+      "end_line": 106,
+      "end_col": 20
+    },
+    "symbol": "reader.pages.divide_exactly",
+    "qualified_name": "reader.pages.divide_exactly",
+    "facet": "contract",
+    "backtrace": [
+      {
+        "qualified_name": "reader.pages.divide_exactly"
+      }
+    ],
+    "attributed_to": "caller",
+    "clause": "b != 0",
+    "clause_kind": "requires",
+    "input": {
+      "a": 7,
+      "b": 0
+    },
+    "status": "failed"
+  }
+}

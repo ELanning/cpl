@@ -1,0 +1,12 @@
+[project]
+name = "project_fixture_binding_unknown"
+edition = "0.1"
+
+[interop]
+targets = ["python"]
+
+[interop.c]
+prefix = "cases"
+
+[test.fixtures]
+"cases.lib.Codec" = "codec"

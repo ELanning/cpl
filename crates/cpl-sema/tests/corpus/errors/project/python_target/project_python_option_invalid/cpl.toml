@@ -1,0 +1,13 @@
+[project]
+name = "project_python_option_invalid"
+edition = "0.1"
+
+[interop]
+targets = ["python"]
+
+[interop.c]
+prefix = "cases"
+
+[interop.python]
+package = "json"
+version = "1.0-beta"

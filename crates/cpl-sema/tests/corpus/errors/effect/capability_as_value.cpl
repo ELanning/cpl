@@ -1,0 +1,81 @@
+module negative.capability_as_value
+
+// A handle may appear only as an operation receiver, a `using` argument, or
+// the left part of an `effect_ref` (S27); every other occurrence is
+// `capability_as_value`. Every function also calls `db.get` so that no
+// `unused_capability` warning accompanies the error.
+
+pub capability Store {
+    fn get(key: Text) -> Int
+}
+
+fn takes(n: Int) -> Int {
+    n
+}
+
+fn a(key: Text, using db: Store) -> Int
+    effects { db.get }
+{
+    let _ = db // expect-error: capability_as_value
+    db.get(key)
+}
+
+fn b(key: Text, using db: Store) -> Int
+    effects { db.get }
+{
+    let _ = [db] // expect-error: capability_as_value
+    db.get(key)
+}
+
+fn c(key: Text, using db: Store) -> Int
+    effects { db.get }
+{
+    let _ = takes(db) // expect-error: capability_as_value
+    db.get(key)
+}
+
+fn d(key: Text, using db: Store) -> Int
+    effects { db.get }
+{
+    let _ = Some(db) // expect-error: capability_as_value
+    db.get(key)
+}
+
+fn e(key: Text, using db: Store) -> Int
+    effects { db.get }
+{
+    let _ = db.get(key)
+    db // expect-error: capability_as_value
+}
+
+fn f(key: Text, using db: Store) -> Int
+    effects { db.get }
+{
+    match db { // expect-error: capability_as_value
+        _ => db.get(key)
+    }
+}
+
+fn g(key: Text, using db: Store) -> Int
+    effects { db.get }
+{
+    assert db // expect-error: capability_as_value
+    db.get(key)
+}
+
+fn h(key: Text, using db: Store) -> Int
+    effects { db.get }
+{
+    let _ = db.get(key)
+    db(key) // expect-error: capability_as_value
+}
+
+fn i(key: Text, using db: Store) -> Int
+    effects { db.get }
+{
+    var n = db.get(key)
+    if n > 0 {
+        return db // expect-error: capability_as_value
+    }
+    n
+}

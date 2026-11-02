@@ -1,0 +1,22 @@
+module negative.for_range_not_generator
+
+// A property `for` range must have type Gen<T> (semantics 3.14, S14). The
+// bodies do not mention the binder, whose type is unknown after the error.
+
+property "a list is not a generator"
+    for x in [1, 2, 3] // expect-error: for_range_not_generator
+{
+    assert true
+}
+
+property "an int is not a generator"
+    for x in 5 // expect-error: for_range_not_generator
+{
+    assert true
+}
+
+property "a function result is not a generator"
+    for x in flatten([[1]]) // expect-error: for_range_not_generator
+{
+    assert true
+}

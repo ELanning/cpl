@@ -1,0 +1,36 @@
+module negative.infinite_type
+
+// A cycle in the containment graph not broken by List, Option, or Result is
+// `infinite_type`, reported on every declaration in the cycle (S7).
+
+pub struct Node { // expect-error: infinite_type
+    next: Node
+}
+
+pub enum Expr { // expect-error: infinite_type
+    Lit(Int)
+    Neg(Expr)
+}
+
+pub struct Left { // expect-error: infinite_type
+    right: Right
+}
+
+pub struct Right { // expect-error: infinite_type
+    left: Left
+}
+
+pub struct Box<T> {
+    value: T
+}
+
+pub struct Chain { // expect-error: infinite_type
+    next: Box<Chain>
+}
+
+pub type Wrap(Wrap) // expect-error: infinite_type
+
+pub struct Tree {
+    children: List<Tree>
+    parent: Option<Tree>
+}

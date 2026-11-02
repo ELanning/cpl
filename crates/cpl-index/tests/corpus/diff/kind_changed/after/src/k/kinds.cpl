@@ -1,0 +1,16 @@
+module k.kinds
+
+@id("ty_cccccccccccccccc")
+pub struct Size {
+    value: Int
+}
+
+@id("ty_dddddddddddddddd")
+pub struct Wrapped {
+    value: Int
+}
+
+@id("fn_eeeeeeeeeeeeeeee")
+test "check it" {
+    assert true
+}

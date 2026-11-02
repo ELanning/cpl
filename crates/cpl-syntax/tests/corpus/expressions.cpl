@@ -1,0 +1,87 @@
+/// Every expression form of grammar 3.12 and every pattern of 3.13.
+module corpus.expressions
+
+use corpus.items.{Pair, Shape, Positive}
+
+fn precedence(a: Int, b: Int, c: Bool) -> Bool {
+    let sum = a + b * 2 - a / b % 3
+    let joined = [a] ++ [b, sum]
+    let negated = -a * -(b + 1)
+    let compared = sum <= 10 and not c or a != b
+    compared == (sum > 0)
+}
+
+fn members(pair: Pair<List<Int>, Text>) -> Int {
+    let items = pair.first
+    let n = items.len
+    let rest = items.drop(1).take(n - 1)
+    let empty = rest.is_empty()
+    let checked = check<Positive>(n)?
+    let trimmed = std.text.trim(pair.second)
+    if empty {
+        0
+    } else if checked > 2 {
+        rest.len
+    } else {
+        -1
+    }
+}
+
+fn quantifiers(pages: List<List<Int>>) -> Bool {
+    forall page in pages: forall x in page: x > 0 and x < 100
+}
+
+fn literals() -> List<Text> {
+    let escaped = "tab\t, newline\n, quote \", backslash \\, delete \u{7f}"
+    let unicode = "naïve ∀ 漢字"
+    let flags = [true, false]
+    let nested = [[1, 2], [], [-3]]
+    [escaped, unicode]
+}
+
+fn structs(pair: Pair<Int, Int>) -> Pair<Int, Int> {
+    let copy = Pair { ..pair, second: pair.first }
+    let fresh = Pair { first: 1, second: 2 }
+    let wrapped = corpus.items.Name("n")
+    let qualified = corpus.items.Pair { first: 1, second: 2 }
+    let chosen = if copy.first > 0 {
+        copy.first
+    } else {
+        0
+    }
+    Pair {
+        ..copy,
+        first: chosen,
+    }
+}
+
+fn patterns(shape: Shape<Int>, result: Result<Int, Text>) -> Int {
+    let a = match shape {
+        Dot => 0
+        Line(x, _) => x
+        Shape.Many(items) => items.len
+        corpus.items.Shape.Line(_, y) => y
+    }
+    let b = match result {
+        Ok(0) => 1
+        Ok(-1) => 2
+        Ok(n) => n
+        Err("") => 3
+        Err(_) => {
+            return 4
+        }
+    }
+    let c = match a == b {
+        true => 5
+        false => 6
+    }
+    a + b + c + ?remaining
+}
+
+fn forwarding(key: Text, using store: corpus.items.Store) -> Result<Text, Unit>
+    effects { store.get }
+{
+    let value = store.get(key)?
+    let again = load(key, using store)
+    Ok(value)
+}

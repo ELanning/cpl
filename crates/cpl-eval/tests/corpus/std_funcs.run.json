@@ -1,0 +1,7 @@
+[
+  {"function": "corpus.std_funcs.trimmed", "args": ["\u00a0x\u00a0"], "expect": {"value": "x"}},
+  {"function": "corpus.std_funcs.pieces", "args": ["aaa", "aa"], "expect": {"value": ["", "a"]}},
+  {"function": "corpus.std_funcs.parsed", "args": ["007"], "expect": {"value": {"$type": "Result", "$variant": "Ok", "$payload": [7]}}},
+  {"function": "corpus.std_funcs.parse_failure_type", "args": ["-"], "expect": {"value": "Int"}},
+  {"function": "corpus.std_funcs.pack", "args": [[104, 105]], "expect": {"value": {"$type": "Bytes", "hex": "6869"}}}
+]

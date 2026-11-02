@@ -1,0 +1,8 @@
+module cases.lib
+
+// Directory case (Milestone 3, spec/python.md, toolchain 11.1): `[interop.python]` while "python" is not in `[interop] targets`.
+// expect-error(global): project_python_target_not_enabled
+
+pub capability Codec {
+    fn size(image: Bytes) -> Int
+}

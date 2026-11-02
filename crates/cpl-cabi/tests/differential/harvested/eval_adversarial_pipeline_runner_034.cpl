@@ -1,0 +1,11 @@
+module tests.ok
+
+fn three() -> Int {
+    3
+}
+
+property "pure"
+    for x in gen.range(0, three())
+{
+    assert x <= 3
+}

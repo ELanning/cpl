@@ -1,0 +1,14 @@
+module negative.type_mismatch_test_tail
+
+// Test and property bodies are typed against Unit (3.14): a non-Unit tail
+// expression is `type_mismatch`.
+
+test "tail must be unit" {
+    1 + 1 // expect-error: type_mismatch
+}
+
+property "property tail must be unit"
+    for n in gen.int
+{
+    n * 2 // expect-error: type_mismatch
+}

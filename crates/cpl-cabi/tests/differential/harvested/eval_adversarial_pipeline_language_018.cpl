@@ -1,0 +1,20 @@
+module pl.lib
+
+pub type Positive = Int where self > 0
+
+pub fn recip(n: Int) -> Int
+    requires n != 0
+{
+    100 / n
+}
+
+pub fn checked(n: Int) -> Result<Positive, ConstraintError> {
+    check<Positive>(n)
+}
+
+@id("fn_lib_tracked")
+pub fn tracked(n: Int) -> Int
+    requires n > 0
+{
+    recip(n - 1)
+}

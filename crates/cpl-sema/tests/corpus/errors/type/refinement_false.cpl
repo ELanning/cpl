@@ -1,0 +1,53 @@
+module negative.refinement_false
+
+// A constant expression whose value fails a predicate in chain(E) is
+// `refinement_false` (S16 step 3), for Int, list, and option literals and
+// for a nested chain, and for the constant `Unit` that a bare `return` and a
+// missing tail stand for at a refinement of `Unit` (3.11, 3.10; the missing
+// tail's diagnostic spans the block, S63 (1)).
+
+pub type Positive = Int where self > 0
+pub type Big = Positive where self > 100
+pub type NonEmpty = List<Int> where not self.is_empty()
+pub type Never = Unit where false
+
+fn paginate(items: List<Int>, size: Positive) -> List<List<Int>> {
+    [items]
+}
+
+fn a(items: List<Int>) -> List<List<Int>> {
+    paginate(items, 0) // expect-error: refinement_false
+}
+
+fn b() -> Positive {
+    -1 // expect-error: refinement_false
+}
+
+fn c() -> NonEmpty {
+    [] // expect-error: refinement_false
+}
+
+fn d() -> Big {
+    50 // expect-error: refinement_false
+}
+
+fn e() -> Option<Positive> {
+    Some(0) // expect-error: refinement_false
+}
+
+fn f() -> Int {
+    let p: Positive = 2 - 2 // expect-error: refinement_false
+    p
+}
+
+fn g() -> Never {
+    return // expect-error: refinement_false
+}
+
+fn h(n: Int) -> Never { // expect-error: refinement_false
+    let _ = n
+}
+
+test "literal fails the predicate" {
+    assert paginate([1, 2, 3], 0) == [] // expect-error: refinement_false
+}

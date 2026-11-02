@@ -1,0 +1,43 @@
+module negative.type_mismatch_call_arguments
+
+// Each argument checks against its parameter type (semantics 3.7 step 2),
+// for functions, methods, constructors, and generic instantiations.
+
+pub type PageId(Text)
+
+pub enum StoreError {
+    Missing(PageId)
+    Unavailable
+}
+
+fn describe(id: PageId, count: Int) -> Text {
+    "x"
+}
+
+fn a() -> Text {
+    describe("page-1", 2) // expect-error: type_mismatch
+}
+
+fn b(xs: List<Int>) -> List<Int> {
+    xs.take("2") // expect-error: type_mismatch
+}
+
+fn c() -> StoreError {
+    Missing("page-1") // expect-error: type_mismatch
+}
+
+fn d() -> PageId {
+    PageId(7) // expect-error: type_mismatch
+}
+
+fn e(xs: List<Int>) -> List<Int> {
+    xs.push("x") // expect-error: type_mismatch
+}
+
+fn f() -> Option<Text> {
+    Some(1) // expect-error: type_mismatch
+}
+
+fn g(xs: List<Int>) -> List<Int> {
+    flatten(xs) // expect-error: type_mismatch
+}

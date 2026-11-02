@@ -1,0 +1,22 @@
+module negative.property_called
+
+// A property used with a call: `len` on a list and on a text, and the
+// generator properties of `std.gen` (D43, S54).
+
+pub struct Page {
+    text: Text
+}
+
+fn a(xs: List<Int>) -> Int {
+    xs.len() // expect-error: property_called
+}
+
+fn b(page: Page) -> Int {
+    page.text.len() // expect-error: property_called
+}
+
+property "generator properties are read without parentheses"
+    for n in gen.int() // expect-error: property_called
+{
+    assert n == n
+}

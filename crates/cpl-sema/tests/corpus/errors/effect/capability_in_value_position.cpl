@@ -1,0 +1,28 @@
+module negative.capability_in_value_position
+
+// A capability type in a positional parameter, field, variant payload, or
+// return position is `capability_in_value_position` (S13, S27).
+
+pub capability Store {
+    fn get(key: Text) -> Int
+}
+
+fn a(db: Store) -> Int { // expect-error: capability_in_value_position
+    1
+}
+
+fn b(key: Text, using db: Store) -> Store // expect-error: capability_in_value_position
+    effects { db.get }
+{
+    let _ = db.get(key)
+    1
+}
+
+pub struct Context { // expect-error@+1: capability_in_value_position
+    db: Store
+}
+
+pub enum Source { // expect-error@+1: capability_in_value_position
+    Remote(Store)
+    Local
+}

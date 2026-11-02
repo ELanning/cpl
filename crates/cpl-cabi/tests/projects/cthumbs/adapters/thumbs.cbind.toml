@@ -1,0 +1,22 @@
+# The declarative binding of spec/cabi.md 6.3 over the test library imgtest.
+[library]
+headers = ["imgtest.h"]
+
+[state]
+type = "imgtest_decoder *"
+create = "imgtest_decoder_new"
+destroy = "imgtest_decoder_free"
+
+[ops.thumbnail]
+c = "imgtest_thumbnail"
+args = ["state", "image: bytes_span", "max_side: int32"]
+out = [{ name = "data", type = "owned_bytes", release = "imgtest_free" }]
+returns = { type = "int", ok = [0] }
+errors = { "-1" = "InvalidArgument", "-2" = "Unavailable", default = "Exception" }
+message = "imgtest_strerror"
+result = "data"
+
+[ops.decoder_version]
+c = "imgtest_version"
+args = []
+returns = { type = "int32", result = true }

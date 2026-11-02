@@ -1,0 +1,28 @@
+module negative.assign_to_immutable
+
+// Assignment targets must be `var` bindings of the enclosing body
+// (semantics 3.11): a `let`, a parameter, and a property binder are
+// `assign_to_immutable`; an unknown name is `unresolved_name`.
+
+fn a(n: Int) -> Int {
+    let total = n
+    total = total + 1 // expect-error: assign_to_immutable
+    total
+}
+
+fn b(n: Int) -> Int {
+    n = n + 1 // expect-error: assign_to_immutable
+    n
+}
+
+fn c(n: Int) -> Int {
+    nowhere = n // expect-error: unresolved_name
+    n
+}
+
+property "binders are immutable"
+    for n in gen.int
+{
+    n = 0 // expect-error: assign_to_immutable
+    assert n == n
+}

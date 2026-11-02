@@ -1,0 +1,22 @@
+module negative.unused_decreases
+
+// A `decreases` clause on a function that is not recursive is a warning
+// (5.4). The marker sits on the clause (README: span convention for clause
+// diagnostics).
+
+fn a(n: Int) -> Int
+    decreases n // expect-warning: unused_decreases
+{
+    n + 1
+}
+
+fn helper(n: Int) -> Int {
+    n
+}
+
+fn b(n: Int) -> Int
+    requires n >= 0
+    decreases n // expect-warning: unused_decreases
+{
+    helper(n)
+}

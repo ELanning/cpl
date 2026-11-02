@@ -1,0 +1,84 @@
+{
+  "old": {
+    "commit": null,
+    "state": "worktree",
+    "digest": "2027d467579f707653649b3952591e447f9aaa59eb34c971b392d5dd80ad65bb"
+  },
+  "new": {
+    "commit": null,
+    "state": "worktree",
+    "digest": "e840c781b22e819a0a71aca9a748d1a71e439fe3b4a62a46e077a6b26f2069d8"
+  },
+  "statements": [
+    {
+      "statement": "identity_added",
+      "id": "fn_jjjjjjjjjjjjjjjj",
+      "path": "dup.two.copy",
+      "kind": "fn",
+      "facet": null,
+      "detail": {
+        "version": {
+          "id": "fn_jjjjjjjjjjjjjjjj",
+          "path": "dup.two.copy",
+          "provisional": false,
+          "facets": {
+            "identity": "c031b3d5a5072415b142c0993ff00440",
+            "name": "08d11189f9a9e68dc1466cbba529ca88",
+            "signature": "7b550e291fe05ea4aa25901b679d6f69",
+            "contract": "af1349b9f5f9a1a6a0404dea36dcc949",
+            "effects": "af1349b9f5f9a1a6a0404dea36dcc949",
+            "body": "1f4c20382fec9cfe229f832f654e7b04",
+            "docs": "af1349b9f5f9a1a6a0404dea36dcc949",
+            "verification_policy": "af1349b9f5f9a1a6a0404dea36dcc949"
+          },
+          "definition": "53d6992a6278fa2441dbfad4ec726e9d"
+        }
+      }
+    },
+    {
+      "statement": "identity_added",
+      "id": "dup.two.helper",
+      "path": "dup.two.helper",
+      "kind": "fn",
+      "facet": null,
+      "detail": {
+        "version": {
+          "id": "dup.two.helper",
+          "path": "dup.two.helper",
+          "provisional": true,
+          "facets": {
+            "identity": "3ff3145ce68f51ba0cbea8f88c77eb01",
+            "name": "de96007a2884e37e7f6fdac85dee29da",
+            "signature": "7dc8f17876a470b424c5af189e5a9fae",
+            "contract": "af1349b9f5f9a1a6a0404dea36dcc949",
+            "effects": "af1349b9f5f9a1a6a0404dea36dcc949",
+            "body": "1f4c20382fec9cfe229f832f654e7b04",
+            "docs": "af1349b9f5f9a1a6a0404dea36dcc949",
+            "verification_policy": "af1349b9f5f9a1a6a0404dea36dcc949"
+          },
+          "definition": "fd001d0f6603fa38e20e0e836e62b3a8"
+        }
+      }
+    }
+  ],
+  "duplicates": {
+    "old": [
+      {
+        "id": "fn_iiiiiiiiiiiiiiii",
+        "files": [
+          "src/dup/one.cpl",
+          "src/dup/two.cpl"
+        ]
+      }
+    ],
+    "new": [
+      {
+        "id": "dup.two.helper",
+        "files": [
+          "src/dup/two.cpl",
+          "src/dup/two/more.cpl"
+        ]
+      }
+    ]
+  }
+}

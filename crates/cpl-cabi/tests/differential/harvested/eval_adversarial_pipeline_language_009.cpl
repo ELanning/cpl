@@ -1,0 +1,101 @@
+module pl.generic
+
+pub type PageId(Text)
+
+pub struct Pair<A, B> {
+    left: A
+    right: B
+}
+
+pub enum Tree<T> {
+    Leaf
+    Node(List<Tree<T>>, T)
+}
+
+fn first_or<T>(xs: List<T>, d: T) -> T {
+    match xs.first() {
+        Some(x) => x
+        None => d
+    }
+}
+
+fn swap<A, B>(p: Pair<A, B>) -> Pair<B, A> {
+    Pair { left: p.right, right: p.left }
+}
+
+fn size<T>(t: Tree<T>) -> Int {
+    match t {
+        Leaf => 0
+        Node(kids, _) => 1 + sizes(kids)
+    }
+}
+
+fn sizes<T>(ts: List<Tree<T>>) -> Int {
+    var total = 0
+    var rest = ts
+    while not rest.is_empty()
+        decreases rest.len
+    {
+        total = total + match rest.first() {
+            Some(t) => size(t)
+            None => 0
+        }
+        rest = rest.drop(1)
+    }
+    total
+}
+
+fn count<T>(xs: List<T>) -> Int
+    decreases xs.len
+{
+    if xs.is_empty() { 0 } else { 1 + count(xs.drop(1)) }
+}
+
+fn uses() -> List<Bool> {
+    let a = first_or([1, 2], 0) == 1
+    let b = first_or(["x"], "y") == "x"
+    let c = first_or([[1], [2]], []) == [1]
+    let d = first_or([PageId("p")], PageId("q")) == PageId("p")
+    let e = first_or([Some(true)], None) == Some(true)
+    let f = first_or([], Pair { left: 1, right: "r" }) == Pair { left: 1, right: "r" }
+    let g = swap(swap(Pair { left: [1], right: Unit })) == Pair { left: [1], right: Unit }
+    let h = size(Node([Leaf, Node([], "x"), Node([Node([], "y")], "z")], "root")) == 4
+    let i = count(["a", "b", "c"]) + count([[1]]) + count([Unit]) == 5
+    [a, b, c, d, e, f, g, h, i]
+}
+
+fn swapped(p: Pair<Int, Text>) -> Pair<Text, Int> {
+    swap(p)
+}
+
+fn second<T>(xs: List<T>, d: T) -> T
+    requires xs.len >= 2
+{
+    first_or(xs.drop(1), d)
+}
+
+fn bad_rev<T>(xs: List<T>) -> List<T>
+    ensures result.len == xs.len
+{
+    xs.reverse().drop(1)
+}
+
+fn second_of_ids() -> PageId {
+    second([PageId("a")], PageId("d"))
+}
+
+fn second_of_units() -> Unit {
+    second([Unit], Unit)
+}
+
+fn rev_of_options() -> List<Option<Int>> {
+    bad_rev([Some(1), None])
+}
+
+fn rev_of_pairs() -> List<Pair<Int, Text>> {
+    bad_rev([Pair { left: 1, right: "a" }])
+}
+
+fn rev_of_errors() -> List<Result<gen.Positive, ConstraintError>> {
+    bad_rev([check<gen.Positive>(0), Ok(1)])
+}

@@ -1,0 +1,57 @@
+{
+  "command": "run",
+  "toolchain": {
+    "version": "0.1.0",
+    "edition": "0.1",
+    "json_schema": 1
+  },
+  "revision": {
+    "commit": "<commit>",
+    "state": "clean",
+    "digest": "<digest>"
+  },
+  "status": "ok",
+  "diagnostics": [],
+  "function": {
+    "id": "reader.pages.paginate_ints",
+    "path": "reader.pages.paginate_ints",
+    "provisional": true,
+    "facets": {
+      "identity": "7ed8d7a5b151ae79e59f470c0c268092",
+      "name": "b06bd0c1a2a6bf69ebd172e346864d37",
+      "signature": "8bc27802c739deb07f84f7cd98eaf032",
+      "contract": "af1349b9f5f9a1a6a0404dea36dcc949",
+      "effects": "af1349b9f5f9a1a6a0404dea36dcc949",
+      "body": "581343fc2f3f48eb1010bb12d88a936b",
+      "docs": "af1349b9f5f9a1a6a0404dea36dcc949",
+      "verification_policy": "af1349b9f5f9a1a6a0404dea36dcc949"
+    },
+    "definition": "8c07cc027eff53ecf092a2fb627ada8a"
+  },
+  "arguments": [
+    [
+      1,
+      2,
+      3
+    ],
+    2
+  ],
+  "result": {
+    "$payload": [
+      [
+        [
+          1,
+          2
+        ],
+        [
+          3
+        ]
+      ]
+    ],
+    "$type": "Result",
+    "$variant": "Ok"
+  },
+  "result_text": "Ok([[1, 2], [3]])",
+  "fault": null,
+  "engine": "native"
+}

@@ -1,0 +1,27 @@
+module reader.pages
+
+@id("pgn_7c2d")
+@prove
+pub fn paginate<T>(items: List<T>, size: Positive) -> List<List<T>>
+    ensures flatten(result) == items
+    ensures forall page in result: page.len > 0 and page.len <= size
+    ensures forall page in result.drop_last(): page.len == size
+{
+    var pages: List<List<T>> = []
+    var rest = items
+
+    while rest.len > size
+        invariant flatten(pages) ++ rest == items
+        invariant forall page in pages: page.len == size
+        decreases rest.len
+    {
+        pages = pages.push(rest.take(size))
+        rest = rest.drop(size)
+    }
+
+    if not rest.is_empty() {
+        pages = pages.push(rest)
+    }
+
+    pages
+}

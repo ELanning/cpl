@@ -1,0 +1,19 @@
+(module reader.pages
+  (fn label
+    (params (param result (ty Result (ty Page) (ty StoreError))))
+    (ret (ty Text))
+    (block
+      (tail
+        (match
+          (name result)
+          (arm (ctor Ok (bind page)) (member (name page) text))
+          (arm (ctor Err (ctor Missing _)) (text "Missing page"))
+          (arm (ctor Err (ctor Unavailable)) (text "Storage unavailable")))))
+    (trivia blank))
+  (fn positive_size
+    (params (param text (ty Text)))
+    (ret (ty Result (ty Positive) (ty ConstraintError)))
+    (block
+      (let n (propagate (call (name parse_size) (name text))))
+      (tail (call (name check) (generics (ty Positive)) (name n))))
+    (trivia blank)))

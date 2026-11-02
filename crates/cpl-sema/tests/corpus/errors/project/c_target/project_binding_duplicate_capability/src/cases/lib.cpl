@@ -1,0 +1,10 @@
+module cases.lib
+
+// Directory case: two backend-c bindings of one capability; at most one
+// may bind it, so `cpl run` has one source of handles (toolchain 11.1,
+// T74).
+// expect-error(global): project_binding_duplicate_capability
+
+pub capability Codec {
+    fn size(image: Bytes) -> Int
+}

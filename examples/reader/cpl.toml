@@ -1,0 +1,12 @@
+[project]
+name = "reader"
+edition = "0.1"
+
+[interop]
+targets = ["python", "node", "c"]
+
+[bindings.image_codec]
+capability = "reader.images.ImageCodec"
+backend = "python"
+adapter = "reader_adapters.images"
+isolation = "worker"

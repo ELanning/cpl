@@ -1,0 +1,5 @@
+module holes.pages
+
+fn summarize(page: Page) -> Text {
+    ?summary
+}

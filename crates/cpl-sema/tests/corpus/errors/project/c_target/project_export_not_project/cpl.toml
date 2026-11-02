@@ -1,0 +1,10 @@
+[project]
+name = "project_export_not_project"
+edition = "0.1"
+
+[interop]
+targets = ["c"]
+
+[interop.c]
+prefix = "cases"
+exports = ["std.text.trim"]

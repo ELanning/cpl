@@ -1,0 +1,26 @@
+module negative.duplicate_members
+
+// Variant, operation, parameter, and type-parameter names are unique within
+// their declaration (semantics 1.4). (A `using` parameter clashing with a
+// positional one is also `duplicate_parameter`; it is not written here
+// because every body that uses the handle would resolve `db` ambiguously.)
+
+pub enum Signal {
+    Go
+    Stop
+    Go // expect-error: duplicate_variant
+}
+
+pub capability Store {
+    fn get(key: Text) -> Int
+    fn get(key: Int) -> Int // expect-error: duplicate_operation
+}
+
+fn twice(n: Int, n: Int) -> Int { // expect-error: duplicate_parameter
+    n
+}
+
+pub struct Pair<T, T> { // expect-error: duplicate_type_parameter
+    left: T
+    right: T
+}

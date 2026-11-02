@@ -1,0 +1,6 @@
+module dup.one
+
+@id("fn_iiiiiiiiiiiiiiii")
+pub fn original() -> Int {
+    1
+}

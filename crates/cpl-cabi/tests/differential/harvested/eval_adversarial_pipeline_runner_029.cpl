@@ -1,0 +1,35 @@
+module tests.indep
+
+test "a first" {
+    assert true
+}
+
+property "o"
+    for x in gen.int
+{
+    assert x < 5
+}
+
+property "p"
+    for xs in gen.list(gen.int)
+    for n in gen.positive_int
+{
+    assert xs.len < n
+}
+
+test "p2" {
+    assert false
+}
+
+property "q"
+    for t in gen.text
+    for b in gen.bool
+{
+    assert t.len < 3 or not b
+}
+
+property "r"
+    for xs in gen.list(gen.bool)
+{
+    assert xs.len < 2
+}

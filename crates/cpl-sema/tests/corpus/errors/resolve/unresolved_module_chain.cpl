@@ -1,0 +1,10 @@
+module negative.unresolved_module_chain
+
+// A qualified chain whose longest module-path prefix is only a prefix (no
+// module has exactly that path) and whose next segment is not an item of
+// any such module: `negative` is a prefix of this module's path, but there
+// is no module `negative` and no module `negative.missing` (semantics 2.4).
+
+fn call() -> Int {
+    negative.missing.compute(1) // expect-error: unresolved_module
+}

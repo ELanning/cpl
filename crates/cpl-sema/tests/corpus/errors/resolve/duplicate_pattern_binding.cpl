@@ -1,0 +1,15 @@
+module negative.duplicate_pattern_binding
+
+// A name may be bound once per pattern (semantics 3.12).
+
+pub enum Pair {
+    Both(Int, Int)
+    Neither
+}
+
+fn sum(p: Pair) -> Int {
+    match p {
+        Both(x, x) => x // expect-error: duplicate_pattern_binding
+        Neither => 0
+    }
+}

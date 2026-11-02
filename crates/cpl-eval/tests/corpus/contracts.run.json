@@ -1,0 +1,12 @@
+[
+  {"function": "corpus.contracts.recip", "args": [0], "expect": {"fault": "contract_violation"}},
+  {"function": "corpus.contracts.half", "args": [5], "expect": {"fault": "contract_violation"}},
+  {"function": "corpus.contracts.passthrough", "args": [{"$type": "Result", "$variant": "Err", "$payload": ["e"]}], "expect": {"fault": "contract_violation"}},
+  {"function": "corpus.contracts.bad_loop", "args": [3], "expect": {"fault": "contract_violation"}},
+  {"function": "corpus.contracts.stuck", "args": [1], "expect": {"value": 1}},
+  {"function": "corpus.contracts.stuck", "args": [2], "expect": {"fault": "contract_violation"}},
+  {"function": "corpus.contracts.neg_measure", "args": [1], "expect": {"fault": "contract_violation"}},
+  {"function": "corpus.contracts.bad_rec", "args": [1], "expect": {"fault": "contract_violation"}},
+  {"function": "corpus.contracts.count_down", "args": [3], "expect": {"value": 3}},
+  {"function": "corpus.contracts.faulting_clause", "args": [0], "expect": {"fault": "division_by_zero"}}
+]

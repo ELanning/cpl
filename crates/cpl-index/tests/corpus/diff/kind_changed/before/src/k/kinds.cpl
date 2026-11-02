@@ -1,0 +1,12 @@
+module k.kinds
+
+@id("ty_cccccccccccccccc")
+pub type Size = Int where self > 0
+
+@id("ty_dddddddddddddddd")
+pub type Wrapped(Int)
+
+@id("fn_eeeeeeeeeeeeeeee")
+fn check_it() -> Unit {
+    assert true
+}

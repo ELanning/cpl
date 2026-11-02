@@ -1,0 +1,147 @@
+module pyshop.values
+
+use std.foreign.{ForeignError}
+use pyshop.store.{Item, Sku, Price, Category}
+
+/// The errors of a stock lookup.
+pub enum StoreError {
+    Missing(Sku)
+    Unavailable
+}
+
+/// Two options deep, so that nested tags stay apart.
+pub struct Pair {
+    left: Int
+    right: Option<Option<Int>>
+}
+
+/// A tree of any depth.
+pub struct Tree {
+    children: List<Tree>
+}
+
+pub fn echo_item(item: Item) -> Item {
+    item
+}
+
+pub fn echo_int(n: Int) -> Int {
+    n
+}
+
+pub fn echo_text(t: Text) -> Text {
+    t
+}
+
+pub fn echo_bytes(b: Bytes) -> Bytes {
+    b
+}
+
+pub fn echo_bool(b: Bool) -> Bool {
+    b
+}
+
+pub fn echo_unit(u: Unit) -> Unit {
+    u
+}
+
+pub fn echo_lists(xs: List<List<Int>>) -> List<List<Int>> {
+    xs
+}
+
+pub fn echo_pair(p: Pair) -> Pair {
+    p
+}
+
+pub fn echo_options(o: Option<Option<Int>>) -> Option<Option<Int>> {
+    o
+}
+
+pub fn echo_results(rs: List<Result<Int, Text>>) -> List<Result<Int, Text>> {
+    rs
+}
+
+pub fn echo_category(c: Category) -> Category {
+    c
+}
+
+pub fn echo_error(e: StoreError) -> StoreError {
+    e
+}
+
+pub fn echo_foreign(e: ForeignError) -> ForeignError {
+    e
+}
+
+pub fn echo_price(p: Price) -> Price {
+    p
+}
+
+pub fn echo_tree(t: Tree) -> Tree {
+    t
+}
+
+/// A tree nested `n` levels deep.
+pub fn nest(n: Int) -> Tree {
+    var tree = Tree { children: [] }
+    var i = 0
+    while i < n
+        decreases n - i
+    {
+        tree = Tree { children: [tree] }
+        i = i + 1
+    }
+    tree
+}
+
+/// The item of `sku` in `stock`, or `Missing`.
+pub fn find(sku: Sku, stock: List<Item>) -> Result<Item, StoreError> {
+    var i = 0
+    while i < stock.len
+        decreases stock.len - i
+    {
+        let found = match stock.get(i) {
+            Some(item) => item.sku == sku
+            None => false
+        }
+        if found {
+            return match stock.get(i) {
+                Some(item) => Ok(item)
+                None => Err(StoreError.Missing(sku))
+            }
+        }
+        i = i + 1
+    }
+    Err(StoreError.Missing(sku))
+}
+
+pub fn unavailable() -> Result<Int, StoreError> {
+    Err(StoreError.Unavailable)
+}
+
+/// The value of a one-digit text; an error text for anything else.
+pub fn parse_digit(t: Text) -> Result<Int, Text> {
+    if t == "0" {
+        return Ok(0)
+    }
+    if t == "7" {
+        return Ok(7)
+    }
+    Err("not a digit: " ++ t)
+}
+
+pub fn checked_div(a: Int, b: Int) -> Int
+    requires b != 0
+{
+    a / b
+}
+
+/// Counts to `n`: long enough, for a large `n`, to meet a budget or a cancellation.
+pub fn spin(n: Int) -> Int {
+    var i = 0
+    while i < n
+        decreases n - i
+    {
+        i = i + 1
+    }
+    i
+}

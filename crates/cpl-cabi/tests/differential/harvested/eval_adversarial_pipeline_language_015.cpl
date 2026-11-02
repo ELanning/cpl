@@ -1,0 +1,110 @@
+module pl.holes
+
+pub type Positive = Int where self > 0
+
+pub struct Point {
+    x: Int
+    y: Int
+}
+
+fn in_let(n: Int) -> Int {
+    let x: Option<Positive> = ?maybe
+    n
+}
+
+fn takes(p: Positive) -> Int {
+    p
+}
+
+fn in_arg(n: Int) -> Int {
+    takes(?size)
+}
+
+fn in_match(o: Option<Int>) -> Int {
+    match o {
+        Some(v) => ?some_case
+        None => 0
+    }
+}
+
+fn in_loop(n: Int) -> Int {
+    var i = 0
+    while i < n
+        invariant i >= 0
+        decreases n - i
+    {
+        let step = i + 1
+        i = ?next
+    }
+    i
+}
+
+fn in_forall(xs: List<Int>) -> Bool {
+    forall x in xs: ?pred
+}
+
+fn in_generic<T>(xs: List<T>) -> List<T> {
+    let n = xs.len
+    ?rest
+}
+
+fn calls_generic() -> List<Text> {
+    in_generic(["a"])
+}
+
+fn in_condition(n: Int) -> Int {
+    if ?cond { 1 } else { n }
+}
+
+fn in_field(n: Int) -> Point {
+    Point { x: n, y: ?y }
+}
+
+fn in_list(n: Int) -> List<Positive> {
+    [1, ?second]
+}
+
+fn after_return(n: Int) -> Int {
+    if n > 0 {
+        return n
+    }
+    ?negative
+}
+
+fn in_nested(xs: List<Option<Int>>, flag: Bool) -> Int {
+    let outer = xs.len
+    var total = 0
+    if flag {
+        let inner = outer * 2
+        var i = 0
+        while i < xs.len
+            invariant i >= 0
+            decreases xs.len - i
+        {
+            let item = xs.get(i)
+            match item {
+                Some(Some(v)) => {
+                    let w = v + inner
+                    total = ?accumulate
+                }
+                Some(None) => {}
+                None => {}
+            }
+            i = i + 1
+        }
+    }
+    total
+}
+
+test "a hole in a test" {
+    let ready = true
+    ?todo
+}
+
+property "a hole in a property"
+    for n in gen.int
+    for flag in gen.bool
+{
+    let m = n
+    ?later
+}

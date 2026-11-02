@@ -1,0 +1,15 @@
+module tests.indep
+
+property "p"
+    for xs in gen.list(gen.int)
+    for n in gen.positive_int
+{
+    assert xs.len < n
+}
+
+property "q"
+    for t in gen.text
+    for b in gen.bool
+{
+    assert t.len < 3 or not b
+}

@@ -1,0 +1,23 @@
+{
+  "command": "work integrate",
+  "toolchain": {
+    "version": "0.1.0",
+    "edition": "0.1",
+    "json_schema": 1
+  },
+  "revision": null,
+  "status": "error",
+  "diagnostics": [
+    {
+      "code": "usage_not_implemented",
+      "category": "usage",
+      "severity": "error",
+      "message": "`cpl work integrate` is not implemented",
+      "notes": [
+        {
+          "message": "reserved for Milestone 6 (swarm integration, spec/toolchain.md Section 10)"
+        }
+      ]
+    }
+  ]
+}

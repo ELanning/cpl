@@ -1,0 +1,149 @@
+module app.codec
+
+use std.foreign.{ForeignError}
+
+pub type Positive = Int where self > 0
+pub type Small = Positive where self < 10
+pub type Faulty = Int where 10 / self > 0
+pub type Name(Text)
+
+pub struct Dimensions {
+    width: Positive
+    height: Positive
+}
+
+pub type Wide = Dimensions where self.width / self.height > 1
+
+pub enum Shape {
+    Square(Small)
+    Line(List<Small>)
+    Empty
+}
+
+pub enum Chain {
+    End(Positive)
+    Link(Option<Chain>)
+}
+
+pub capability Codec {
+    fn dimensions(image: Bytes) -> Result<Dimensions, ForeignError>
+    fn size() -> Positive
+    fn small() -> Small
+    fn shape() -> Shape
+    fn wide() -> Wide
+    fn wide_or_error() -> Result<Wide, ForeignError>
+    fn name() -> Name
+    fn names() -> List<Name>
+    fn maybe() -> Option<Positive>
+    fn faulty() -> Faulty
+    fn chain() -> Chain
+    fn sized(n: Int) -> Int
+        ensures result >= n
+    fn checked() -> Result<Small, ForeignError>
+        ensures result.is_ok()
+}
+
+pub fn get_dimensions(image: Bytes, using c: Codec) -> Result<Dimensions, ForeignError>
+    effects { c.dimensions }
+{
+    c.dimensions(image)
+}
+
+pub fn get_size(using c: Codec) -> Positive
+    effects { c.size }
+{
+    c.size()
+}
+
+pub fn get_small(using c: Codec) -> Small
+    effects { c.small }
+{
+    c.small()
+}
+
+pub fn get_shape(using c: Codec) -> Shape
+    effects { c.shape }
+{
+    c.shape()
+}
+
+pub fn get_wide(using c: Codec) -> Wide
+    effects { c.wide }
+{
+    c.wide()
+}
+
+pub fn get_wide_or_error(using c: Codec) -> Result<Wide, ForeignError>
+    effects { c.wide_or_error }
+{
+    c.wide_or_error()
+}
+
+pub fn get_name(using c: Codec) -> Name
+    effects { c.name }
+{
+    c.name()
+}
+
+pub fn get_names(using c: Codec) -> List<Name>
+    effects { c.names }
+{
+    c.names()
+}
+
+pub fn get_maybe(using c: Codec) -> Option<Positive>
+    effects { c.maybe }
+{
+    c.maybe()
+}
+
+pub fn get_faulty(using c: Codec) -> Faulty
+    effects { c.faulty }
+{
+    c.faulty()
+}
+
+pub fn get_sized(n: Int, using c: Codec) -> Int
+    effects { c.sized }
+{
+    c.sized(n)
+}
+
+pub fn get_checked(using c: Codec) -> Result<Small, ForeignError>
+    effects { c.checked }
+{
+    c.checked()
+}
+
+pub fn get_chain(using c: Codec) -> Chain
+    effects { c.chain }
+{
+    c.chain()
+}
+
+pub fn twice(using c: Codec) -> Int
+    effects { c.size }
+{
+    let a = c.size()
+    let b = c.size()
+    a + b
+}
+
+pub fn deep(n: Int, using c: Codec) -> Int
+    requires n >= 0
+    effects { c.size }
+{
+    if n == 0 { c.size() } else { deep(n - 1, using c) }
+}
+
+pub fn positive_arg(n: Positive, using c: Codec) -> Int
+    effects { c.size }
+{
+    n + c.size()
+}
+
+pub fn two(using a: Codec, using b: Codec) -> Int
+    effects { a.size, b.size }
+{
+    a.size() * 10 + b.size()
+}

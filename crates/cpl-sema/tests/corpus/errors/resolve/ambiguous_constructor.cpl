@@ -1,0 +1,24 @@
+module negative.ambiguous_constructor
+
+// With no expected type, two lexical candidates for one constructor name
+// are `ambiguous_constructor` listing both qualified names (S10 step 2).
+// `let _ = e` is an infer-only position, so no expected type exists.
+
+pub enum StoreError {
+    Missing(Text)
+    Unavailable
+}
+
+pub enum FetchError {
+    Missing(Text)
+    Timeout
+}
+
+fn pick() -> Int {
+    let _ = Missing("page-1") // expect-error: ambiguous_constructor
+    1
+}
+
+fn qualified_is_fine() -> StoreError {
+    StoreError.Missing("page-1")
+}

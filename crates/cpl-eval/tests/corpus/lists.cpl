@@ -1,0 +1,58 @@
+module corpus.lists
+
+// The design's List operation set at its boundaries: design-doc "Expressions
+// and errors", stdlib.md 4.2 / S15 / S16 / S17, semantics.md 6.1 and 6.10.
+
+// why: take_n([1, 2, 3], 5) == [1, 2, 3]: a count beyond the length clamps.
+// why: take_n([1, 2], 10000000000000000000000) == [1, 2]: the count exceeds
+// u64; stdlib.md 4.1 requires clamping against len *before* converting to a
+// machine index, so this is the clamped list and never an overflow or panic.
+// why: take_n([1], -1) is the fault contract_violation: stdlib.md S16 makes a
+// negative count a precondition violation, not a clamp to zero. Expected
+// fields (semantics.md 6.10): clause_kind "requires", symbol
+// "std.prelude.List.take", facet "contract", attributed_to "caller",
+// caller "corpus.lists.take_n", clause "n >= 0", input {"self": [1], "n": -1}.
+fn take_n(xs: List<Int>, n: Int) -> List<Int> {
+    xs.take(n)
+}
+
+// why: without_last([]) == []: the design states drop_last of an empty list
+// is the empty list; it is total and never a fault.
+fn without_last(xs: List<Int>) -> List<Int> {
+    xs.drop_last()
+}
+
+// why: push_keeps_original([1], 2) == [[1], [1, 2]]: push returns a new list
+// and the receiver is unchanged (semantics.md 6.1: values are immutable, a
+// var is a rebindable name). An implementation that appends in place and
+// shares the buffer would return [[1, 2], [1, 2]].
+fn push_keeps_original(xs: List<Int>, v: Int) -> List<List<Int>> {
+    let ys = xs.push(v)
+    [xs, ys]
+}
+
+// why: flat([[1, 2], [], [3]]) == [1, 2, 3]: concatenation in order, empty
+// inner lists contribute nothing (stdlib.md 1.6, law L7).
+fn flat(xss: List<List<Int>>) -> List<Int> {
+    flatten(xss)
+}
+
+// why: element([1, 2, 3], -1) == None: a negative index is out of range and
+// yields None (stdlib.md 4.5), not Python-style indexing from the end
+// (which would give Some(3)) and not a fault. Value JSON of None is
+// {"$type": "Option", "$variant": "None"} with no $payload (toolchain.md 7.3).
+fn element(xs: List<Int>, i: Int) -> Option<Int> {
+    xs.get(i)
+}
+
+// why: all_divide([]) == true: forall over an empty list is vacuously true.
+// why: all_divide([-1, 0]) == false: evaluation is left to right and stops at
+// the first element whose predicate is false (10 / -1 == -10, not > 0), so
+// 10 / 0 is never evaluated (stdlib.md S17, semantics.md 6.2).
+// why: all_divide([1, 0]) is the fault division_by_zero: 10 / 1 > 0 holds, so
+// evaluation continues to 0 and the fault inside the predicate is the fault of
+// the enclosing expression (S17), blamed on corpus.lists.all_divide with
+// input {"a": 10, "b": 0}.
+fn all_divide(xs: List<Int>) -> Bool {
+    forall x in xs: 10 / x > 0
+}

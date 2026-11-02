@@ -1,0 +1,7 @@
+module ws.main
+
+use std.text.{trim}
+
+pub fn t(s: Text) -> Text {
+    trim(s)
+}

@@ -1,0 +1,20 @@
+module negative.constant_evaluation_fault
+
+// A fault while evaluating a constant expression (step 1) or a predicate
+// (step 2) during the compile-time proof is `constant_evaluation_fault`
+// carrying the fault code (S16).
+
+pub type Positive = Int where self > 0
+pub type Reciprocal = Int where 10 / self > 0
+
+fn a() -> Positive {
+    1 / 0 // expect-error: constant_evaluation_fault
+}
+
+fn b() -> Reciprocal {
+    0 // expect-error: constant_evaluation_fault
+}
+
+fn c() -> Positive {
+    7 % 0 // expect-error: constant_evaluation_fault
+}

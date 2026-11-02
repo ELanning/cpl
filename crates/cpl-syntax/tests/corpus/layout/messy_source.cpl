@@ -1,0 +1,55 @@
+module corpus.layout
+use std.text.{ trim }
+use std.text.{parse_int}
+// Clauses in any order (D66), the formatter's canonical order (2.4 rule 7).
+fn reorder(a: Int, using db: Store) -> Int
+    decreases a
+    ensures result > 0
+    requires a > 0
+    effects {db.get}
+    requires a < 1_000_000
+{
+
+
+	let big = 1_000_000   
+    let escapes = "\u{1f600} \u{e9} \u{1} \u{7F}"
+    let chosen = if a > 0 { a } else { 0 }
+    let neg = - 5
+    let flipped = not(a > 0)
+    let sum = a+big*2
+    let long_list = [1000000000, 2000000000, 3000000000, 4000000000, 5000000000, 6000000000, 7000000000]
+    let total = (a
+        + big)
+    db.get(a)   // trailing, after extra spaces
+
+}
+fn g() -> Int
+{
+    1
+}
+@id("fn_bbbbbbbbbbbbbbbb")
+/// Docs written after the annotation print before it (2.4 rule 5).
+fn braces(a: Int) -> Int {
+    let b = match a
+    {
+        0 => 1
+        _ => 2
+    }
+    if b > 1
+    {
+        return b
+    }
+    a
+}
+fn long_parameters(first_parameter: List<Int>, second_parameter: List<Text>, third_parameter: Bool) -> Int {
+    let nested = combine([1, 2, 3], [4, 5, 6], [7, 8, 9], [10, 11, 12], [13, 14, 15], [16, 17, 18], [19])
+    0
+}
+struct  S { a: Int }
+type A = Int where self > 0
+pub type B(Text)
+
+
+
+enum E { X
+    Y }

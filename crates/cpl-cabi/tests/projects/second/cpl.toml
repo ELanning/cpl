@@ -1,0 +1,10 @@
+[project]
+name = "second"
+edition = "0.1"
+
+[interop]
+targets = ["c"]
+
+[interop.c]
+prefix = "second"
+abi = 1

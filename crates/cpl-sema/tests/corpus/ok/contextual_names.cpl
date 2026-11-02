@@ -1,0 +1,57 @@
+module positive.contextual_names
+
+// `result` is an ordinary identifier outside `ensures` (the design's
+// `label(result: ...)`), `self` is bound by `where` only, and local bindings
+// may hide module-level and universe names without a diagnostic (S8: a
+// local `gen` hides the alias for value chains; type positions are
+// unaffected).
+
+pub type PageId(Text)
+
+pub struct Page {
+    id: PageId
+    text: Text
+}
+
+pub enum StoreError {
+    Missing(PageId)
+    Unavailable
+}
+
+fn label(result: Result<Page, StoreError>) -> Text {
+    match result {
+        Ok(page) => page.text
+        Err(Missing(_)) => "Missing page"
+        Err(Unavailable) => "Storage unavailable"
+    }
+}
+
+fn local_result(n: Int) -> Int {
+    let result = n * 2
+    result + 1
+}
+
+fn result_in_ensures_only(n: Int) -> Int
+    ensures result == n + 1
+{
+    n + 1
+}
+
+fn hides_alias() -> Int {
+    let gen = 1
+    let flatten = 2
+    let std = 3
+    gen + flatten + std
+}
+
+fn hides_module_root(n: Int) -> Int {
+    let positive = n
+    positive
+}
+
+property "binder names are ordinary"
+    for size in gen.positive_int
+{
+    let doubled = size + size
+    assert doubled > size
+}

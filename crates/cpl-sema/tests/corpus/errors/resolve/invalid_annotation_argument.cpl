@@ -1,0 +1,29 @@
+module negative.invalid_annotation_argument
+
+// `@id` takes one non-empty TEXT matching ^[a-z][a-z0-9]*(_[a-z0-9]+)+$
+// (toolchain 4.1); `@prove` takes no argument.
+
+@id("") // expect-error: invalid_annotation_argument
+fn a(n: Int) -> Int {
+    n
+}
+
+@id("Foo") // expect-error: invalid_annotation_argument
+fn b(n: Int) -> Int {
+    n
+}
+
+@id(7) // expect-error: invalid_annotation_argument
+fn c(n: Int) -> Int {
+    n
+}
+
+@id("pgn_7c2d", "second") // expect-error: invalid_annotation_argument
+fn d(n: Int) -> Int {
+    n
+}
+
+@id // expect-error: invalid_annotation_argument
+fn e(n: Int) -> Int {
+    n
+}

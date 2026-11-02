@@ -1,0 +1,25 @@
+module holes.pages
+
+// glue: the Page type that paginate's callers and summarize need,
+// copied from the design's reader.pages module.
+pub type PageId(Text)
+pub type Positive = Int where self > 0
+
+pub struct Page {
+    id: PageId
+    text: Text
+}
+
+@id("pgn_7c2d")
+@prove
+pub fn paginate<T>(items: List<T>, size: Positive) -> List<List<T>>
+    ensures flatten(result) == items
+    ensures forall page in result: page.len > 0 and page.len <= size
+    ensures forall page in result.drop_last(): page.len == size
+{
+    ?build_pages
+}
+
+fn summarize(page: Page) -> Text {
+    ?summary
+}

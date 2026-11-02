@@ -1,0 +1,17 @@
+[package]
+name = "cpl-rt"
+version.workspace = true
+edition.workspace = true
+description = "The C11 runtime of CPL and C API 0.1 as embedded source (spec/toolchain.md 1.12; spec/cabi.md Section 2)"
+build = "build.rs"
+
+[lints]
+workspace = true
+
+# spec/toolchain.md 1.2-1.3 (T69, T71): cpl-rtspec and cpl-diag are the only internal dependencies, normal or dev;
+# blake3 for the runtime digest. The runtime's C is compiled by the library code of `cpl build` and, in this crate's
+# own tests, through `cpl_rt::testing` with std::process::Command: no build script compiles C, and no cc crate.
+[dependencies]
+cpl-rtspec.workspace = true
+cpl-diag.workspace = true
+blake3.workspace = true

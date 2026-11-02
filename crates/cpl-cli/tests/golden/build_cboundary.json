@@ -1,0 +1,182 @@
+{
+  "command": "build",
+  "toolchain": {
+    "version": "0.1.0",
+    "edition": "0.1",
+    "json_schema": 1
+  },
+  "revision": {
+    "commit": "<commit>",
+    "state": "clean",
+    "digest": "<digest>"
+  },
+  "status": "ok",
+  "diagnostics": [],
+  "target": "c",
+  "release": false,
+  "profile": "optimized",
+  "sanitize": [],
+  "out_dir": ".cpl/build/c",
+  "compiler": {
+    "path": "<compiler_path>",
+    "family": "gcc",
+    "version": "<compiler_version>",
+    "target": "<target>",
+    "digest": "<digest>"
+  },
+  "runtime": {
+    "version": "0.1.0",
+    "api": "0.1",
+    "source": "embedded",
+    "digest": "<digest>"
+  },
+  "program_digest": "<digest>",
+  "exports_digest": "<digest>",
+  "exports": [
+    {
+      "symbol": "cboundary_paginate_ints",
+      "function": "reader.pages.paginate_ints",
+      "id": "reader.pages.paginate_ints",
+      "signature": "<digest>",
+      "int": "handle",
+      "effects": []
+    },
+    {
+      "symbol": "cboundary_paginate_ints_i64",
+      "function": "reader.pages.paginate_ints",
+      "id": "reader.pages.paginate_ints",
+      "signature": "<digest>",
+      "int": "int64",
+      "effects": []
+    },
+    {
+      "symbol": "cboundary_divide_exactly",
+      "function": "reader.pages.divide_exactly",
+      "id": "reader.pages.divide_exactly",
+      "signature": "<digest>",
+      "int": "handle",
+      "effects": []
+    },
+    {
+      "symbol": "cboundary_positive_size",
+      "function": "reader.pages.positive_size",
+      "id": "reader.pages.positive_size",
+      "signature": "<digest>",
+      "int": "handle",
+      "effects": []
+    },
+    {
+      "symbol": "cboundary_clean",
+      "function": "reader.pages.clean",
+      "id": "reader.pages.clean",
+      "signature": "<digest>",
+      "int": "handle",
+      "effects": []
+    },
+    {
+      "symbol": "cboundary_label",
+      "function": "reader.pages.label",
+      "id": "reader.pages.label",
+      "signature": "<digest>",
+      "int": "handle",
+      "effects": []
+    },
+    {
+      "symbol": "cboundary_load_page",
+      "function": "reader.pages.load_page",
+      "id": "reader.pages.load_page",
+      "signature": "<digest>",
+      "int": "handle",
+      "effects": [
+        "db.get"
+      ]
+    },
+    {
+      "symbol": "cboundary_load_text",
+      "function": "reader.pages.load_text",
+      "id": "reader.pages.load_text",
+      "signature": "<digest>",
+      "int": "handle",
+      "effects": [
+        "db.get"
+      ]
+    },
+    {
+      "symbol": "cboundary_image_width",
+      "function": "reader.images.image_width",
+      "id": "reader.images.image_width",
+      "signature": "<digest>",
+      "int": "handle",
+      "effects": [
+        "codec.dimensions"
+      ]
+    }
+  ],
+  "bindings": [
+    {
+      "binding": "image_codec",
+      "capability": "reader.images.ImageCodec",
+      "form": "wrapper",
+      "isolation": "in_process",
+      "grant": "cboundary_bind_image_codec"
+    }
+  ],
+  "artifacts": [
+    {
+      "kind": "executable",
+      "path": ".cpl/build/c/bin/cboundary",
+      "digest": "<digest>"
+    },
+    {
+      "kind": "header",
+      "path": ".cpl/build/c/include/cboundary.h",
+      "digest": "<digest>"
+    },
+    {
+      "kind": "header",
+      "path": ".cpl/build/c/include/cboundary_adapter_image_codec.h",
+      "digest": "<digest>"
+    },
+    {
+      "kind": "header",
+      "path": ".cpl/build/c/include/cpl.h",
+      "digest": "<digest>"
+    },
+    {
+      "kind": "header",
+      "path": ".cpl/build/c/include/cpl_adapter.h",
+      "digest": "<digest>"
+    },
+    {
+      "kind": "static_library",
+      "path": ".cpl/build/c/lib/libcboundary.a",
+      "digest": "<digest>"
+    },
+    {
+      "kind": "shared_library",
+      "path": ".cpl/build/c/lib/libcboundary.so.1",
+      "digest": "<digest>"
+    }
+  ],
+  "inputs": [
+    {
+      "kind": "adapter",
+      "binding": "image_codec",
+      "path": "adapters/image_codec.c",
+      "digest": "<digest>"
+    },
+    {
+      "kind": "vendored_source",
+      "binding": "image_codec",
+      "path": "vendor/imgtest/imgtest.c",
+      "digest": "<digest>"
+    }
+  ],
+  "holes": 0,
+  "lock": {
+    "checked": false,
+    "written": true
+  },
+  "cached": false,
+  "duration_ms": 0
+}

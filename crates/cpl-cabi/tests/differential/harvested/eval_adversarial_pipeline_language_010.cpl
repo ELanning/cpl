@@ -1,0 +1,228 @@
+module pl.loops
+
+// The first invariant is false before the first test of the condition; the
+// second, which would fault there, is never evaluated.
+fn inv_entry(n: Int) -> Int {
+    let before = n * 2
+    var i = n
+    while i > 0
+        invariant i < 3
+        invariant 10 / i > 0
+    {
+        i = i - 1
+    }
+    i + before
+}
+
+fn inv_after(n: Int) -> Int
+    requires n >= 0
+{
+    var i = 0
+    var acc: List<Int> = []
+    while i < n
+        invariant acc.len == i
+        invariant i <= 2
+        decreases n - i
+    {
+        acc = acc.push(i * i)
+        i = i + 1
+    }
+    acc.len
+}
+
+fn measure_negative(n: Int) -> Int {
+    var i = 0
+    while i < n
+        decreases n - i - 2
+    {
+        i = i + 1
+    }
+    i
+}
+
+fn measure_equal(n: Int) -> Int {
+    var i = 0
+    var m = n
+    while i < n
+        decreases m
+    {
+        i = i + 1
+        if i != 2 {
+            m = m - 1
+        }
+    }
+    i
+}
+
+fn measure_up(n: Int) -> Int {
+    var i = 0
+    while i < n
+        decreases i
+    {
+        i = i + 1
+    }
+    i
+}
+
+fn measure_faults(n: Int) -> Int {
+    var i = 0
+    while i < 3
+        decreases 10 / (n - i)
+    {
+        i = i + 1
+    }
+    i
+}
+
+// The measure is n - i while the loop runs and divides 0 by 0 at the exit.
+fn measure_after_exit(n: Int) -> Int {
+    var i = 0
+    while i < n
+        decreases (n - i) * ((n - i) / (n - i))
+    {
+        i = i + 1
+    }
+    i
+}
+
+fn cond_faults(n: Int) -> Int {
+    var i = 0
+    while 10 / (n - i) > 0
+        invariant i >= 0
+    {
+        i = i + 1
+    }
+    i
+}
+
+fn no_params() -> Int {
+    var i = 0
+    while i < 5
+        invariant i < 2
+    {
+        i = i + 1
+    }
+    i
+}
+
+fn nested(n: Int) -> Int {
+    var total = 0
+    var i = 0
+    while i < n
+        decreases n - i
+    {
+        let row = i * 10
+        var j = 0
+        while j < 3
+            invariant total < 25
+            decreases 3 - j
+        {
+            total = total + row + j
+            j = j + 1
+        }
+        i = i + 1
+    }
+    total
+}
+
+fn return_in_loop(xs: List<Int>) -> Int
+    ensures result != 99
+{
+    var i = 0
+    while i < xs.len
+        invariant i <= 1
+        decreases xs.len - i
+    {
+        if xs.get(i) == Some(0) {
+            return 99
+        }
+        i = i + 1
+    }
+    i
+}
+
+fn scoped(n: Int) -> Int {
+    var x = 0
+    if n > 0 {
+        let gone = 1
+        x = gone
+    }
+    let kept = x + 1
+    var i = 0
+    while i < n
+        invariant i + kept < 3
+    {
+        let inner = i
+        i = inner + 1
+    }
+    i
+}
+
+fn match_invariant(xs: List<Int>) -> Int {
+    var i = 0
+    while i < xs.len
+        invariant (match xs.get(i) {
+            Some(v) => v >= 0
+            None => true
+        })
+        decreases xs.len - i
+    {
+        i = i + 1
+    }
+    i
+}
+
+// The invariants run before the first test of the condition, even when the
+// condition is false at once (5.3).
+fn inv_no_iterations(n: Int) -> Int {
+    var i = 0
+    while i > n
+        invariant n < 0
+    {
+        i = i - 1
+    }
+    i
+}
+
+fn in_forall(xs: List<Int>) -> Bool {
+    forall x in xs: if x > 0 {
+        var i = 0
+        while i < x
+            invariant i < 2
+        {
+            i = i + 1
+        }
+        i == x
+    } else {
+        true
+    }
+}
+
+test "a measure in a test body" {
+    var i = 0
+    while i < 3
+        decreases 1 - i
+    {
+        i = i + 1
+    }
+}
+
+property "a loop in a property body"
+    for n in gen.range(3, 3)
+{
+    var i = 0
+    while i < n
+        invariant i < 2
+    {
+        i = i + 1
+    }
+}
+
+test "a loop in a test body" {
+    var i = 0
+    while i < 3
+        invariant i != 2
+    {
+        i = i + 1
+    }
+}

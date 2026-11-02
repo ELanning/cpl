@@ -1,0 +1,17 @@
+module negative.unresolved_name_qualified
+
+// A module-qualified chain naming an item the module lacks, and an enum
+// chain naming a variant the enum lacks (semantics 2.4 step 2).
+
+pub enum StoreError {
+    Missing(Text)
+    Unavailable
+}
+
+fn a(text: Text) -> Text {
+    std.text.shout(text) // expect-error: unresolved_name
+}
+
+fn b() -> StoreError {
+    StoreError.Gone // expect-error: unresolved_name
+}

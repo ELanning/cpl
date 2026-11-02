@@ -1,0 +1,52 @@
+module negative.arity_mismatch
+
+// Positional argument counts must match (semantics 3.7 step 2): functions,
+// methods, constructors, and a payload-carrying variant used bare or a
+// nullary variant applied (3.8).
+
+pub type PageId(Text)
+
+pub enum StoreError {
+    Missing(PageId)
+    Unavailable
+}
+
+fn two(a: Int, b: Int) -> Int {
+    a + b
+}
+
+fn a() -> Int {
+    two(1) // expect-error: arity_mismatch
+}
+
+fn b() -> Int {
+    two(1, 2, 3) // expect-error: arity_mismatch
+}
+
+fn c(xs: List<Int>) -> List<Int> {
+    xs.take() // expect-error: arity_mismatch
+}
+
+fn d() -> StoreError {
+    Missing // expect-error: arity_mismatch
+}
+
+fn e() -> StoreError {
+    Unavailable(1) // expect-error: arity_mismatch
+}
+
+fn f() -> PageId {
+    PageId("a", "b") // expect-error: arity_mismatch
+}
+
+fn g() -> Option<Int> {
+    Some(1, 2) // expect-error: arity_mismatch
+}
+
+fn h() -> Option<Int> {
+    None(1) // expect-error: arity_mismatch
+}
+
+fn i(xs: List<Int>) -> Bool {
+    xs.is_empty(1) // expect-error: arity_mismatch
+}

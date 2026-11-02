@@ -1,0 +1,11 @@
+module negative.unresolved_name_property_binder_in_range
+
+// Property `for` ranges are independent (S43, stdlib S30): a binder of an
+// earlier clause is not visible in a later range.
+
+property "dependent ranges are not allowed"
+    for n in gen.int
+    for m in gen.range(0, n) // expect-error: unresolved_name
+{
+    assert n + m == m + n
+}

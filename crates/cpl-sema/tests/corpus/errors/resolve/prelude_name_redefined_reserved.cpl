@@ -1,0 +1,14 @@
+module negative.prelude_name_redefined_reserved
+
+// The reserved type names of stdlib S11 count as prelude names for S6
+// (stdlib 12: `pub struct Int64 { lo: Int }`), as does `Gen`.
+
+pub struct Int64 { // expect-error: prelude_name_redefined
+    lo: Int
+}
+
+pub type Gen(Text) // expect-error: prelude_name_redefined
+
+pub enum Option { // expect-error: prelude_name_redefined
+    Nothing
+}

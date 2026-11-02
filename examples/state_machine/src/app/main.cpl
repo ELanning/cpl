@@ -1,0 +1,84 @@
+module app.main
+
+struct Settings {
+    retries: Int
+}
+    where self.retries >= 0 and self.retries <= 5
+
+enum Download {
+    Ready
+    Fetching(Int, Text)
+    Done(Text)
+    Failed(Text)
+}
+
+program App {
+    settings: Settings
+    download: Download
+}
+
+enum Event {
+    Start(Int, Text)
+    Received(Int, Text)
+    RequestFailed(Int, Text)
+    Cancel
+}
+
+enum Command {
+    HttpGet(Int, Text)
+}
+
+struct Step<S, C> {
+    state: S
+    commands: List<C>
+}
+
+interface Http {
+    fn get(url: Text) -> Result<Text, Text>
+}
+
+initial fn start() -> App {
+    App { settings: Settings { retries: 3 }, download: Ready }
+}
+
+// Scoped child machine. Only the currently outstanding request may finish.
+machine download(state: Download, event: Event) -> Step<Download, Command> {
+    match event {
+        Start(id, url) => Step { state: Fetching(id, url), commands: [HttpGet(id, url)] }
+        Received(id, body) => match state {
+            Fetching(current, _) => if current == id {
+                Step { state: Done(body), commands: [] }
+            } else {
+                Step { state: state, commands: [] }
+            }
+            _ => Step { state: state, commands: [] }
+        }
+        RequestFailed(id, message) => match state {
+            Fetching(current, _) => if current == id {
+                Step { state: Failed(message), commands: [] }
+            } else {
+                Step { state: state, commands: [] }
+            }
+            _ => Step { state: state, commands: [] }
+        }
+        Cancel => Step { state: Ready, commands: [] }
+    }
+}
+
+// Only this reducer can construct an updated application root.
+machine reduce(state: App, event: Event) -> Step<App, Command> {
+    let next = download(state.download, event)
+    Step { state: App { ..state, download: next.state }, commands: next.commands }
+}
+
+// The host runs commands after commit and dispatches each returned event.
+mutate fn perform(command: Command, using http: Http) -> Event
+    effects { http.get }
+{
+    match command {
+        HttpGet(id, url) => match http.get(url) {
+            Ok(body) => Received(id, body)
+            Err(message) => RequestFailed(id, message)
+        }
+    }
+}

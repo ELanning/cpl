@@ -1,0 +1,21 @@
+module pyshop.codes
+
+use std.foreign.{ForeignError}
+
+/// Check digits computed by a C adapter that runs in the package's C adapter host (spec/python.md 6.6).
+pub capability Checksum {
+    fn digit(text: Text) -> Int
+    fn crash() -> Result<Int, ForeignError>
+}
+
+pub fn check_digit(text: Text, using sum: Checksum) -> Int
+    effects { sum.digit }
+{
+    sum.digit(text)
+}
+
+pub fn checksum_crash(using sum: Checksum) -> Result<Int, ForeignError>
+    effects { sum.crash }
+{
+    sum.crash()
+}

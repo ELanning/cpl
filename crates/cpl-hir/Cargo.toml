@@ -1,0 +1,13 @@
+[package]
+name = "cpl-hir"
+version.workspace = true
+edition.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+cpl-diag.workspace = true
+cpl-syntax.workspace = true
+num-bigint.workspace = true
+serde.workspace = true

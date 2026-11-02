@@ -1,0 +1,9 @@
+[project]
+name = "project_c_target_not_enabled"
+edition = "0.1"
+
+[interop]
+targets = []
+
+[interop.c]
+abi = 1

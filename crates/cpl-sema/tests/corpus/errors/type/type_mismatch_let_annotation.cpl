@@ -1,0 +1,27 @@
+module negative.type_mismatch_let_annotation
+
+// An annotated `let` checks its initializer against the annotation
+// (semantics 3.11); the initializer is the primary span. Bindings that are
+// never read use a `_` prefix so that no `unused_binding` accompanies the
+// error.
+
+fn a() -> Int {
+    let _n: Text = 7 // expect-error: type_mismatch
+    1
+}
+
+fn b() -> Int {
+    let _flag: Bool = "yes" // expect-error: type_mismatch
+    1
+}
+
+fn c() -> Int {
+    var count: Int = true // expect-error: type_mismatch
+    count = 1
+    count
+}
+
+fn d() -> Int {
+    let _: List<Int> = ["a"] // expect-error: type_mismatch
+    1
+}

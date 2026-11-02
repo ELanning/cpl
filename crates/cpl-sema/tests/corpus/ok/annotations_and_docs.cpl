@@ -1,0 +1,87 @@
+/// Module documentation: this file exercises doc comments and annotations.
+/// A second line of module docs.
+module positive.annotations_and_docs
+
+//// A banner made of four slashes is an ordinary comment (D60).
+
+/// A page identifier.
+pub type PageId(Text)
+
+/// A positive integer.
+@id("ty_positive2mb9ptx4v")
+pub type Positive = Int where self > 0
+
+/// A page.
+pub struct Page {
+    /// The identifier.
+    id: PageId
+    /// The text.
+    text: Text
+}
+
+/// Failures of the store.
+pub enum StoreError {
+    /// The page does not exist.
+    Missing(PageId)
+    /// The store cannot be reached.
+    Unavailable
+}
+
+/// Read access.
+pub capability PageRead {
+    /// Fetch a page.
+    fn get(id: PageId) -> Result<Page, StoreError>
+}
+
+/// Doc comments may surround annotations (grammar 1.2, 3.3).
+@id("pgn_7c2d")
+/// More docs after the annotation.
+@prove
+pub fn paginate<T>(items: List<T>, size: Positive) -> List<List<T>> // expect-info: verification_result
+    ensures flatten(result) == items
+    ensures forall page in result: page.len > 0 and page.len <= size
+    ensures forall page in result.drop_last(): page.len == size
+{
+    var pages: List<List<T>> = []
+    var rest = items
+
+    while rest.len > size
+        invariant flatten(pages) ++ rest == items
+        invariant forall page in pages: page.len == size
+        decreases rest.len
+    {
+        pages = pages.push(rest.take(size))
+        rest = rest.drop(size)
+    }
+
+    if not rest.is_empty() {
+        pages = pages.push(rest)
+    }
+
+    pages
+}
+
+/// A proved recursive function with its measure.
+@prove
+fn gcd(a: Int, b: Int) -> Int // expect-info: verification_result
+    requires a >= 0
+    requires b >= 0
+    decreases b
+{
+    if b == 0 { a } else { gcd(b, a % b) }
+}
+
+/// A documented test.
+@id("test_short_tail2mb9pt")
+test "pagination preserves a short tail" {
+    assert paginate([1, 2, 3], 2) == [[1, 2], [3]]
+}
+
+/// A documented property.
+@id("prop_preserves2mb9pt")
+property "pagination preserves input"
+    for items in gen.list(gen.int)
+    for size in gen.positive_int
+{
+    assert flatten(paginate(items, size)) == items
+}

@@ -1,0 +1,6 @@
+[project]
+name = "machines"
+edition = "0.1"
+
+[interop]
+targets = ["c"]

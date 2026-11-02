@@ -1,0 +1,33 @@
+module negative.not_callable
+
+// A callee that is a local, a struct field, or a module is `not_callable`
+// (semantics 3.8); a local hiding a module item is named in the note.
+
+use std.text.{trim}
+
+pub struct Page {
+    text: Text
+}
+
+fn a() -> Int {
+    let f = 1
+    f() // expect-error: not_callable
+}
+
+fn b(page: Page) -> Text {
+    page.text() // expect-error: not_callable
+}
+
+fn c(t: Text) -> Text {
+    let trim = 3
+    let _ = trim
+    trim(t) // expect-error: not_callable
+}
+
+fn d() -> Int {
+    std.text() // expect-error: not_callable
+}
+
+fn e(t: Text) -> Text {
+    trim(t)
+}

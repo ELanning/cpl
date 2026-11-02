@@ -1,0 +1,25 @@
+(module tests.pagination
+  (use reader.pages
+    (items paginate)
+    (trivia
+      (lead-blank "// glue: the design places these examples in module tests.pagination;")
+      (lead "// paginate is imported from reader.pages, while flatten and gen are prelude names.")))
+  (test "pagination preserves a short tail"
+    (block
+      (assert
+        (==
+          (call (name paginate) (list (int 1) (int 2) (int 3)) (int 2))
+          (list (list (int 1) (int 2)) (list (int 3))))))
+    (trivia blank))
+  (test "pagination handles empty input"
+    (block
+      (let items (ty List (ty Int)) (list))
+      (assert (== (call (name paginate) (name items) (int 2)) (list))))
+    (trivia blank))
+  (property "pagination preserves input"
+    (for items (call (member (name gen) list) (member (name gen) int)))
+    (for size (member (name gen) positive_int))
+    (block
+      (assert
+        (== (call (name flatten) (call (name paginate) (name items) (name size))) (name items))))
+    (trivia blank)))

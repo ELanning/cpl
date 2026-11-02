@@ -1,0 +1,4 @@
+[
+  {"function": "corpus.faults.checked_div", "args": [6, 3], "expect": {"value": 2}},
+  {"function": "corpus.faults.checked_div", "args": [1, 0], "expect": {"fault": "assertion_failed"}}
+]

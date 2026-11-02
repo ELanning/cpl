@@ -1,0 +1,8 @@
+module tests.bad
+
+property "shadow"
+    for x in gen.int
+{
+    let x = 1
+    assert x == 1
+}

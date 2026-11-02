@@ -1,0 +1,13 @@
+module negative.return_outside_function
+
+// `return` is permitted only in a `fn` body (semantics 3.11, 3.14).
+
+test "no early exit" {
+    return // expect-error: return_outside_function
+}
+
+property "no early exit either"
+    for n in gen.int
+{
+    return n // expect-error: return_outside_function
+}

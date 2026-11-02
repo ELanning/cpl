@@ -1,0 +1,40 @@
+module negative.type_argument_count_mismatch
+
+// A type path to a generic type supplies exactly its parameter count (S12);
+// explicit generic arguments on a call must match the callee's parameter
+// count, and a non-generic callee accepts none (semantics 3.7 step 1, 3.8).
+
+use std.text.{trim}
+
+pub struct Pair<A, B> {
+    left: A
+    right: B
+}
+
+fn a(xs: List<Int, Int>) -> Int { // expect-error: type_argument_count_mismatch
+    1
+}
+
+fn b(o: Option) -> Int { // expect-error: type_argument_count_mismatch
+    1
+}
+
+fn c(p: Pair<Int>) -> Int { // expect-error: type_argument_count_mismatch
+    1
+}
+
+fn d(xss: List<List<Int>>) -> List<Int> {
+    flatten<Int, Int>(xss) // expect-error: type_argument_count_mismatch
+}
+
+fn e(t: Text) -> Text {
+    trim<Int>(t) // expect-error: type_argument_count_mismatch
+}
+
+fn f() -> Option<Int> {
+    Some<Int, Int>(1) // expect-error: type_argument_count_mismatch
+}
+
+fn g(r: Result<Int>) -> Int { // expect-error: type_argument_count_mismatch
+    1
+}

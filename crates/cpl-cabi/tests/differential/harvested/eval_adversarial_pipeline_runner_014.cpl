@@ -1,0 +1,35 @@
+module tests.loops
+
+fn count_up(n: Int) -> Int {
+    var i = 0
+    while i < n
+        invariant i < 3
+    {
+        i = i + 1
+    }
+    i
+}
+
+property "counts"
+    for n in gen.range(0, 10)
+{
+    assert count_up(n) == n
+}
+
+@id("prop_count_c4")
+property "counts again"
+    for n in gen.range(0, 10)
+{
+    assert count_up(n) == n
+}
+
+property "own loop"
+    for n in gen.range(0, 6)
+{
+    var i = 0
+    while i < n
+        invariant i < 2
+    {
+        i = i + 1
+    }
+}

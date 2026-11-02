@@ -1,0 +1,61 @@
+module pl.ints
+
+fn div(a: Int, b: Int) -> Int {
+    a / b
+}
+
+fn rem(a: Int, b: Int) -> Int {
+    a % b
+}
+
+// The identity of S37 and the sign rule of stdlib 2.2, evaluated in CPL.
+fn laws(a: Int, b: Int) -> Bool
+    requires b != 0
+{
+    (a / b) * b + a % b == a and (a % b).abs() < b.abs() and (a % b == 0 or (a % b > 0) == (a > 0))
+}
+
+fn constants() -> List<Int> {
+    [
+        340282366920938463463374607431768211456 * 2,
+        -9223372036854775808 - 1,
+        - -5,
+        (-5) * (-5),
+        1_000_000_000_000_000_000_000 + 1,
+        -9223372036854775808 / -1,
+        -9223372036854775808 % -1,
+        18446744073709551615 + 1,
+        0 - 18446744073709551616 - 1,
+        -7 / 2 * 2,
+        -(7 / 2),
+    ]
+}
+
+fn members(x: Int, y: Int) -> List<Int> {
+    [x.abs(), x.min(y), x.max(y), (-x).abs(), y.min(x), y.max(x)]
+}
+
+fn rendered(x: Int) -> Text {
+    x.to_text()
+}
+
+fn compare(a: Int, b: Int) -> List<Bool> {
+    [a < b, a <= b, a > b, a >= b, a == b, a != b]
+}
+
+fn by_zero(a: Int) -> Int {
+    a / 0
+}
+
+fn rem_zero(a: Int, b: Int) -> Int {
+    a % (b - b)
+}
+
+fn nested(a: Int) -> Int {
+    a + by_zero(a)
+}
+
+test "dividing by zero in a test body" {
+    let z = 0
+    assert 10 % z == 0
+}

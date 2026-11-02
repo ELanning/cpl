@@ -1,0 +1,34 @@
+(module corpus.comments
+  (use std.text
+    (items trim)
+    (trivia (lead-blank "// About the import.") (trail "// trailing on the use")))
+  (fn f
+    (docs "Docs of f.")
+    (annotation id
+      (text "fn_aaaaaaaaaaaaaaaa")
+      (trivia (trail "// the annotation's trailing comment")))
+    (params
+      (param a (ty Int) (trivia (lead "// the first parameter") (trail "// trailing a")))
+      (param b (ty Int))
+      (trailing-comments "// dangling in the parameters"))
+    (ret (ty Int))
+    (requires (> (name a) (int 0)) (trivia (lead "// before requires") (trail "// after requires")))
+    (block
+      (let x
+        (list
+          (elem (int 1) (trivia (trail "// one")))
+          (elem (int 2) (trivia (lead "// before two"))))
+        (trivia (lead "// leading the let") (trail "// after the list")))
+      (tail
+        (+ (member (name x) len) (name b))
+        (trivia (lead-blank "// leading the tail, after a blank line")))
+      (trailing-comments "// dangling at the end of the body"))
+    (trivia blank
+      (lead-blank "// A leading comment, then a blank line before the declaration.")
+      (trail "// after the function")))
+  (struct S
+    (field a (ty Int) (trivia (trail "// trailing a")))
+    (trailing-comments "// dangling in the struct")
+    (trivia blank))
+  (trailing-comments "// at the end of the file")
+  (trivia (lead "// A comment above the module header.") (trail "// the header's trailing comment")))

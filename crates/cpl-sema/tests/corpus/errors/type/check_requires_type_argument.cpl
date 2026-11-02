@@ -1,0 +1,9 @@
+module negative.check_requires_type_argument
+
+// `check` needs an explicit refinement type argument (semantics 3.7).
+
+pub type Positive = Int where self > 0
+
+fn a(n: Int) -> Result<Positive, ConstraintError> {
+    check(n) // expect-error: check_requires_type_argument
+}

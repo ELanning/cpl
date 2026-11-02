@@ -1,0 +1,131 @@
+{
+  "old": {
+    "commit": null,
+    "state": "worktree",
+    "digest": "d46dfdb815a18536e9de823f76d0a7cdf043be7c9b8080cc618352f60d9bd9ce"
+  },
+  "new": {
+    "commit": null,
+    "state": "worktree",
+    "digest": "14e0f6c5fc63e80eadf06e38c5a9cb4d5612e3410547cc6f125f795855bebd1d"
+  },
+  "statements": [
+    {
+      "statement": "identity_added",
+      "id": "m.a.\"new test\"",
+      "path": "m.a.\"new test\"",
+      "kind": "test",
+      "facet": null,
+      "detail": {
+        "version": {
+          "id": "m.a.\"new test\"",
+          "path": "m.a.\"new test\"",
+          "provisional": true,
+          "facets": {
+            "identity": "76d941b798c68a2516bd08421d66b5b8",
+            "name": "8be522993ee555e2803659d25e52be4a",
+            "body": "8618eb6eb07a452173482bdef19703e0",
+            "docs": "af1349b9f5f9a1a6a0404dea36dcc949"
+          },
+          "definition": "0d463049d16ad905cde72ee7dd53be55"
+        }
+      }
+    },
+    {
+      "statement": "identity_removed",
+      "id": "m.a.\"old test\"",
+      "path": "m.a.\"old test\"",
+      "kind": "test",
+      "facet": null,
+      "detail": {
+        "version": {
+          "id": "m.a.\"old test\"",
+          "path": "m.a.\"old test\"",
+          "provisional": true,
+          "facets": {
+            "identity": "1d3a86aca3728e4c4a0cdfbb6b61b72c",
+            "name": "bee779fc767940cbc612d531aced0c6f",
+            "body": "790bc088489c15068a39f77ff56ee3bb",
+            "docs": "af1349b9f5f9a1a6a0404dea36dcc949"
+          },
+          "definition": "36c4e23a32e29a4ec0499927b98ae6a1"
+        }
+      }
+    },
+    {
+      "statement": "identity_added",
+      "id": "m.a.fresh",
+      "path": "m.a.fresh",
+      "kind": "fn",
+      "facet": null,
+      "detail": {
+        "version": {
+          "id": "m.a.fresh",
+          "path": "m.a.fresh",
+          "provisional": true,
+          "facets": {
+            "identity": "0f62b1abc02b6a5bada0869ee2a0e85e",
+            "name": "cf7ca2378119ca173fd6f7a5f05b5d34",
+            "signature": "7dc8f17876a470b424c5af189e5a9fae",
+            "contract": "af1349b9f5f9a1a6a0404dea36dcc949",
+            "effects": "af1349b9f5f9a1a6a0404dea36dcc949",
+            "body": "1dd9d364f4f21ba2e018f6c70eed25ce",
+            "docs": "af1349b9f5f9a1a6a0404dea36dcc949",
+            "verification_policy": "af1349b9f5f9a1a6a0404dea36dcc949"
+          },
+          "definition": "ec80dfe7a2d200fe2f7b864f356815ad"
+        }
+      }
+    },
+    {
+      "statement": "identity_removed",
+      "id": "m.a.gone",
+      "path": "m.a.gone",
+      "kind": "fn",
+      "facet": null,
+      "detail": {
+        "version": {
+          "id": "m.a.gone",
+          "path": "m.a.gone",
+          "provisional": true,
+          "facets": {
+            "identity": "357dc07cb013ffad6d8c9f0847bd41dc",
+            "name": "afae16e5c35fafc0bb2c5333310842c4",
+            "signature": "7dc8f17876a470b424c5af189e5a9fae",
+            "contract": "af1349b9f5f9a1a6a0404dea36dcc949",
+            "effects": "af1349b9f5f9a1a6a0404dea36dcc949",
+            "body": "4aa0fa07b7b6d9c7e23a846b6d265f44",
+            "docs": "af1349b9f5f9a1a6a0404dea36dcc949",
+            "verification_policy": "af1349b9f5f9a1a6a0404dea36dcc949"
+          },
+          "definition": "1ac97895c36e50642958313f15d0d1fd"
+        }
+      }
+    },
+    {
+      "statement": "identity_added",
+      "id": "m.b.Extra",
+      "path": "m.b.Extra",
+      "kind": "ty",
+      "facet": null,
+      "detail": {
+        "version": {
+          "id": "m.b.Extra",
+          "path": "m.b.Extra",
+          "provisional": true,
+          "facets": {
+            "identity": "04eff862df984627c2f4af96ee344941",
+            "name": "57e4be11bd82724dec1c35ee347a8523",
+            "signature": "743d4e51edd9c4efb63456ae414820f2",
+            "docs": "af1349b9f5f9a1a6a0404dea36dcc949"
+          },
+          "definition": "9f842326255f9abc335465a0e4086810"
+        }
+      }
+    }
+  ],
+  "duplicates": {
+    "old": [],
+    "new": []
+  }
+}

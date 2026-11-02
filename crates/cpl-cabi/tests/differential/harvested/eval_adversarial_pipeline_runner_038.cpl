@@ -1,0 +1,11 @@
+module tests.bad
+
+fn f() -> Result<Int, Text> {
+    Ok(1)
+}
+
+property "q"
+    for x in gen.range(0, f()?)
+{
+    assert x == x
+}

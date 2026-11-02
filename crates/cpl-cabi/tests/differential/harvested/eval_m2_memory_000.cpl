@@ -1,0 +1,17 @@
+module app.mem
+
+pub capability Store {
+    fn get() -> Int
+}
+
+pub fn load(using s: Store) -> Int
+    effects { s.get }
+{
+    s.get()
+}
+
+pub fn outer(using s: Store) -> Int
+    effects { s.get }
+{
+    load(using s) + 1
+}

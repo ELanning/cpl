@@ -1,0 +1,16 @@
+module negative.propagate_return_mismatch
+
+// The enclosing function must return a Result for `?` to propagate into
+// (semantics 3.8).
+
+use std.text.{parse_int}
+
+fn a(text: Text) -> Int {
+    let n = parse_int(text)? // expect-error: propagate_return_mismatch
+    n
+}
+
+fn b(text: Text) -> Option<Int> {
+    let n = parse_int(text)? // expect-error: propagate_return_mismatch
+    Some(n)
+}

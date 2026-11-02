@@ -1,0 +1,18 @@
+module fmt.a
+
+use std.text.{trim}
+
+/// Trims.
+@id("fn_kkkkkkkkkkkkkkkk")
+pub fn clean(text: Text, using db: Db) -> Text
+    effects { db.get, db.put }
+    requires text != ""
+{
+    let t = trim(text)
+    t
+}
+
+pub capability Db {
+    fn get(id: Int) -> Int
+    fn put(id: Int) -> Int
+}

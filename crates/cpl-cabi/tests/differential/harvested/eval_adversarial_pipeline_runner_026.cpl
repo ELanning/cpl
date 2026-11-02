@@ -1,0 +1,19 @@
+module tests.ff
+
+test "a passes" {
+    assert true
+}
+
+test "b fails" {
+    assert 1 == 0
+}
+
+property "c fails"
+    for x in gen.int
+{
+    assert false
+}
+
+test "d passes" {
+    assert true
+}

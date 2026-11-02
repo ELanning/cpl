@@ -1,0 +1,22 @@
+module negative.propagate_in_contract
+
+// `?` may not appear in a contract expression (5.1). The functions return
+// Result with the same error type, so no other `propagate_*` code applies.
+// (A `?` in a `where` predicate is not written: it would also be outside
+// any function, and the specs do not rank the two codes.)
+
+fn half(n: Int) -> Result<Int, Text> {
+    if n % 2 == 0 { Ok(n / 2) } else { Err("odd") }
+}
+
+fn a(n: Int) -> Result<Int, Text>
+    requires half(n)? > 0 // expect-error: propagate_in_contract
+{
+    half(n)
+}
+
+fn b(n: Int) -> Result<Int, Text>
+    ensures half(n)? == 0 or true // expect-error: propagate_in_contract
+{
+    half(n)
+}

@@ -1,0 +1,118 @@
+{
+  "old": {
+    "commit": null,
+    "state": "worktree",
+    "digest": "6f6e889929464db0b11e88875d724500fe4a4041623f68c41a7d3d9024666941"
+  },
+  "new": {
+    "commit": null,
+    "state": "worktree",
+    "digest": "aa21c0a93b3f233b21032125a56adedb3751bace9ef339a7b0642cfed8db9080"
+  },
+  "statements": [
+    {
+      "statement": "identity_added",
+      "id": "fn_gggggggggggggggg",
+      "path": "ids.a.retagged",
+      "kind": "fn",
+      "facet": null,
+      "detail": {
+        "version": {
+          "id": "fn_gggggggggggggggg",
+          "path": "ids.a.retagged",
+          "provisional": false,
+          "facets": {
+            "identity": "f36417ef6de95752d1545a633dbfd590",
+            "name": "6c0d9bc54b1e6de3c812e59fb81ab885",
+            "signature": "7b550e291fe05ea4aa25901b679d6f69",
+            "contract": "af1349b9f5f9a1a6a0404dea36dcc949",
+            "effects": "af1349b9f5f9a1a6a0404dea36dcc949",
+            "body": "1f4c20382fec9cfe229f832f654e7b04",
+            "docs": "af1349b9f5f9a1a6a0404dea36dcc949",
+            "verification_policy": "af1349b9f5f9a1a6a0404dea36dcc949"
+          },
+          "definition": "9633013e03bda8140799883c346174ed"
+        }
+      }
+    },
+    {
+      "statement": "identity_removed",
+      "id": "fn_ffffffffffffffff",
+      "path": "ids.a.retagged",
+      "kind": "fn",
+      "facet": null,
+      "detail": {
+        "version": {
+          "id": "fn_ffffffffffffffff",
+          "path": "ids.a.retagged",
+          "provisional": false,
+          "facets": {
+            "identity": "5a8d21a91a57a7a0991c106c00f082f1",
+            "name": "6c0d9bc54b1e6de3c812e59fb81ab885",
+            "signature": "7b550e291fe05ea4aa25901b679d6f69",
+            "contract": "af1349b9f5f9a1a6a0404dea36dcc949",
+            "effects": "af1349b9f5f9a1a6a0404dea36dcc949",
+            "body": "1f4c20382fec9cfe229f832f654e7b04",
+            "docs": "af1349b9f5f9a1a6a0404dea36dcc949",
+            "verification_policy": "af1349b9f5f9a1a6a0404dea36dcc949"
+          },
+          "definition": "5ad5c214071af52188170c9c6b2a114f"
+        }
+      }
+    },
+    {
+      "statement": "identity_added",
+      "id": "fn_hhhhhhhhhhhhhhhh",
+      "path": "ids.a.tagged_later",
+      "kind": "fn",
+      "facet": null,
+      "detail": {
+        "version": {
+          "id": "fn_hhhhhhhhhhhhhhhh",
+          "path": "ids.a.tagged_later",
+          "provisional": false,
+          "facets": {
+            "identity": "55a35550dfdb5e345950db61486af969",
+            "name": "a9f755a9574f0e2c0e62ae9b9b173e69",
+            "signature": "7b550e291fe05ea4aa25901b679d6f69",
+            "contract": "af1349b9f5f9a1a6a0404dea36dcc949",
+            "effects": "af1349b9f5f9a1a6a0404dea36dcc949",
+            "body": "4aa0fa07b7b6d9c7e23a846b6d265f44",
+            "docs": "af1349b9f5f9a1a6a0404dea36dcc949",
+            "verification_policy": "af1349b9f5f9a1a6a0404dea36dcc949"
+          },
+          "definition": "992c1aefffed1183a078eb2a1dd5f8ea"
+        }
+      }
+    },
+    {
+      "statement": "identity_removed",
+      "id": "ids.a.tagged_later",
+      "path": "ids.a.tagged_later",
+      "kind": "fn",
+      "facet": null,
+      "detail": {
+        "version": {
+          "id": "ids.a.tagged_later",
+          "path": "ids.a.tagged_later",
+          "provisional": true,
+          "facets": {
+            "identity": "f1b5afc29dc30751986e3c8bd017c981",
+            "name": "a9f755a9574f0e2c0e62ae9b9b173e69",
+            "signature": "7b550e291fe05ea4aa25901b679d6f69",
+            "contract": "af1349b9f5f9a1a6a0404dea36dcc949",
+            "effects": "af1349b9f5f9a1a6a0404dea36dcc949",
+            "body": "4aa0fa07b7b6d9c7e23a846b6d265f44",
+            "docs": "af1349b9f5f9a1a6a0404dea36dcc949",
+            "verification_policy": "af1349b9f5f9a1a6a0404dea36dcc949"
+          },
+          "definition": "4d3cce2b16e0775c580106356385119a"
+        }
+      }
+    }
+  ],
+  "duplicates": {
+    "old": [],
+    "new": []
+  }
+}

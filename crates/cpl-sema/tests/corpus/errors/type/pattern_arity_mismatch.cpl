@@ -1,0 +1,37 @@
+module negative.pattern_arity_mismatch
+
+// A constructor pattern with the wrong number of sub-patterns (3.12).
+
+pub type PageId(Text)
+
+pub enum StoreError {
+    Missing(PageId)
+    Unavailable
+}
+
+fn a(e: StoreError) -> Int {
+    match e {
+        Missing(_, _) => 1 // expect-error: pattern_arity_mismatch
+        Unavailable => 2
+    }
+}
+
+fn b(e: StoreError) -> Int {
+    match e {
+        Missing(_) => 1
+        Unavailable(_) => 2 // expect-error: pattern_arity_mismatch
+    }
+}
+
+fn c(o: Option<Int>) -> Int {
+    match o {
+        Some(_, _) => 1 // expect-error: pattern_arity_mismatch
+        None => 0
+    }
+}
+
+fn d(id: PageId) -> Int {
+    match id {
+        PageId(_, _) => 1 // expect-error: pattern_arity_mismatch
+    }
+}

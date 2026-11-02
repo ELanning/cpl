@@ -1,0 +1,78 @@
+module positive.tests_and_properties
+
+// Tests and properties: every generator of stdlib 8.1, nested combinators,
+// a range with a pure function call (stdlib S30), the `std.gen` spelling,
+// tests calling private functions of their module, and `assert` on every
+// value type.
+
+pub type Positive = Int where self > 0
+
+fn paginate(items: List<Int>, size: Positive) -> List<List<Int>> {
+    [items.take(size)]
+}
+
+fn limit() -> Int {
+    10
+}
+
+test "pagination preserves a short tail" {
+    assert paginate([1, 2, 3], 2) == [[1, 2]]
+}
+
+test "pagination handles empty input" {
+    let items: List<Int> = []
+    assert paginate(items, 2) == [[]]
+}
+
+test "several assertions" {
+    let page = [1, 2]
+    assert page.len == 2
+    assert not page.is_empty()
+    assert "a" ++ "b" == "ab"
+    assert Unit == Unit
+}
+
+property "pagination preserves input"
+    for items in gen.list(gen.int)
+    for size in gen.positive_int
+{
+    assert flatten(paginate(items, size)) == items
+}
+
+property "every generator"
+    for n in gen.int
+    for p in gen.positive_int
+    for b in gen.bool
+    for t in gen.text
+    for xs in gen.list(gen.int)
+    for o in gen.option(gen.text)
+    for r in gen.range(1, 10)
+{
+    assert n == n
+    assert p > 0
+    assert b or not b
+    assert t.len >= 0
+    assert xs.len >= 0
+    assert o.is_some() or o.is_none()
+    assert r >= 1 and r <= 10
+}
+
+property "nested combinators"
+    for grid in gen.list(gen.list(gen.bool))
+    for maybe in gen.option(gen.list(gen.positive_int))
+    for texts in gen.list(gen.text)
+{
+    assert flatten(grid).len >= 0
+    assert maybe.unwrap_or([]).len >= 0
+    assert texts.len >= 0
+}
+
+property "ranges may call pure functions"
+    for n in gen.range(0, limit())
+    for m in std.gen.range(-5, 5)
+    for q in std.gen.int
+{
+    assert n <= limit()
+    assert m.abs() <= 5
+    assert q == q
+}

@@ -1,0 +1,9 @@
+module negative.type_mismatch_missing_tail
+
+// Ruling [D-230] (semantics S63 (1), 3.10): `type_mismatch` with the note
+// "missing tail expression" spans the whole body block, so its marker sits
+// on the line of the opening `{`, here the header line.
+
+fn c(n: Int) -> Int { // expect-error: type_mismatch
+    let _ = n
+}

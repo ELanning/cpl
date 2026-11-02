@@ -1,0 +1,36 @@
+{
+  "command": "run",
+  "toolchain": {
+    "version": "0.1.0",
+    "edition": "0.1",
+    "json_schema": 1
+  },
+  "revision": {
+    "commit": "<commit>",
+    "state": "clean",
+    "digest": "<digest>"
+  },
+  "status": "error",
+  "diagnostics": [
+    {
+      "code": "cannot_run_generic",
+      "category": "resolve",
+      "severity": "error",
+      "message": "holes.pages.paginate is generic; run a monomorphic wrapper",
+      "span": {
+        "file": "src/holes/pages.cpl",
+        "line": 15,
+        "col": 8,
+        "end_line": 15,
+        "end_col": 16
+      },
+      "symbol": "pgn_7c2d",
+      "qualified_name": "holes.pages.paginate",
+      "notes": [
+        {
+          "message": "a type parameter has no argument to instantiate it from; write a monomorphic wrapper that calls it with concrete types and run that"
+        }
+      ]
+    }
+  ]
+}

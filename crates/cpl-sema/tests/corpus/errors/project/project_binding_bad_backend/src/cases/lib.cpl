@@ -1,0 +1,11 @@
+module cases.lib
+
+// Ruling [D-236] (toolchain T48, 11.1): a backend outside {python, node, c}
+// is `project_binding_bad_backend` alone; the `[interop] targets` check is
+// skipped for an invalid backend, so no `project_binding_target_not_enabled`
+// accompanies it.
+// expect-error(global): project_binding_bad_backend
+
+pub capability Codec {
+    fn size(image: Bytes) -> Int
+}

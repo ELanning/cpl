@@ -1,0 +1,13 @@
+module cases.by_use
+
+// A `use` of a private item is `private_item` on the use item (semantics
+// 1.5, 1.6). The rejected import is not used afterwards (README: a failed
+// import produces no `unused_import`).
+
+use cases.lib.{open}
+use cases.lib.{secret} // expect-error: private_item
+use cases.lib.{Hidden} // expect-error: private_item
+
+fn call() -> Int {
+    open()
+}

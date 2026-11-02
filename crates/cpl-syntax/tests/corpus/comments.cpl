@@ -1,0 +1,36 @@
+// A comment above the module header.
+module corpus.comments // the header's trailing comment
+
+// About the import.
+use std.text.{trim} // trailing on the use
+
+// A leading comment, then a blank line before the declaration.
+
+/// Docs of f.
+@id("fn_aaaaaaaaaaaaaaaa") // the annotation's trailing comment
+fn f(
+    // the first parameter
+    a: Int, // trailing a
+    b: Int,
+    // dangling in the parameters
+) -> Int
+    // before requires
+    requires a > 0 // after requires
+{
+    // leading the let
+    let x = [
+        1, // one
+        // before two
+        2,
+    ] // after the list
+
+    // leading the tail, after a blank line
+    x.len + b
+    // dangling at the end of the body
+} // after the function
+
+struct S {
+    a: Int // trailing a
+    // dangling in the struct
+}
+// at the end of the file

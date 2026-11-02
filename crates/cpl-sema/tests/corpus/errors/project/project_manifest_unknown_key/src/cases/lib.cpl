@@ -1,0 +1,9 @@
+module cases.lib
+
+// Directory case: cpl.toml has an unknown key `colour` (toolchain 11.1, T35);
+// the project still loads and the error is matched span-less.
+// expect-error(global): project_manifest_unknown_key
+
+pub fn one() -> Int {
+    1
+}

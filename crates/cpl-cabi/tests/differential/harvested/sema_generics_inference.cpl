@@ -1,0 +1,75 @@
+module positive.generics_inference
+
+// Local bidirectional inference (3.7, S19): arguments instantiate a generic
+// callee (`first(ps)` at Int binds T := Positive, then Positive <= Int), the
+// expected type flows into constructors, struct literals, and empty lists,
+// explicit generic arguments are accepted, and `==` is available on every T
+// (S13).
+
+pub type Positive = Int where self > 0
+
+pub struct Pair<A, B> {
+    left: A
+    right: B
+}
+
+pub enum Tree<T> {
+    Leaf(T)
+    Node(List<Tree<T>>)
+}
+
+fn first<T>(xs: List<T>) -> Option<T> {
+    xs.first()
+}
+
+fn pair<A, B>(a: A, b: B) -> Pair<A, B> {
+    Pair { left: a, right: b }
+}
+
+fn same<T>(a: T, b: T) -> Bool {
+    a == b
+}
+
+fn swap<A, B>(p: Pair<A, B>) -> Pair<B, A> {
+    Pair { left: p.right, right: p.left }
+}
+
+fn from_arguments(ps: List<Positive>, texts: List<Text>) -> Int {
+    let p = first(ps).unwrap_or(1)
+    let t = first(texts).unwrap_or("")
+    let both = pair(p, t)
+    let flipped = swap(both)
+    if same(both.left, 1) and same(flipped.left, "") { p } else { 0 }
+}
+
+fn from_expected_type() -> Pair<Int, Text> {
+    let empty: List<Int> = []
+    let option: Option<Text> = None
+    let nested: List<List<Positive>> = [[], [1]]
+    let tree: Tree<Int> = Node([Leaf(1), Node([])])
+    let built: Pair<Int, Text> = Pair { left: empty.len, right: option.unwrap_or("") }
+    if nested.len == 2 and tree == tree { built } else { Pair { left: 0, right: "" } }
+}
+
+fn explicit_arguments(xss: List<List<Int>>) -> List<Int> {
+    let flat = flatten<Int>(xss)
+    let one = Some<Int>(1)
+    let none: Option<Int> = Option.None
+    let ok = Result.Ok<Int, Text>(2)
+    flat.push(one.unwrap_or(0)).push(none.unwrap_or(0)).push(ok.unwrap_or(0))
+}
+
+fn empty_list_contexts(xs: List<Int>) -> Bool {
+    let from_param: List<Int> = flatten([])
+    let from_equality = xs == []
+    let from_return: List<Text> = []
+    from_param.len == 0 and from_equality and from_return.is_empty()
+}
+
+fn generic_body<T>(xs: List<T>, x: T) -> List<T> {
+    var out: List<T> = []
+    if xs.contains(x) {
+        out = out.push(x)
+    }
+    out ++ xs.reverse()
+}

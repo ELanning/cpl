@@ -1,0 +1,17 @@
+module negative.capability_in_value_position_operation
+
+// Ruling (semantics 1.8 as amended, S13, S27): a capability type in any
+// value position, the parameter and return types of a capability operation
+// included, is the specific `capability_in_value_position`;
+// `not_a_value_type` is reserved for non-value types no 0.1 program can
+// write. The fn, field, and payload positions are in
+// capability_in_value_position.cpl.
+
+pub capability PageRead {
+    fn get(key: Text) -> Int
+}
+
+pub capability Broker {
+    fn lend(reader: PageRead) -> Int // expect-error: capability_in_value_position
+    fn borrow(key: Text) -> PageRead // expect-error: capability_in_value_position
+}

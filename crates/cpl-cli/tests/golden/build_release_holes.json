@@ -1,0 +1,75 @@
+{
+  "command": "build",
+  "toolchain": {
+    "version": "0.1.0",
+    "edition": "0.1",
+    "json_schema": 1
+  },
+  "revision": {
+    "commit": "<commit>",
+    "state": "clean",
+    "digest": "<digest>"
+  },
+  "status": "unsuccessful",
+  "diagnostics": [
+    {
+      "code": "verification_unsatisfied",
+      "category": "release_policy",
+      "severity": "error",
+      "message": "`paginate` is `@prove` but its verification status is unknown (no verifier is available in this toolchain); a release build requires its obligations to be proved",
+      "span": {
+        "file": "src/holes/pages.cpl",
+        "line": 15,
+        "col": 8,
+        "end_line": 15,
+        "end_col": 16
+      },
+      "symbol": "pgn_7c2d",
+      "qualified_name": "holes.pages.paginate",
+      "facet": "verification_policy",
+      "status": "unknown"
+    },
+    {
+      "code": "hole_in_release",
+      "category": "release_policy",
+      "severity": "error",
+      "message": "unfinished expression ?build_pages: a release build rejects holes in the linked program",
+      "span": {
+        "file": "src/holes/pages.cpl",
+        "line": 20,
+        "col": 5,
+        "end_line": 20,
+        "end_col": 17
+      },
+      "symbol": "pgn_7c2d",
+      "qualified_name": "holes.pages.paginate",
+      "facet": "body",
+      "expected_type": "List<List<T>>",
+      "hole": "build_pages"
+    },
+    {
+      "code": "hole_in_release",
+      "category": "release_policy",
+      "severity": "error",
+      "message": "unfinished expression ?summary: a release build rejects holes in the linked program",
+      "span": {
+        "file": "src/holes/pages.cpl",
+        "line": 24,
+        "col": 5,
+        "end_line": 24,
+        "end_col": 13
+      },
+      "symbol": "holes.pages.summarize",
+      "qualified_name": "holes.pages.summarize",
+      "facet": "body",
+      "expected_type": "Text",
+      "hole": "summary"
+    },
+    {
+      "code": "build_lock_missing",
+      "category": "build",
+      "severity": "error",
+      "message": "cpl build --release needs cpl.lock with its targets.c entries; write it with cpl build --lock"
+    }
+  ]
+}

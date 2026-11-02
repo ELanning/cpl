@@ -1,0 +1,21 @@
+module negative.effect_param_not_capability
+
+// The left part of an `effect_ref` must be a `using` parameter of the
+// enclosing function (semantics 2.2, 4.1): a positional parameter or an
+// unknown name is `effect_param_not_capability`.
+
+pub capability PageRead {
+    fn get(key: Text) -> Int
+}
+
+fn a(key: Text, using db: PageRead) -> Int
+    effects { key.get, db.get } // expect-error: effect_param_not_capability
+{
+    db.get(key)
+}
+
+fn b(key: Text, using db: PageRead) -> Int
+    effects { nothing.get, db.get } // expect-error: effect_param_not_capability
+{
+    db.get(key)
+}

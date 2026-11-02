@@ -1,0 +1,25 @@
+[package]
+name = "cpl-emit-c"
+version.workspace = true
+edition.workspace = true
+description = "C emission from the typed HIR, generated headers and adapter wrappers, and every native build of CPL (spec/toolchain.md 1.13)"
+
+[lints]
+workspace = true
+
+# spec/toolchain.md 1.2-1.3 (T69, T71). cpl-eval for its pure naming and stub helpers only (1.7.4), cpl-sema for the
+# plan types of cpl_sema::interop only (1.6), cpl-syntax for the HIR's operator types and the facet texts of the
+# generated headers; never cpl-cabi. The system C compiler is run through std::process::Command (T72).
+[dependencies]
+cpl-rt.workspace = true
+cpl-rtspec.workspace = true
+cpl-eval.workspace = true
+cpl-sema.workspace = true
+cpl-hir.workspace = true
+cpl-project.workspace = true
+cpl-syntax.workspace = true
+cpl-diag.workspace = true
+num-bigint.workspace = true
+blake3.workspace = true
+serde.workspace = true
+serde_json.workspace = true

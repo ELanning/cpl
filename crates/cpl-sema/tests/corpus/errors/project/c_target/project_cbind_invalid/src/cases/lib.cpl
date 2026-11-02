@@ -1,0 +1,10 @@
+module cases.lib
+
+// Directory case: the declarative binding's file is not UTF-8, so it is
+// outside the closed schema of spec/cabi.md 6.3 (toolchain 11.1). The
+// schema's own rules arrive with the declarative bindings (track F2).
+// expect-error(global): project_cbind_invalid
+
+pub capability Codec {
+    fn size(image: Bytes) -> Int
+}

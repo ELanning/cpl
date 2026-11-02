@@ -1,0 +1,800 @@
+{
+  "project": "examples/reader",
+  "declarations": [
+    {
+      "id": "reader.images.Dimensions",
+      "path": "reader.images.Dimensions",
+      "provisional": true,
+      "kind": "ty",
+      "module": "reader.images",
+      "name": "Dimensions",
+      "file": "src/reader/images.cpl",
+      "effects": [],
+      "facets": {
+        "identity": {
+          "text": "reader.images.Dimensions",
+          "hash": "f62b81fca3a638150f5fe662c5da8b83"
+        },
+        "name": {
+          "text": "Dimensions",
+          "hash": "17e1d4873e1d2254189152354ddb0457"
+        },
+        "signature": {
+          "text": "pub struct _ {\n    width: Positive\n    height: Positive\n}",
+          "hash": "6c91b3c8e5b6df1f9366cc1d4705d054"
+        },
+        "docs": {
+          "text": "",
+          "hash": "af1349b9f5f9a1a6a0404dea36dcc949"
+        }
+      },
+      "definition": "05c8fff6a149a9f601e8edc5f5790034"
+    },
+    {
+      "id": "reader.images.ImageCodec",
+      "path": "reader.images.ImageCodec",
+      "provisional": true,
+      "kind": "cap",
+      "module": "reader.images",
+      "name": "ImageCodec",
+      "file": "src/reader/images.cpl",
+      "effects": [],
+      "facets": {
+        "identity": {
+          "text": "reader.images.ImageCodec",
+          "hash": "6e3518077d4998c4ea73987fbe149724"
+        },
+        "name": {
+          "text": "ImageCodec",
+          "hash": "9ebb56eed4a896d157a9ae8aadbc76bc"
+        },
+        "signature": {
+          "text": "pub capability _ {\n    fn dimensions(image: Bytes) -> Result<Dimensions, ForeignError>\n}",
+          "hash": "08254d412ec7029b9bd02c4bbe3153c0"
+        },
+        "contract": {
+          "text": "",
+          "hash": "af1349b9f5f9a1a6a0404dea36dcc949"
+        },
+        "docs": {
+          "text": "",
+          "hash": "af1349b9f5f9a1a6a0404dea36dcc949"
+        }
+      },
+      "definition": "c07537c7023e949d96fd30e8c6490996"
+    },
+    {
+      "id": "reader.images.image_width",
+      "path": "reader.images.image_width",
+      "provisional": true,
+      "kind": "fn",
+      "module": "reader.images",
+      "name": "image_width",
+      "file": "src/reader/images.cpl",
+      "effects": [
+        "codec.dimensions"
+      ],
+      "facets": {
+        "identity": {
+          "text": "reader.images.image_width",
+          "hash": "a5da7ab8857e3c1f94b9af53b494b6b5"
+        },
+        "name": {
+          "text": "image_width",
+          "hash": "01e1bdb6cb3a9080a347772fd4ba67f6"
+        },
+        "signature": {
+          "text": "pub fn _(image: Bytes, using codec: ImageCodec) -> Result<Positive, ForeignError>",
+          "hash": "05a055097c470420a1024545f1c358f0"
+        },
+        "contract": {
+          "text": "",
+          "hash": "af1349b9f5f9a1a6a0404dea36dcc949"
+        },
+        "effects": {
+          "text": "effects { codec.dimensions }",
+          "hash": "c721501b0e66ba175648d7ed3e6d1284"
+        },
+        "body": {
+          "text": "{\n    let dimensions = codec.dimensions(image)?\n    Ok(dimensions.width)\n}",
+          "hash": "ff40f00a9bd7c5c2f5de5cc42b01c022"
+        },
+        "docs": {
+          "text": "",
+          "hash": "af1349b9f5f9a1a6a0404dea36dcc949"
+        },
+        "verification_policy": {
+          "text": "",
+          "hash": "af1349b9f5f9a1a6a0404dea36dcc949"
+        }
+      },
+      "definition": "e42a87b853384285d6fbeb3a9a246888"
+    },
+    {
+      "id": "reader.pages.PageId",
+      "path": "reader.pages.PageId",
+      "provisional": true,
+      "kind": "ty",
+      "module": "reader.pages",
+      "name": "PageId",
+      "file": "src/reader/pages.cpl",
+      "effects": [],
+      "facets": {
+        "identity": {
+          "text": "reader.pages.PageId",
+          "hash": "2802c2da8a438de55af8a27f4d18443d"
+        },
+        "name": {
+          "text": "PageId",
+          "hash": "992157f13fe99fd54bb7261705c07252"
+        },
+        "signature": {
+          "text": "pub type _(Text)",
+          "hash": "940ed8d4a087531b08ca1f75187bab89"
+        },
+        "docs": {
+          "text": "",
+          "hash": "af1349b9f5f9a1a6a0404dea36dcc949"
+        }
+      },
+      "definition": "b60ce43fb4ecaded2df2669c82234eb6"
+    },
+    {
+      "id": "reader.pages.Positive",
+      "path": "reader.pages.Positive",
+      "provisional": true,
+      "kind": "ty",
+      "module": "reader.pages",
+      "name": "Positive",
+      "file": "src/reader/pages.cpl",
+      "effects": [],
+      "facets": {
+        "identity": {
+          "text": "reader.pages.Positive",
+          "hash": "89163351faf43f793e41b4ee8d745d5b"
+        },
+        "name": {
+          "text": "Positive",
+          "hash": "1cc069928bda005fad0cccd59fe91ed2"
+        },
+        "signature": {
+          "text": "pub type _ = Int",
+          "hash": "ba8510c2ef6c449e99d7160e160be102"
+        },
+        "contract": {
+          "text": "where self > 0",
+          "hash": "7d06c1a8e4e1bc964308ba7137dcf4c0"
+        },
+        "docs": {
+          "text": "",
+          "hash": "af1349b9f5f9a1a6a0404dea36dcc949"
+        }
+      },
+      "definition": "fa260c89e66233445ee0e6734b67711f"
+    },
+    {
+      "id": "reader.pages.Page",
+      "path": "reader.pages.Page",
+      "provisional": true,
+      "kind": "ty",
+      "module": "reader.pages",
+      "name": "Page",
+      "file": "src/reader/pages.cpl",
+      "effects": [],
+      "facets": {
+        "identity": {
+          "text": "reader.pages.Page",
+          "hash": "b9d018728c6913573934ad16fcee7f2c"
+        },
+        "name": {
+          "text": "Page",
+          "hash": "aad750000ca90954ca8d977843c7a579"
+        },
+        "signature": {
+          "text": "pub struct _ {\n    id: PageId\n    text: Text\n}",
+          "hash": "242cfb7e1311c76883f6fa79cfad6791"
+        },
+        "docs": {
+          "text": "",
+          "hash": "af1349b9f5f9a1a6a0404dea36dcc949"
+        }
+      },
+      "definition": "c97ec29e6e3f9b9f3e89b5770b115786"
+    },
+    {
+      "id": "reader.pages.StoreError",
+      "path": "reader.pages.StoreError",
+      "provisional": true,
+      "kind": "ty",
+      "module": "reader.pages",
+      "name": "StoreError",
+      "file": "src/reader/pages.cpl",
+      "effects": [],
+      "facets": {
+        "identity": {
+          "text": "reader.pages.StoreError",
+          "hash": "bbd3546fd6a7fefaf133594d2689a0b2"
+        },
+        "name": {
+          "text": "StoreError",
+          "hash": "78c4ffbc5227ec85db0de6edd2dac130"
+        },
+        "signature": {
+          "text": "pub enum _ {\n    Missing(PageId)\n    Unavailable\n}",
+          "hash": "4dd87419a6dc43a27fe3772009109151"
+        },
+        "docs": {
+          "text": "",
+          "hash": "af1349b9f5f9a1a6a0404dea36dcc949"
+        }
+      },
+      "definition": "6b4014377214f50e6566839e8a3fe8ff"
+    },
+    {
+      "id": "reader.pages.clean",
+      "path": "reader.pages.clean",
+      "provisional": true,
+      "kind": "fn",
+      "module": "reader.pages",
+      "name": "clean",
+      "file": "src/reader/pages.cpl",
+      "effects": [],
+      "facets": {
+        "identity": {
+          "text": "reader.pages.clean",
+          "hash": "54dad3c4d26fd5a347cdda7eb37f1bc8"
+        },
+        "name": {
+          "text": "clean",
+          "hash": "5e7591771e7d81fb99cfde96aa162795"
+        },
+        "signature": {
+          "text": "fn _(page: Page) -> Page",
+          "hash": "5695c30831d143b1cc4d9ec5a02b1ea3"
+        },
+        "contract": {
+          "text": "",
+          "hash": "af1349b9f5f9a1a6a0404dea36dcc949"
+        },
+        "effects": {
+          "text": "",
+          "hash": "af1349b9f5f9a1a6a0404dea36dcc949"
+        },
+        "body": {
+          "text": "{\n    Page { ..page, text: trim(page.text) }\n}",
+          "hash": "c5c3fa2b17257b8d252a94975686120c"
+        },
+        "docs": {
+          "text": "",
+          "hash": "af1349b9f5f9a1a6a0404dea36dcc949"
+        },
+        "verification_policy": {
+          "text": "",
+          "hash": "af1349b9f5f9a1a6a0404dea36dcc949"
+        }
+      },
+      "definition": "5dbbd975393e87fc775ff9bb10bb4336"
+    },
+    {
+      "id": "reader.pages.label",
+      "path": "reader.pages.label",
+      "provisional": true,
+      "kind": "fn",
+      "module": "reader.pages",
+      "name": "label",
+      "file": "src/reader/pages.cpl",
+      "effects": [],
+      "facets": {
+        "identity": {
+          "text": "reader.pages.label",
+          "hash": "d4730bebf7f80ed0bc6abcc6950fc02c"
+        },
+        "name": {
+          "text": "label",
+          "hash": "89ee09b3cda9726752b382cc7a424d42"
+        },
+        "signature": {
+          "text": "fn _(result: Result<Page, StoreError>) -> Text",
+          "hash": "832a04c5f12343e03ae8a31edcf634bb"
+        },
+        "contract": {
+          "text": "",
+          "hash": "af1349b9f5f9a1a6a0404dea36dcc949"
+        },
+        "effects": {
+          "text": "",
+          "hash": "af1349b9f5f9a1a6a0404dea36dcc949"
+        },
+        "body": {
+          "text": "{\n    match result {\n        Ok(page) => page.text\n        Err(Missing(_)) => \"Missing page\"\n        Err(Unavailable) => \"Storage unavailable\"\n    }\n}",
+          "hash": "afc0dfaf1bd718ef2a0d28a352210bba"
+        },
+        "docs": {
+          "text": "",
+          "hash": "af1349b9f5f9a1a6a0404dea36dcc949"
+        },
+        "verification_policy": {
+          "text": "",
+          "hash": "af1349b9f5f9a1a6a0404dea36dcc949"
+        }
+      },
+      "definition": "28b40b659ff2d2f19905ab6048561b8f"
+    },
+    {
+      "id": "reader.pages.parse_size",
+      "path": "reader.pages.parse_size",
+      "provisional": true,
+      "kind": "fn",
+      "module": "reader.pages",
+      "name": "parse_size",
+      "file": "src/reader/pages.cpl",
+      "effects": [],
+      "facets": {
+        "identity": {
+          "text": "reader.pages.parse_size",
+          "hash": "b82ccfe25536eb7a56a15b88f5e20684"
+        },
+        "name": {
+          "text": "parse_size",
+          "hash": "43f95056dc29eae3d77194a960b069d7"
+        },
+        "signature": {
+          "text": "fn _(text: Text) -> Result<Int, ConstraintError>",
+          "hash": "28bc33d82af262780cd6225fdae7a97b"
+        },
+        "contract": {
+          "text": "",
+          "hash": "af1349b9f5f9a1a6a0404dea36dcc949"
+        },
+        "effects": {
+          "text": "",
+          "hash": "af1349b9f5f9a1a6a0404dea36dcc949"
+        },
+        "body": {
+          "text": "{\n    parse_int(trim(text))\n}",
+          "hash": "840c5ab838ee90ef6b116489c0624525"
+        },
+        "docs": {
+          "text": "",
+          "hash": "af1349b9f5f9a1a6a0404dea36dcc949"
+        },
+        "verification_policy": {
+          "text": "",
+          "hash": "af1349b9f5f9a1a6a0404dea36dcc949"
+        }
+      },
+      "definition": "741394a365286b2d85fa5b92c3ce711e"
+    },
+    {
+      "id": "reader.pages.positive_size",
+      "path": "reader.pages.positive_size",
+      "provisional": true,
+      "kind": "fn",
+      "module": "reader.pages",
+      "name": "positive_size",
+      "file": "src/reader/pages.cpl",
+      "effects": [],
+      "facets": {
+        "identity": {
+          "text": "reader.pages.positive_size",
+          "hash": "c0528aeac647cc9b5ee1c0b845229157"
+        },
+        "name": {
+          "text": "positive_size",
+          "hash": "56ed8097a0fe3c01f3d24b4d9789a41e"
+        },
+        "signature": {
+          "text": "fn _(text: Text) -> Result<Positive, ConstraintError>",
+          "hash": "06ba6be52e7673786697890be55c38d2"
+        },
+        "contract": {
+          "text": "",
+          "hash": "af1349b9f5f9a1a6a0404dea36dcc949"
+        },
+        "effects": {
+          "text": "",
+          "hash": "af1349b9f5f9a1a6a0404dea36dcc949"
+        },
+        "body": {
+          "text": "{\n    let n = parse_size(text)?\n    check<Positive>(n)\n}",
+          "hash": "fe0e75a51527e3636a6cdc9aa6c09361"
+        },
+        "docs": {
+          "text": "",
+          "hash": "af1349b9f5f9a1a6a0404dea36dcc949"
+        },
+        "verification_policy": {
+          "text": "",
+          "hash": "af1349b9f5f9a1a6a0404dea36dcc949"
+        }
+      },
+      "definition": "0b34f1318a497024af6b1d79b9514a48"
+    },
+    {
+      "id": "pgn_7c2d",
+      "path": "reader.pages.paginate",
+      "provisional": false,
+      "kind": "fn",
+      "module": "reader.pages",
+      "name": "paginate",
+      "file": "src/reader/pages.cpl",
+      "effects": [],
+      "facets": {
+        "identity": {
+          "text": "pgn_7c2d",
+          "hash": "bd3f91f48de8b527b3cb33c4f2b1b66b"
+        },
+        "name": {
+          "text": "paginate",
+          "hash": "c7c6593c3beabcd67c41127d206918f5"
+        },
+        "signature": {
+          "text": "pub fn _<T>(items: List<T>, size: Positive) -> List<List<T>>",
+          "hash": "11367ea8051ec723a2947f3c23cbc6be"
+        },
+        "contract": {
+          "text": "ensures flatten(result) == items\nensures forall page in result: page.len > 0 and page.len <= size\nensures forall page in result.drop_last(): page.len == size",
+          "hash": "b57e46d5b8e6685b08b351c8c667185d"
+        },
+        "effects": {
+          "text": "",
+          "hash": "af1349b9f5f9a1a6a0404dea36dcc949"
+        },
+        "body": {
+          "text": "{\n    var pages: List<List<T>> = []\n    var rest = items\n    while rest.len > size\n        invariant flatten(pages) ++ rest == items\n        invariant forall page in pages: page.len == size\n        decreases rest.len\n    {\n        pages = pages.push(rest.take(size))\n        rest = rest.drop(size)\n    }\n    if not rest.is_empty() {\n        pages = pages.push(rest)\n    }\n    pages\n}",
+          "hash": "7d1bb2835a6b401c0619ef13dc24e817"
+        },
+        "docs": {
+          "text": "",
+          "hash": "af1349b9f5f9a1a6a0404dea36dcc949"
+        },
+        "verification_policy": {
+          "text": "@prove",
+          "hash": "855639fcf39ddd0cba719e0c76039a29"
+        }
+      },
+      "definition": "89b3dc79b6d7fb61f0ac85d1c984bb88"
+    },
+    {
+      "id": "reader.pages.paginate_ints",
+      "path": "reader.pages.paginate_ints",
+      "provisional": true,
+      "kind": "fn",
+      "module": "reader.pages",
+      "name": "paginate_ints",
+      "file": "src/reader/pages.cpl",
+      "effects": [],
+      "facets": {
+        "identity": {
+          "text": "reader.pages.paginate_ints",
+          "hash": "7ed8d7a5b151ae79e59f470c0c268092"
+        },
+        "name": {
+          "text": "paginate_ints",
+          "hash": "b06bd0c1a2a6bf69ebd172e346864d37"
+        },
+        "signature": {
+          "text": "pub fn _(items: List<Int>, size: Int) -> Result<List<List<Int>>, ConstraintError>",
+          "hash": "8bc27802c739deb07f84f7cd98eaf032"
+        },
+        "contract": {
+          "text": "",
+          "hash": "af1349b9f5f9a1a6a0404dea36dcc949"
+        },
+        "effects": {
+          "text": "",
+          "hash": "af1349b9f5f9a1a6a0404dea36dcc949"
+        },
+        "body": {
+          "text": "{\n    let checked_size = check<Positive>(size)?\n    Ok(paginate(items, checked_size))\n}",
+          "hash": "581343fc2f3f48eb1010bb12d88a936b"
+        },
+        "docs": {
+          "text": "",
+          "hash": "af1349b9f5f9a1a6a0404dea36dcc949"
+        },
+        "verification_policy": {
+          "text": "",
+          "hash": "af1349b9f5f9a1a6a0404dea36dcc949"
+        }
+      },
+      "definition": "8c07cc027eff53ecf092a2fb627ada8a"
+    },
+    {
+      "id": "reader.pages.PageRead",
+      "path": "reader.pages.PageRead",
+      "provisional": true,
+      "kind": "cap",
+      "module": "reader.pages",
+      "name": "PageRead",
+      "file": "src/reader/pages.cpl",
+      "effects": [],
+      "facets": {
+        "identity": {
+          "text": "reader.pages.PageRead",
+          "hash": "6d2969447d76a447fe65f9c905795cd7"
+        },
+        "name": {
+          "text": "PageRead",
+          "hash": "a96fdc57d2c5c4a6b02ad21103c0a391"
+        },
+        "signature": {
+          "text": "pub capability _ {\n    fn get(id: PageId) -> Result<Page, StoreError>\n}",
+          "hash": "a570aaeb205ef028e24efd6d08d02e66"
+        },
+        "contract": {
+          "text": "",
+          "hash": "af1349b9f5f9a1a6a0404dea36dcc949"
+        },
+        "docs": {
+          "text": "",
+          "hash": "af1349b9f5f9a1a6a0404dea36dcc949"
+        }
+      },
+      "definition": "bc233425aa66920a43f12b4bffb48776"
+    },
+    {
+      "id": "reader.pages.PageWrite",
+      "path": "reader.pages.PageWrite",
+      "provisional": true,
+      "kind": "cap",
+      "module": "reader.pages",
+      "name": "PageWrite",
+      "file": "src/reader/pages.cpl",
+      "effects": [],
+      "facets": {
+        "identity": {
+          "text": "reader.pages.PageWrite",
+          "hash": "f94af6f967c19dedf714297e3d27c539"
+        },
+        "name": {
+          "text": "PageWrite",
+          "hash": "868858bd20cd5493ff3252cb47b26841"
+        },
+        "signature": {
+          "text": "pub capability _ {\n    fn put(page: Page) -> Result<Unit, StoreError>\n}",
+          "hash": "14518836b30da049f58bbdc450b2569b"
+        },
+        "contract": {
+          "text": "",
+          "hash": "af1349b9f5f9a1a6a0404dea36dcc949"
+        },
+        "docs": {
+          "text": "",
+          "hash": "af1349b9f5f9a1a6a0404dea36dcc949"
+        }
+      },
+      "definition": "e2d2a0dfca729c3245f702f27ba134a7"
+    },
+    {
+      "id": "reader.pages.load_page",
+      "path": "reader.pages.load_page",
+      "provisional": true,
+      "kind": "fn",
+      "module": "reader.pages",
+      "name": "load_page",
+      "file": "src/reader/pages.cpl",
+      "effects": [
+        "db.get"
+      ],
+      "facets": {
+        "identity": {
+          "text": "reader.pages.load_page",
+          "hash": "73b88d5d682e929587cc8ffa76a3c6fc"
+        },
+        "name": {
+          "text": "load_page",
+          "hash": "b526b2f89eed99899e0782245b2bb8f2"
+        },
+        "signature": {
+          "text": "pub fn _(id: PageId, using db: PageRead) -> Result<Page, StoreError>",
+          "hash": "2b6e78f8254f846f3b435cf0fa971c22"
+        },
+        "contract": {
+          "text": "",
+          "hash": "af1349b9f5f9a1a6a0404dea36dcc949"
+        },
+        "effects": {
+          "text": "effects { db.get }",
+          "hash": "523cde56d2d0b6b13a8b8a3c346e21f3"
+        },
+        "body": {
+          "text": "{\n    db.get(id)\n}",
+          "hash": "76e63e26749ee0ab616080cd789eb51e"
+        },
+        "docs": {
+          "text": "",
+          "hash": "af1349b9f5f9a1a6a0404dea36dcc949"
+        },
+        "verification_policy": {
+          "text": "",
+          "hash": "af1349b9f5f9a1a6a0404dea36dcc949"
+        }
+      },
+      "definition": "4b5a7e2afe918309171a2d889bbef5b9"
+    },
+    {
+      "id": "reader.pages.load_text",
+      "path": "reader.pages.load_text",
+      "provisional": true,
+      "kind": "fn",
+      "module": "reader.pages",
+      "name": "load_text",
+      "file": "src/reader/pages.cpl",
+      "effects": [
+        "db.get"
+      ],
+      "facets": {
+        "identity": {
+          "text": "reader.pages.load_text",
+          "hash": "24e6e85955bfd74c31b18d72f08a4ae9"
+        },
+        "name": {
+          "text": "load_text",
+          "hash": "62886a63967a13a60081eee301d76818"
+        },
+        "signature": {
+          "text": "pub fn _(id: PageId, using db: PageRead) -> Result<Text, StoreError>",
+          "hash": "531e3755312875b41d06bc5b8488052f"
+        },
+        "contract": {
+          "text": "",
+          "hash": "af1349b9f5f9a1a6a0404dea36dcc949"
+        },
+        "effects": {
+          "text": "effects { db.get }",
+          "hash": "523cde56d2d0b6b13a8b8a3c346e21f3"
+        },
+        "body": {
+          "text": "{\n    let page = load_page(id, using db)?\n    Ok(page.text)\n}",
+          "hash": "c71dcd5f761f4b683d8eb5190b231313"
+        },
+        "docs": {
+          "text": "",
+          "hash": "af1349b9f5f9a1a6a0404dea36dcc949"
+        },
+        "verification_policy": {
+          "text": "",
+          "hash": "af1349b9f5f9a1a6a0404dea36dcc949"
+        }
+      },
+      "definition": "48f67a4a61b2a28588d9a0799f383168"
+    },
+    {
+      "id": "reader.pages.divide_exactly",
+      "path": "reader.pages.divide_exactly",
+      "provisional": true,
+      "kind": "fn",
+      "module": "reader.pages",
+      "name": "divide_exactly",
+      "file": "src/reader/pages.cpl",
+      "effects": [],
+      "facets": {
+        "identity": {
+          "text": "reader.pages.divide_exactly",
+          "hash": "8889f07ba443fde3a19de33d35e67cc7"
+        },
+        "name": {
+          "text": "divide_exactly",
+          "hash": "1fe4a946d2a3d764ff801c7071d47a42"
+        },
+        "signature": {
+          "text": "fn _(a: Int, b: Int) -> Int",
+          "hash": "d9700e01cbb53480d7930c14c31a5490"
+        },
+        "contract": {
+          "text": "requires b != 0\nrequires a % b == 0\nensures result * b == a",
+          "hash": "6ce52c7c269a5053205d8950768d4d43"
+        },
+        "effects": {
+          "text": "",
+          "hash": "af1349b9f5f9a1a6a0404dea36dcc949"
+        },
+        "body": {
+          "text": "{\n    a / b\n}",
+          "hash": "01633d1afd31c5dc69d43b5588a9c3eb"
+        },
+        "docs": {
+          "text": "",
+          "hash": "af1349b9f5f9a1a6a0404dea36dcc949"
+        },
+        "verification_policy": {
+          "text": "",
+          "hash": "af1349b9f5f9a1a6a0404dea36dcc949"
+        }
+      },
+      "definition": "c2279c1a5c51cd31b4f1e2a2d1b00630"
+    },
+    {
+      "id": "tests.pagination.\"pagination preserves a short tail\"",
+      "path": "tests.pagination.\"pagination preserves a short tail\"",
+      "provisional": true,
+      "kind": "test",
+      "module": "tests.pagination",
+      "name": "pagination preserves a short tail",
+      "file": "src/tests/pagination.cpl",
+      "effects": [],
+      "facets": {
+        "identity": {
+          "text": "tests.pagination.\"pagination preserves a short tail\"",
+          "hash": "144fb6a004dba2292c07a1d82fab2602"
+        },
+        "name": {
+          "text": "\"pagination preserves a short tail\"",
+          "hash": "619f242b29b6ba9260f2da4635ed3766"
+        },
+        "body": {
+          "text": "{\n    assert paginate([1, 2, 3], 2) == [[1, 2], [3]]\n}",
+          "hash": "060a1c46fbb70cb11b66472d111e97d2"
+        },
+        "docs": {
+          "text": "",
+          "hash": "af1349b9f5f9a1a6a0404dea36dcc949"
+        }
+      },
+      "definition": "fb14d36c606e579e8459d4f66e122491"
+    },
+    {
+      "id": "tests.pagination.\"pagination handles empty input\"",
+      "path": "tests.pagination.\"pagination handles empty input\"",
+      "provisional": true,
+      "kind": "test",
+      "module": "tests.pagination",
+      "name": "pagination handles empty input",
+      "file": "src/tests/pagination.cpl",
+      "effects": [],
+      "facets": {
+        "identity": {
+          "text": "tests.pagination.\"pagination handles empty input\"",
+          "hash": "31c3c70317659db6c2bf4ef0dd02df83"
+        },
+        "name": {
+          "text": "\"pagination handles empty input\"",
+          "hash": "173ec38c1b873b056e3906b594413124"
+        },
+        "body": {
+          "text": "{\n    let items: List<Int> = []\n    assert paginate(items, 2) == []\n}",
+          "hash": "d843659fe1953b74a57bd9e7adad8cf8"
+        },
+        "docs": {
+          "text": "",
+          "hash": "af1349b9f5f9a1a6a0404dea36dcc949"
+        }
+      },
+      "definition": "56c4e7cddd4521180ce42f81501b9271"
+    },
+    {
+      "id": "tests.pagination.\"pagination preserves input\"",
+      "path": "tests.pagination.\"pagination preserves input\"",
+      "provisional": true,
+      "kind": "prop",
+      "module": "tests.pagination",
+      "name": "pagination preserves input",
+      "file": "src/tests/pagination.cpl",
+      "effects": [],
+      "facets": {
+        "identity": {
+          "text": "tests.pagination.\"pagination preserves input\"",
+          "hash": "416c09982c322dd432debcaaaabe6a12"
+        },
+        "name": {
+          "text": "\"pagination preserves input\"",
+          "hash": "3427e66ef2126ee8e176abeaecbed8e7"
+        },
+        "signature": {
+          "text": "for items in gen.list(gen.int)\nfor size in gen.positive_int",
+          "hash": "4932632095ae2d2b16eb7ddbfdb548a4"
+        },
+        "body": {
+          "text": "{\n    assert flatten(paginate(items, size)) == items\n}",
+          "hash": "5baabe1254a3c9a4e63142cf026ebbfd"
+        },
+        "docs": {
+          "text": "",
+          "hash": "af1349b9f5f9a1a6a0404dea36dcc949"
+        }
+      },
+      "definition": "69f3899e3831a49974ea192847081537"
+    }
+  ]
+}

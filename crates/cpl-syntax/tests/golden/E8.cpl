@@ -1,0 +1,17 @@
+module tests.pagination
+
+test "pagination preserves a short tail" {
+    assert paginate([1, 2, 3], 2) == [[1, 2], [3]]
+}
+
+test "pagination handles empty input" {
+    let items: List<Int> = []
+    assert paginate(items, 2) == []
+}
+
+property "pagination preserves input"
+    for items in gen.list(gen.int)
+    for size in gen.positive_int
+{
+    assert flatten(paginate(items, size)) == items
+}

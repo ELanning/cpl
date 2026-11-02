@@ -1,0 +1,28 @@
+module tests.uses
+
+use tests.limits.{limit}
+
+type Positive = Int where self > 0
+
+fn total(xs: List<Positive>, o: Option<Positive>) -> Int {
+    flatten([xs]).len + o.unwrap_or(1)
+}
+
+property "imported bound"
+    for r in gen.range(0, limit())
+{
+    assert r < 3
+}
+
+property "qualified bound"
+    for r in gen.range(0, tests.limits.limit() / 0)
+{
+    assert r < 3
+}
+
+property "structural positives"
+    for xs in gen.list(gen.positive_int)
+    for o in gen.option(gen.positive_int)
+{
+    assert total(xs, o) < 6
+}

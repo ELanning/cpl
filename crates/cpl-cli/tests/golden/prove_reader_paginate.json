@@ -1,0 +1,610 @@
+{
+  "command": "prove",
+  "toolchain": {
+    "version": "0.1.0",
+    "edition": "0.1",
+    "json_schema": 1
+  },
+  "revision": {
+    "commit": "<commit>",
+    "state": "clean",
+    "digest": "<digest>"
+  },
+  "status": "unsuccessful",
+  "diagnostics": [
+    {
+      "code": "verification_result",
+      "category": "contract",
+      "severity": "info",
+      "message": "paginate: unknown (verifier unavailable)",
+      "span": {
+        "file": "src/reader/pages.cpl",
+        "line": 45,
+        "col": 8,
+        "end_line": 45,
+        "end_col": 16
+      },
+      "symbol": "pgn_7c2d",
+      "qualified_name": "reader.pages.paginate",
+      "facet": "verification_policy",
+      "reason": "verifier_unavailable",
+      "receipt": {
+        "assumptions": [],
+        "check_configuration": {
+          "release": false
+        },
+        "modules": [
+          {
+            "content_hash": "3280168ad6eefffe1abb46548d01e818a610f76548aac5ad58946731de99fdca",
+            "module": "reader.pages"
+          }
+        ],
+        "source_revision": "<commit>",
+        "toolchain": {
+          "cpl": "0.1.0",
+          "edition": "0.1",
+          "std": "42236a5efaffeb1110f986d858c30c7dabeb7efa54a3d80ec548b77135351388"
+        }
+      },
+      "status": "unknown"
+    }
+  ],
+  "symbol": {
+    "id": "pgn_7c2d",
+    "path": "reader.pages.paginate",
+    "provisional": false,
+    "facets": {
+      "identity": "bd3f91f48de8b527b3cb33c4f2b1b66b",
+      "name": "c7c6593c3beabcd67c41127d206918f5",
+      "signature": "11367ea8051ec723a2947f3c23cbc6be",
+      "contract": "b57e46d5b8e6685b08b351c8c667185d",
+      "effects": "af1349b9f5f9a1a6a0404dea36dcc949",
+      "body": "7d1bb2835a6b401c0619ef13dc24e817",
+      "docs": "af1349b9f5f9a1a6a0404dea36dcc949",
+      "verification_policy": "855639fcf39ddd0cba719e0c76039a29"
+    },
+    "definition": "89b3dc79b6d7fb61f0ac85d1c984bb88"
+  },
+  "result": "unknown",
+  "obligations": [
+    {
+      "id": "pgn_7c2d#ensures/1",
+      "kind": "ensures",
+      "clause": "flatten(result) == items",
+      "location": {
+        "file": "src/reader/pages.cpl",
+        "line": 46,
+        "col": 5,
+        "end_line": 46,
+        "end_col": 37
+      },
+      "status": "unknown",
+      "reason": "verifier_unavailable",
+      "evidence": null,
+      "assumptions": []
+    },
+    {
+      "id": "pgn_7c2d#ensures/2",
+      "kind": "ensures",
+      "clause": "forall page in result: page.len > 0 and page.len <= size",
+      "location": {
+        "file": "src/reader/pages.cpl",
+        "line": 47,
+        "col": 5,
+        "end_line": 47,
+        "end_col": 69
+      },
+      "status": "unknown",
+      "reason": "verifier_unavailable",
+      "evidence": null,
+      "assumptions": []
+    },
+    {
+      "id": "pgn_7c2d#ensures/3",
+      "kind": "ensures",
+      "clause": "forall page in result.drop_last(): page.len == size",
+      "location": {
+        "file": "src/reader/pages.cpl",
+        "line": 48,
+        "col": 5,
+        "end_line": 48,
+        "end_col": 64
+      },
+      "status": "unknown",
+      "reason": "verifier_unavailable",
+      "evidence": null,
+      "assumptions": []
+    },
+    {
+      "id": "pgn_7c2d#loop/1/invariant/1/init",
+      "kind": "invariant_init",
+      "clause": "flatten(pages) ++ rest == items",
+      "location": {
+        "file": "src/reader/pages.cpl",
+        "line": 54,
+        "col": 9,
+        "end_line": 54,
+        "end_col": 50
+      },
+      "status": "unknown",
+      "reason": "verifier_unavailable",
+      "evidence": null,
+      "assumptions": []
+    },
+    {
+      "id": "pgn_7c2d#loop/1/invariant/1/preserve",
+      "kind": "invariant_preserve",
+      "clause": "flatten(pages) ++ rest == items",
+      "location": {
+        "file": "src/reader/pages.cpl",
+        "line": 54,
+        "col": 9,
+        "end_line": 54,
+        "end_col": 50
+      },
+      "status": "unknown",
+      "reason": "verifier_unavailable",
+      "evidence": null,
+      "assumptions": []
+    },
+    {
+      "id": "pgn_7c2d#loop/1/invariant/2/init",
+      "kind": "invariant_init",
+      "clause": "forall page in pages: page.len == size",
+      "location": {
+        "file": "src/reader/pages.cpl",
+        "line": 55,
+        "col": 9,
+        "end_line": 55,
+        "end_col": 57
+      },
+      "status": "unknown",
+      "reason": "verifier_unavailable",
+      "evidence": null,
+      "assumptions": []
+    },
+    {
+      "id": "pgn_7c2d#loop/1/invariant/2/preserve",
+      "kind": "invariant_preserve",
+      "clause": "forall page in pages: page.len == size",
+      "location": {
+        "file": "src/reader/pages.cpl",
+        "line": 55,
+        "col": 9,
+        "end_line": 55,
+        "end_col": 57
+      },
+      "status": "unknown",
+      "reason": "verifier_unavailable",
+      "evidence": null,
+      "assumptions": []
+    },
+    {
+      "id": "pgn_7c2d#loop/1/decreases",
+      "kind": "loop_decreases",
+      "clause": "rest.len",
+      "location": {
+        "file": "src/reader/pages.cpl",
+        "line": 56,
+        "col": 9,
+        "end_line": 56,
+        "end_col": 27
+      },
+      "status": "unknown",
+      "reason": "verifier_unavailable",
+      "evidence": null,
+      "assumptions": []
+    },
+    {
+      "id": "pgn_7c2d#call/11/requires/1",
+      "kind": "call_requires",
+      "clause": "n >= 0",
+      "location": {
+        "file": "src/reader/pages.cpl",
+        "line": 58,
+        "col": 28,
+        "end_line": 58,
+        "end_col": 43
+      },
+      "status": "unknown",
+      "reason": "verifier_unavailable",
+      "evidence": null,
+      "assumptions": []
+    },
+    {
+      "id": "pgn_7c2d#call/12/requires/1",
+      "kind": "call_requires",
+      "clause": "n >= 0",
+      "location": {
+        "file": "src/reader/pages.cpl",
+        "line": 59,
+        "col": 16,
+        "end_line": 59,
+        "end_col": 31
+      },
+      "status": "unknown",
+      "reason": "verifier_unavailable",
+      "evidence": null,
+      "assumptions": []
+    }
+  ],
+  "receipt": {
+    "receipt": "verification",
+    "schema": 1,
+    "toolchain": {
+      "version": "0.1.0",
+      "edition": "0.1",
+      "json_schema": 1
+    },
+    "verifier": {
+      "name": "none",
+      "version": null,
+      "configuration": {}
+    },
+    "revision": {
+      "commit": "<commit>",
+      "state": "clean",
+      "digest": "<digest>"
+    },
+    "core": {
+      "source_revision": "<commit>",
+      "toolchain": {
+        "cpl": "0.1.0",
+        "edition": "0.1",
+        "std": "42236a5efaffeb1110f986d858c30c7dabeb7efa54a3d80ec548b77135351388"
+      },
+      "modules": [
+        {
+          "module": "reader.pages",
+          "content_hash": "3280168ad6eefffe1abb46548d01e818a610f76548aac5ad58946731de99fdca"
+        }
+      ],
+      "check_configuration": {
+        "release": false
+      },
+      "assumptions": []
+    },
+    "target": {
+      "id": "pgn_7c2d",
+      "path": "reader.pages.paginate",
+      "provisional": false,
+      "facets": {
+        "identity": "bd3f91f48de8b527b3cb33c4f2b1b66b",
+        "name": "c7c6593c3beabcd67c41127d206918f5",
+        "signature": "11367ea8051ec723a2947f3c23cbc6be",
+        "contract": "b57e46d5b8e6685b08b351c8c667185d",
+        "effects": "af1349b9f5f9a1a6a0404dea36dcc949",
+        "body": "7d1bb2835a6b401c0619ef13dc24e817",
+        "docs": "af1349b9f5f9a1a6a0404dea36dcc949",
+        "verification_policy": "855639fcf39ddd0cba719e0c76039a29"
+      },
+      "definition": "89b3dc79b6d7fb61f0ac85d1c984bb88"
+    },
+    "dependencies": [
+      {
+        "id": "reader.pages.Positive",
+        "path": "reader.pages.Positive",
+        "provisional": true,
+        "facets": {
+          "identity": "89163351faf43f793e41b4ee8d745d5b",
+          "name": "1cc069928bda005fad0cccd59fe91ed2",
+          "signature": "ba8510c2ef6c449e99d7160e160be102",
+          "contract": "7d06c1a8e4e1bc964308ba7137dcf4c0",
+          "docs": "af1349b9f5f9a1a6a0404dea36dcc949"
+        },
+        "definition": "fa260c89e66233445ee0e6734b67711f"
+      },
+      {
+        "id": "std.prelude.List",
+        "path": "std.prelude.List",
+        "provisional": true,
+        "facets": {
+          "identity": "e023f20d653cc0d1307d5d87e1fd5ca9",
+          "name": "f8ab3dba7a014a9be0bbede1a593235b",
+          "signature": "54c224941a90302904d92e3b0a86c60e",
+          "docs": "6c9d2b667a6873d564c60a5b07eef786"
+        },
+        "definition": "76e08b68f048860dc4d5f28cabaa9779"
+      },
+      {
+        "id": "std.prelude.List.drop",
+        "path": "std.prelude.List.drop",
+        "provisional": true,
+        "facets": {
+          "identity": "75d364c4944bed1ba40514494891857f",
+          "name": "372f90a8f6b87ea2339d88ca9cdf6e0e",
+          "signature": "0c1e6e475c6f92721cc2e89b62134533",
+          "contract": "d71e387b91c500696a64bb4e7b4d52cc",
+          "effects": "af1349b9f5f9a1a6a0404dea36dcc949",
+          "body": "af1349b9f5f9a1a6a0404dea36dcc949",
+          "docs": "78572a00edd64187f93146529032f3ac",
+          "verification_policy": "af1349b9f5f9a1a6a0404dea36dcc949"
+        },
+        "definition": "50b2a4652be735c4a3ce97cc82e1b583"
+      },
+      {
+        "id": "std.prelude.List.drop_last",
+        "path": "std.prelude.List.drop_last",
+        "provisional": true,
+        "facets": {
+          "identity": "092d433a1bef3210cc589336ebfb72d6",
+          "name": "13a680143afe47bdc2fbe56be2ab87cb",
+          "signature": "32d0ecac598bcbcd3800181c3b494f7e",
+          "contract": "3a4f6bf9b63371f7a78632fa79604e0a",
+          "effects": "af1349b9f5f9a1a6a0404dea36dcc949",
+          "body": "af1349b9f5f9a1a6a0404dea36dcc949",
+          "docs": "55070e3d3d2e5e0513e18c503deb8e29",
+          "verification_policy": "af1349b9f5f9a1a6a0404dea36dcc949"
+        },
+        "definition": "3db926bceaf6fac9be1aac4c9fadc8c3"
+      },
+      {
+        "id": "std.prelude.List.is_empty",
+        "path": "std.prelude.List.is_empty",
+        "provisional": true,
+        "facets": {
+          "identity": "aaacbb41c1e7a43b149ec352da56e838",
+          "name": "69e0e83d1530ff064f08f3da470a26e4",
+          "signature": "b38904a7a7612ca33b339fda8c04d890",
+          "contract": "03a4aaeb2c747d4f29475146eb152852",
+          "effects": "af1349b9f5f9a1a6a0404dea36dcc949",
+          "body": "af1349b9f5f9a1a6a0404dea36dcc949",
+          "docs": "af1349b9f5f9a1a6a0404dea36dcc949",
+          "verification_policy": "af1349b9f5f9a1a6a0404dea36dcc949"
+        },
+        "definition": "b4143df0e08af38c6f3986cce5840e09"
+      },
+      {
+        "id": "std.prelude.List.len",
+        "path": "std.prelude.List.len",
+        "provisional": true,
+        "facets": {
+          "identity": "f19133b5e97047801a0c8e3244b0a504",
+          "name": "7d0f6d0f178ceedc363d520c14de9cdc",
+          "signature": "a56593fdfcc2860dcde71a4b22dd32f3",
+          "contract": "3b455c8135fe8cea8c594a6aed2b77d1",
+          "effects": "af1349b9f5f9a1a6a0404dea36dcc949",
+          "body": "af1349b9f5f9a1a6a0404dea36dcc949",
+          "docs": "d55c69c8100872a3db28f3028d6dea22",
+          "verification_policy": "af1349b9f5f9a1a6a0404dea36dcc949"
+        },
+        "definition": "b71ec391e93f46b3adbae1a9ec76a2fa"
+      },
+      {
+        "id": "std.prelude.List.push",
+        "path": "std.prelude.List.push",
+        "provisional": true,
+        "facets": {
+          "identity": "b166a40f02e9e0a119145a947cd3e9be",
+          "name": "34f4d1b7edf638d1af7b5a50d77de4a1",
+          "signature": "93c04a733452a5c2527f49ffb7475208",
+          "contract": "371cb16aa3ef7e66b63637655e260cf6",
+          "effects": "af1349b9f5f9a1a6a0404dea36dcc949",
+          "body": "af1349b9f5f9a1a6a0404dea36dcc949",
+          "docs": "d05608b5706c017601d7a1daf1c91a94",
+          "verification_policy": "af1349b9f5f9a1a6a0404dea36dcc949"
+        },
+        "definition": "85c37646e3e9e3a517c0746c08ec39d9"
+      },
+      {
+        "id": "std.prelude.List.take",
+        "path": "std.prelude.List.take",
+        "provisional": true,
+        "facets": {
+          "identity": "a9ca91f78426f7716d5e390f4f34fc25",
+          "name": "bc7877b331f8a47e98d265dbff64c3e7",
+          "signature": "0c1e6e475c6f92721cc2e89b62134533",
+          "contract": "a2bf9dc60a357728b8631f0fa9f6f729",
+          "effects": "af1349b9f5f9a1a6a0404dea36dcc949",
+          "body": "af1349b9f5f9a1a6a0404dea36dcc949",
+          "docs": "f332c02634903a9958482cd044d5e836",
+          "verification_policy": "af1349b9f5f9a1a6a0404dea36dcc949"
+        },
+        "definition": "a9379d2c420e9c927a1676ddc4535d22"
+      },
+      {
+        "id": "std.prelude.flatten",
+        "path": "std.prelude.flatten",
+        "provisional": true,
+        "facets": {
+          "identity": "8d7c48f3a462e75c46f41ef055a68ab4",
+          "name": "be2ddfa41fa60eeb51acb25611c156b0",
+          "signature": "7160609903cbcdc5f89ccc45d3753645",
+          "contract": "c322ded6d51286a011ea0966ffdf2fa8",
+          "effects": "af1349b9f5f9a1a6a0404dea36dcc949",
+          "body": "af1349b9f5f9a1a6a0404dea36dcc949",
+          "docs": "f62bb82488ce1f0949c3f657dc589d38",
+          "verification_policy": "af1349b9f5f9a1a6a0404dea36dcc949"
+        },
+        "definition": "5ad0ed9c89bf29cc3c92b0521f4c7fd7"
+      }
+    ],
+    "inputs": {
+      "manifest": "e74d1df8f21726f407fbba0a7c044aa9198794649c922bf66a08d19c59533668",
+      "lock": null,
+      "std": "42236a5efaffeb1110f986d858c30c7dabeb7efa54a3d80ec548b77135351388",
+      "sources": {
+        "cpl.toml": "e74d1df8f21726f407fbba0a7c044aa9198794649c922bf66a08d19c59533668",
+        "src/reader/images.cpl": "4df92f1b1b7673b5e7a9b5b20d5a0ba46a4058ce9885cf3d86d7e5611e0a9171",
+        "src/reader/pages.cpl": "3280168ad6eefffe1abb46548d01e818a610f76548aac5ad58946731de99fdca",
+        "src/tests/pagination.cpl": "a8d012e2ae05b0332bc212f206a17cf3a57ff4966bec45bacd576b1cd09d445f",
+        "work/pagination.patch": "59d695d5980737b338bad2e190d3a88e60c6bbec40a9f79adbdb7a6f8d95cf62",
+        "work/pagination.work": "eb5f2c7d2fe8fce46ee0e031dc479c0812b486dee5a9eafe1b3edf636d27e1a6"
+      }
+    },
+    "configuration": {
+      "release": false,
+      "policy": {
+        "prove": true
+      },
+      "proof_timeout_ms": 10000,
+      "admitted": []
+    },
+    "status": "unknown",
+    "obligations": [
+      {
+        "id": "pgn_7c2d#ensures/1",
+        "kind": "ensures",
+        "clause": "flatten(result) == items",
+        "location": {
+          "file": "src/reader/pages.cpl",
+          "line": 46,
+          "col": 5,
+          "end_line": 46,
+          "end_col": 37
+        },
+        "status": "unknown",
+        "reason": "verifier_unavailable",
+        "evidence": null,
+        "assumptions": []
+      },
+      {
+        "id": "pgn_7c2d#ensures/2",
+        "kind": "ensures",
+        "clause": "forall page in result: page.len > 0 and page.len <= size",
+        "location": {
+          "file": "src/reader/pages.cpl",
+          "line": 47,
+          "col": 5,
+          "end_line": 47,
+          "end_col": 69
+        },
+        "status": "unknown",
+        "reason": "verifier_unavailable",
+        "evidence": null,
+        "assumptions": []
+      },
+      {
+        "id": "pgn_7c2d#ensures/3",
+        "kind": "ensures",
+        "clause": "forall page in result.drop_last(): page.len == size",
+        "location": {
+          "file": "src/reader/pages.cpl",
+          "line": 48,
+          "col": 5,
+          "end_line": 48,
+          "end_col": 64
+        },
+        "status": "unknown",
+        "reason": "verifier_unavailable",
+        "evidence": null,
+        "assumptions": []
+      },
+      {
+        "id": "pgn_7c2d#loop/1/invariant/1/init",
+        "kind": "invariant_init",
+        "clause": "flatten(pages) ++ rest == items",
+        "location": {
+          "file": "src/reader/pages.cpl",
+          "line": 54,
+          "col": 9,
+          "end_line": 54,
+          "end_col": 50
+        },
+        "status": "unknown",
+        "reason": "verifier_unavailable",
+        "evidence": null,
+        "assumptions": []
+      },
+      {
+        "id": "pgn_7c2d#loop/1/invariant/1/preserve",
+        "kind": "invariant_preserve",
+        "clause": "flatten(pages) ++ rest == items",
+        "location": {
+          "file": "src/reader/pages.cpl",
+          "line": 54,
+          "col": 9,
+          "end_line": 54,
+          "end_col": 50
+        },
+        "status": "unknown",
+        "reason": "verifier_unavailable",
+        "evidence": null,
+        "assumptions": []
+      },
+      {
+        "id": "pgn_7c2d#loop/1/invariant/2/init",
+        "kind": "invariant_init",
+        "clause": "forall page in pages: page.len == size",
+        "location": {
+          "file": "src/reader/pages.cpl",
+          "line": 55,
+          "col": 9,
+          "end_line": 55,
+          "end_col": 57
+        },
+        "status": "unknown",
+        "reason": "verifier_unavailable",
+        "evidence": null,
+        "assumptions": []
+      },
+      {
+        "id": "pgn_7c2d#loop/1/invariant/2/preserve",
+        "kind": "invariant_preserve",
+        "clause": "forall page in pages: page.len == size",
+        "location": {
+          "file": "src/reader/pages.cpl",
+          "line": 55,
+          "col": 9,
+          "end_line": 55,
+          "end_col": 57
+        },
+        "status": "unknown",
+        "reason": "verifier_unavailable",
+        "evidence": null,
+        "assumptions": []
+      },
+      {
+        "id": "pgn_7c2d#loop/1/decreases",
+        "kind": "loop_decreases",
+        "clause": "rest.len",
+        "location": {
+          "file": "src/reader/pages.cpl",
+          "line": 56,
+          "col": 9,
+          "end_line": 56,
+          "end_col": 27
+        },
+        "status": "unknown",
+        "reason": "verifier_unavailable",
+        "evidence": null,
+        "assumptions": []
+      },
+      {
+        "id": "pgn_7c2d#call/11/requires/1",
+        "kind": "call_requires",
+        "clause": "n >= 0",
+        "location": {
+          "file": "src/reader/pages.cpl",
+          "line": 58,
+          "col": 28,
+          "end_line": 58,
+          "end_col": 43
+        },
+        "status": "unknown",
+        "reason": "verifier_unavailable",
+        "evidence": null,
+        "assumptions": []
+      },
+      {
+        "id": "pgn_7c2d#call/12/requires/1",
+        "kind": "call_requires",
+        "clause": "n >= 0",
+        "location": {
+          "file": "src/reader/pages.cpl",
+          "line": 59,
+          "col": 16,
+          "end_line": 59,
+          "end_col": 31
+        },
+        "status": "unknown",
+        "reason": "verifier_unavailable",
+        "evidence": null,
+        "assumptions": []
+      }
+    ],
+    "assumptions": [],
+    "produced_at": "<produced_at>",
+    "duration_ms": 0
+  }
+}

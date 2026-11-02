@@ -1,0 +1,18 @@
+module negative.result_name_reserved
+
+// A parameter or local named `result` in a declaration with an `ensures`
+// clause is `result_name_reserved` (S9). The design's `label(result: ...)`
+// has no `ensures` and is legal (see ok/contextual_names.cpl).
+
+fn a(result: Int) -> Int // expect-error: result_name_reserved
+    ensures result >= 0
+{
+    result.abs()
+}
+
+fn b(n: Int) -> Int
+    ensures result >= 0
+{
+    let result = n.abs() // expect-error: result_name_reserved
+    result
+}

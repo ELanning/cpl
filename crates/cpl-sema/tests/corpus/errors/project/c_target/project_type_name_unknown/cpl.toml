@@ -1,0 +1,10 @@
+[project]
+name = "project_type_name_unknown"
+edition = "0.1"
+
+[interop]
+targets = ["c"]
+
+[interop.c]
+prefix = "cases"
+type_names = { "cases.lib.Nowhere" = "nowhere" }

@@ -1,0 +1,56 @@
+module pl.depth
+
+type Even = Int where is_even(self)
+
+fn down(n: Int) -> Int {
+    if n == 0 { 0 } else { 1 + down(n - 1) }
+}
+
+// Builtin callees are frames but not counted activations (S72).
+fn leaf() -> List<Int> {
+    [1].take(1) ++ flatten([[2]]) ++ [std.text.split("a,b", ",").len, "abc".len, (-4).abs()]
+}
+
+fn calls_leaf() -> List<Int> {
+    leaf()
+}
+
+fn ping(n: Int) -> Int {
+    if n == 0 { 0 } else { pong(n - 1) }
+}
+
+fn pong(n: Int) -> Int {
+    if n == 0 { 0 } else { ping(n - 1) }
+}
+
+fn is_even(n: Int) -> Bool {
+    n % 2 == 0
+}
+
+fn to_even(n: Int) -> Result<Even, ConstraintError> {
+    check<Even>(n)
+}
+
+fn guarded(n: Int) -> Int
+    requires is_even(n)
+{
+    n
+}
+
+fn ensured(n: Int) -> Int
+    ensures is_even(result)
+{
+    n
+}
+
+fn spin(n: Int) -> Int {
+    var i = n
+    while i >= 0 {
+        i = i + 1
+    }
+    i
+}
+
+test "a test body is no activation" {
+    assert down(2) == 2
+}

@@ -1,0 +1,23 @@
+module tests.refine
+
+type Even = Int where is_even(self)
+
+fn is_even(n: Int) -> Bool
+    ensures result == (n % 2 == 0)
+{
+    true
+}
+
+test "checks an odd number" {
+    let _ = check<Even>(3)
+}
+
+test "checks an even number" {
+    assert check<Even>(4).is_ok()
+}
+
+property "checks every int"
+    for n in gen.int
+{
+    let _ = check<Even>(n)
+}

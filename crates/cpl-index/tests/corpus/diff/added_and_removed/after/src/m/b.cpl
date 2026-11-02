@@ -1,0 +1,5 @@
+module m.b
+
+pub struct Extra {
+    x: Int
+}

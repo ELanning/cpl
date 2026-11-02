@@ -1,0 +1,19 @@
+module tests.ff2
+
+test "a passes" {
+    assert true
+}
+
+property "b fails"
+    for xs in gen.list(gen.int)
+{
+    assert xs.len < 2
+}
+
+test "c passes" {
+    assert true
+}
+
+test "d fails" {
+    assert false
+}

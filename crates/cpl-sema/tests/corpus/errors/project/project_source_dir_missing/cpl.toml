@@ -1,0 +1,6 @@
+[project]
+name = "project_source_dir_missing"
+edition = "0.1"
+
+[build]
+sources = ["src", "lib"]

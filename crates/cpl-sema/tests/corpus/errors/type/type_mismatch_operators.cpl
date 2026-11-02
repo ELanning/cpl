@@ -1,0 +1,54 @@
+module negative.type_mismatch_operators
+
+// Each operand position with a fixed type (S56) reports `type_mismatch`
+// when the operand does not fit: arithmetic, unary minus, `not`, `and`/`or`,
+// `++` (stdlib S12: `+` on Text is an error), `assert`, `while`.
+
+fn a(t: Text) -> Int {
+    t + 1 // expect-error: type_mismatch
+}
+
+fn b() -> Text {
+    "a" + "b" // expect-error: type_mismatch
+}
+
+fn c(flag: Bool) -> Int {
+    -flag // expect-error: type_mismatch
+}
+
+fn d(n: Int) -> Bool {
+    not n // expect-error: type_mismatch
+}
+
+fn e(n: Int, flag: Bool) -> Bool {
+    flag and n // expect-error: type_mismatch
+}
+
+fn f(n: Int, flag: Bool) -> Bool {
+    n or flag // expect-error: type_mismatch
+}
+
+fn g(xs: List<Int>, t: Text) -> List<Int> {
+    xs ++ t // expect-error: type_mismatch
+}
+
+fn h(n: Int) -> Int {
+    n ++ n // expect-error: type_mismatch
+}
+
+fn i(n: Int) -> Int {
+    assert n // expect-error: type_mismatch
+    n
+}
+
+fn j(n: Int) -> Int {
+    var i = n
+    while i { // expect-error: type_mismatch
+        i = i - 1
+    }
+    i
+}
+
+fn k(n: Int) -> Int {
+    n % true // expect-error: type_mismatch
+}

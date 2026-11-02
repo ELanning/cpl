@@ -1,0 +1,58 @@
+# The declarative vocabulary beyond the cthumbs fixture (spec/cabi.md 6.3): struct arguments and outputs, cstr,
+# text_span, owned_text, bool arguments and results, void, uint64 and uint8 statuses, a message function.
+[library]
+headers = ["shapes.h"]
+
+[state]
+type = "shp_ctx *"
+create = "shp_new"
+destroy = "shp_free"
+
+[structs.size]
+c_type = "struct shp_size"
+w = "w: int32"
+h = "h: int16"
+flag = "flag: bool"
+
+[ops.scale]
+c = "shp_scale"
+args = ["state", "size: struct:size", "label: cstr", "twice: bool"]
+out = [{ name = "scaled", type = "struct:size" }]
+returns = { type = "int", ok = [0, 1] }
+errors = { "7" = "InvalidArgument", default = "Exception" }
+result = "scaled"
+
+[ops.upper]
+c = "shp_upper"
+args = ["text: text_span"]
+out = [{ name = "up", type = "owned_text", release = "shp_text_free" }]
+returns = { type = "int", ok = [0] }
+errors = { "-5" = "InvalidArgument", default = "Exception" }
+result = "up"
+
+[ops.is_even]
+c = "shp_is_even"
+args = ["n: int64"]
+returns = { type = "bool", result = true }
+
+[ops.touch]
+c = "shp_touch"
+args = ["state"]
+returns = { type = "void" }
+
+[ops.count]
+c = "shp_count"
+args = ["state"]
+returns = { type = "uint64", result = true }
+
+[ops.check]
+c = "shp_check"
+args = ["v: uint16"]
+returns = { type = "uint8", ok = [0] }
+errors = { "3" = "Unavailable", default = "Exception" }
+message = "shp_message"
+
+[ops.parity]
+c = "shp_is_even"
+args = ["n: int64"]
+returns = { type = "int", result = true }

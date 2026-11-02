@@ -1,0 +1,9 @@
+module cases.lib
+
+// Directory case: `[interop.c]` is present while "c" is not in
+// `[interop] targets` (toolchain 11.1, Appendix B; check_c_bindings).
+// expect-error(global): project_c_target_not_enabled
+
+pub fn one() -> Int {
+    1
+}

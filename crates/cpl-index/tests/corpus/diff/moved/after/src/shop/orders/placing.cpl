@@ -1,0 +1,5 @@
+module shop.orders
+
+pub fn place() -> Int {
+    1
+}

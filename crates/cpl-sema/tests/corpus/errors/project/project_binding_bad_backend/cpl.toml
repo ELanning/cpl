@@ -1,0 +1,11 @@
+[project]
+name = "project_binding_bad_backend"
+edition = "0.1"
+
+[interop]
+targets = ["python", "node", "c"]
+
+[bindings.codec]
+capability = "cases.lib.Codec"
+backend = "ruby"
+adapter = "adapters.codec"

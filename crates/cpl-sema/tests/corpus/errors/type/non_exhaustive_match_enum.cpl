@@ -1,0 +1,24 @@
+module negative.non_exhaustive_match_enum
+
+// A user enum missing a variant, and a `match` with no arms on a type with
+// a non-empty constructor set (S25, 3.13).
+
+pub type PageId(Text)
+
+pub enum StoreError {
+    Missing(PageId)
+    Unavailable
+    Corrupt(Text)
+}
+
+fn label(e: StoreError) -> Text {
+    match e { // expect-error: non_exhaustive_match
+        Missing(_) => "missing"
+        Unavailable => "unavailable"
+    }
+}
+
+fn no_arms(e: StoreError) -> Text {
+    match e { // expect-error: non_exhaustive_match
+    }
+}

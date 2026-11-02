@@ -1,0 +1,17 @@
+[
+{"function": "claims.cases.req", "args": [0], "expect": {"fault": "division_by_zero"}},
+{"function": "claims.cases.req", "args": [5], "expect": {"value": 5}},
+{"function": "claims.cases.ens", "args": [0], "expect": {"fault": "division_by_zero"}},
+{"function": "claims.cases.ens", "args": [-5], "expect": {"fault": "contract_violation"}},
+{"function": "claims.cases.hdec", "args": [0], "expect": {"fault": "division_by_zero"}},
+{"function": "claims.cases.inv", "args": [0], "expect": {"fault": "division_by_zero"}},
+{"function": "claims.cases.ldec", "args": [0], "expect": {"fault": "division_by_zero"}},
+{"function": "claims.cases.ldec", "args": [2], "expect": {"value": 1}},
+{"function": "claims.cases.outer", "args": [0], "expect": {"fault": "division_by_zero"}},
+{"function": "claims.cases.outer", "args": [3], "expect": {"value": 3}},
+{"function": "claims.cases.deep", "args": [100], "config": {"max_call_depth": 0}, "expect": {"fault": "resource_exhaustion"}},
+{"function": "claims.cases.deep", "args": [100], "config": {"max_call_depth": 1}, "expect": {"fault": "resource_exhaustion"}},
+{"function": "claims.cases.deep", "args": [100], "config": {"max_call_depth": 10000}, "expect": {"value": 100}},
+{"function": "claims.cases.deep_wide", "args": [100000000], "config": {"max_call_depth": 4000000000}, "expect": {"fault": "resource_exhaustion"}},
+{"function": "claims.cases.spin", "args": [0], "config": {"time_budget_ms": 100}, "expect": {"fault": "resource_exhaustion"}}
+]

@@ -1,0 +1,55 @@
+module positive.warnings
+
+// A positive file may trigger warnings deliberately; each is marked with
+// `expect-warning` (toolchain 12). The file produces zero errors.
+
+use std.text.{trim} // expect-warning: unused_import
+
+pub capability Store {
+    fn get(key: Text) -> Int
+    fn put(key: Text) -> Int
+}
+
+fn unused_local(n: Int) -> Int {
+    let spare = n + 1 // expect-warning: unused_binding
+    n
+}
+
+fn unreachable(n: Int) -> Int {
+    return n
+    let _ = n // expect-warning: unreachable_statement
+    n
+}
+
+fn duplicate_arm(o: Option<Int>) -> Int {
+    match o {
+        Some(v) => v
+        None => 0
+        None => 1 // expect-warning: unreachable_arm
+    }
+}
+
+fn duplicated_effect(key: Text, using db: Store) -> Int
+    effects { db.get, db.get } // expect-warning: duplicate_effect
+{
+    db.get(key)
+}
+
+fn idle_handle(key: Text, using db: Store) -> Int { // expect-warning: unused_capability
+    key.len
+}
+
+fn spare_parameter<T, U>(value: T) -> T { // expect-warning: unused_type_parameter
+    value
+}
+
+fn measured(n: Int) -> Int
+    decreases n // expect-warning: unused_decreases
+{
+    n
+}
+
+fn binds_self(n: Int) -> Int {
+    let self = n // expect-warning: self_bound
+    self
+}

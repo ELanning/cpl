@@ -1,0 +1,16 @@
+module negative.private_in_public_contract
+
+// The contract facet of a public declaration may call only public and
+// prelude functions (S4). The clause is the primary span.
+
+fn small(n: Int) -> Bool {
+    n < 10
+}
+
+pub fn bump(n: Int) -> Int
+    requires small(n) // expect-error: private_in_public_contract
+{
+    n + 1
+}
+
+pub type Modest = Int where small(self) // expect-error: private_in_public_contract

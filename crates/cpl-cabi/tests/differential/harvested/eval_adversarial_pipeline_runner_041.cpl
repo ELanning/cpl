@@ -1,0 +1,11 @@
+module tests.bad
+
+test "a" {
+    assert true
+}
+
+property "a"
+    for x in gen.bool
+{
+    assert x == x
+}

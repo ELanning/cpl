@@ -1,0 +1,64 @@
+[
+  {
+    "function": "parallel.rows.batches",
+    "args": [
+      [
+        2,
+        3,
+        4,
+        0
+      ]
+    ]
+  },
+  {
+    "function": "parallel.rows.captured",
+    "args": [
+      [
+        2,
+        0,
+        3
+      ],
+      7
+    ]
+  },
+  {
+    "function": "parallel.rows.nested",
+    "args": [
+      [
+        1,
+        2,
+        3
+      ]
+    ]
+  },
+  {
+    "function": "parallel.rows.failures",
+    "args": [
+      [
+        2,
+        0,
+        0
+      ]
+    ]
+  },
+  {
+    "function": "parallel.rows.snapshots",
+    "args": [
+      100
+    ]
+  },
+  {
+    "function": "parallel.rows.alias_argument",
+    "args": []
+  },
+  {
+    "function": "parallel.rows.contracts",
+    "args": [
+      [
+        1,
+        0,
+        -1
+      ]
+    ]
+  }
+]

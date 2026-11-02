@@ -1,0 +1,34 @@
+/// Every statement form of grammar 3.11.
+module corpus.statements
+
+fn statements(limit: Int) -> Int {
+    let fixed: Int = 1
+    var total = 0
+    var steps: List<Int> = []
+    let _ = steps.push(fixed)
+
+    while total < limit
+        invariant total >= 0
+        invariant total <= limit
+        decreases limit - total
+    {
+        total = total + 1
+        steps = steps.push(total)
+    }
+
+    while total > limit {
+        total = total - 1
+    }
+
+    assert total == limit
+    if total == 0 {
+        return 0
+    }
+    total
+}
+
+fn early(flag: Bool) -> Unit {
+    if flag {
+        return
+    }
+}

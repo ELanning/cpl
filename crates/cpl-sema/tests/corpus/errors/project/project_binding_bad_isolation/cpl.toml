@@ -1,0 +1,12 @@
+[project]
+name = "project_binding_bad_isolation"
+edition = "0.1"
+
+[interop]
+targets = ["python"]
+
+[bindings.codec]
+capability = "cases.lib.Codec"
+backend = "python"
+adapter = "adapters.codec"
+isolation = "thread"

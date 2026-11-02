@@ -1,0 +1,782 @@
+{
+  "command": "inspect",
+  "toolchain": {
+    "version": "0.1.0",
+    "edition": "0.1",
+    "json_schema": 1
+  },
+  "revision": {
+    "commit": "<commit>",
+    "state": "clean",
+    "digest": "<digest>"
+  },
+  "status": "ok",
+  "diagnostics": [],
+  "include": [
+    "signature",
+    "contract",
+    "effects",
+    "implementation",
+    "docs",
+    "callers",
+    "dependencies",
+    "obligations",
+    "tests",
+    "changes"
+  ],
+  "symbol": {
+    "id": "pgn_7c2d",
+    "path": "reader.pages.paginate",
+    "provisional": false,
+    "facets": {
+      "identity": "bd3f91f48de8b527b3cb33c4f2b1b66b",
+      "name": "c7c6593c3beabcd67c41127d206918f5",
+      "signature": "11367ea8051ec723a2947f3c23cbc6be",
+      "contract": "de5add4a2a05af7796fb4ed0eaeccc2d",
+      "effects": "af1349b9f5f9a1a6a0404dea36dcc949",
+      "body": "7d1bb2835a6b401c0619ef13dc24e817",
+      "docs": "af1349b9f5f9a1a6a0404dea36dcc949",
+      "verification_policy": "855639fcf39ddd0cba719e0c76039a29"
+    },
+    "definition": "b0b7f41263cd58e1fd9bb69e85f4466e",
+    "kind": "fn",
+    "module": "reader.pages",
+    "public": true,
+    "location": {
+      "file": "src/reader/pages.cpl",
+      "line": 43,
+      "col": 1,
+      "end_line": 67,
+      "end_col": 2
+    },
+    "verification_policy": {
+      "prove": true
+    },
+    "signature": "pub fn paginate<T>(items: List<T>, size: Positive) -> List<List<T>>",
+    "contract": [
+      "ensures flatten(result) == items",
+      "ensures forall page in result: page.len >= 1 and page.len <= size",
+      "ensures forall page in result.drop_last(): page.len == size"
+    ],
+    "effects": [],
+    "docs": null,
+    "implementation": "{\n    var pages: List<List<T>> = []\n    var rest = items\n    while rest.len > size\n        invariant flatten(pages) ++ rest == items\n        invariant forall page in pages: page.len == size\n        decreases rest.len\n    {\n        pages = pages.push(rest.take(size))\n        rest = rest.drop(size)\n    }\n    if not rest.is_empty() {\n        pages = pages.push(rest)\n    }\n    pages\n}",
+    "holes": []
+  },
+  "dependencies": [
+    {
+      "id": "reader.pages.Positive",
+      "path": "reader.pages.Positive",
+      "provisional": true,
+      "facets": {
+        "identity": "89163351faf43f793e41b4ee8d745d5b",
+        "name": "1cc069928bda005fad0cccd59fe91ed2",
+        "signature": "ba8510c2ef6c449e99d7160e160be102",
+        "contract": "7d06c1a8e4e1bc964308ba7137dcf4c0",
+        "docs": "af1349b9f5f9a1a6a0404dea36dcc949"
+      },
+      "definition": "fa260c89e66233445ee0e6734b67711f",
+      "kind": "ty",
+      "module": "reader.pages",
+      "public": true,
+      "location": {
+        "file": "src/reader/pages.cpl",
+        "line": 9,
+        "col": 1,
+        "end_line": 9,
+        "end_col": 39
+      },
+      "signature": "pub type Positive = Int",
+      "contract": [
+        "where self > 0"
+      ],
+      "effects": [],
+      "docs": null,
+      "relation": "type_use",
+      "interface": true
+    },
+    {
+      "id": "std.prelude.List",
+      "path": "std.prelude.List",
+      "provisional": true,
+      "facets": {
+        "identity": "e023f20d653cc0d1307d5d87e1fd5ca9",
+        "name": "f8ab3dba7a014a9be0bbede1a593235b",
+        "signature": "54c224941a90302904d92e3b0a86c60e",
+        "docs": "6c9d2b667a6873d564c60a5b07eef786"
+      },
+      "definition": "76e08b68f048860dc4d5f28cabaa9779",
+      "kind": "ty",
+      "module": "std.prelude",
+      "public": true,
+      "location": {
+        "file": "std/prelude.cpl",
+        "line": 23,
+        "col": 1,
+        "end_line": 25,
+        "end_col": 17
+      },
+      "signature": "pub type List<T>",
+      "contract": [],
+      "effects": [],
+      "docs": "An immutable sequence.",
+      "relation": "type_use",
+      "interface": true
+    },
+    {
+      "id": "std.prelude.List.drop",
+      "path": "std.prelude.List.drop",
+      "provisional": true,
+      "facets": {
+        "identity": "75d364c4944bed1ba40514494891857f",
+        "name": "372f90a8f6b87ea2339d88ca9cdf6e0e",
+        "signature": "0c1e6e475c6f92721cc2e89b62134533",
+        "contract": "d71e387b91c500696a64bb4e7b4d52cc",
+        "effects": "af1349b9f5f9a1a6a0404dea36dcc949",
+        "body": "af1349b9f5f9a1a6a0404dea36dcc949",
+        "docs": "78572a00edd64187f93146529032f3ac",
+        "verification_policy": "af1349b9f5f9a1a6a0404dea36dcc949"
+      },
+      "definition": "50b2a4652be735c4a3ce97cc82e1b583",
+      "kind": "fn",
+      "module": "std.prelude",
+      "public": true,
+      "location": {
+        "file": "std/prelude.cpl",
+        "line": 142,
+        "col": 1,
+        "end_line": 148,
+        "end_col": 43
+      },
+      "verification_policy": {
+        "prove": false
+      },
+      "signature": "pub fn drop<T>(list: List<T>, n: Int) -> List<T>",
+      "contract": [
+        "requires n >= 0",
+        "ensures result.len == (list.len - n).max(0)",
+        "ensures list.take(n) ++ result == list"
+      ],
+      "effects": [],
+      "docs": "All but the first n elements; clamps at the length.",
+      "relation": "call",
+      "interface": false
+    },
+    {
+      "id": "std.prelude.List.drop_last",
+      "path": "std.prelude.List.drop_last",
+      "provisional": true,
+      "facets": {
+        "identity": "092d433a1bef3210cc589336ebfb72d6",
+        "name": "13a680143afe47bdc2fbe56be2ab87cb",
+        "signature": "32d0ecac598bcbcd3800181c3b494f7e",
+        "contract": "3a4f6bf9b63371f7a78632fa79604e0a",
+        "effects": "af1349b9f5f9a1a6a0404dea36dcc949",
+        "body": "af1349b9f5f9a1a6a0404dea36dcc949",
+        "docs": "55070e3d3d2e5e0513e18c503deb8e29",
+        "verification_policy": "af1349b9f5f9a1a6a0404dea36dcc949"
+      },
+      "definition": "3db926bceaf6fac9be1aac4c9fadc8c3",
+      "kind": "fn",
+      "module": "std.prelude",
+      "public": true,
+      "location": {
+        "file": "std/prelude.cpl",
+        "line": 150,
+        "col": 1,
+        "end_line": 155,
+        "end_col": 55
+      },
+      "verification_policy": {
+        "prove": false
+      },
+      "signature": "pub fn drop_last<T>(list: List<T>) -> List<T>",
+      "contract": [
+        "ensures result.len == (list.len - 1).max(0)",
+        "ensures result == list.take((list.len - 1).max(0))"
+      ],
+      "effects": [],
+      "docs": "All but the last element; [] for [].",
+      "relation": "call",
+      "interface": true
+    },
+    {
+      "id": "std.prelude.List.is_empty",
+      "path": "std.prelude.List.is_empty",
+      "provisional": true,
+      "facets": {
+        "identity": "aaacbb41c1e7a43b149ec352da56e838",
+        "name": "69e0e83d1530ff064f08f3da470a26e4",
+        "signature": "b38904a7a7612ca33b339fda8c04d890",
+        "contract": "03a4aaeb2c747d4f29475146eb152852",
+        "effects": "af1349b9f5f9a1a6a0404dea36dcc949",
+        "body": "af1349b9f5f9a1a6a0404dea36dcc949",
+        "docs": "af1349b9f5f9a1a6a0404dea36dcc949",
+        "verification_policy": "af1349b9f5f9a1a6a0404dea36dcc949"
+      },
+      "definition": "b4143df0e08af38c6f3986cce5840e09",
+      "kind": "fn",
+      "module": "std.prelude",
+      "public": true,
+      "location": {
+        "file": "std/prelude.cpl",
+        "line": 129,
+        "col": 1,
+        "end_line": 132,
+        "end_col": 38
+      },
+      "verification_policy": {
+        "prove": false
+      },
+      "signature": "pub fn is_empty<T>(list: List<T>) -> Bool",
+      "contract": [
+        "ensures result == (list.len == 0)"
+      ],
+      "effects": [],
+      "docs": null,
+      "relation": "call",
+      "interface": false
+    },
+    {
+      "id": "std.prelude.List.len",
+      "path": "std.prelude.List.len",
+      "provisional": true,
+      "facets": {
+        "identity": "f19133b5e97047801a0c8e3244b0a504",
+        "name": "7d0f6d0f178ceedc363d520c14de9cdc",
+        "signature": "a56593fdfcc2860dcde71a4b22dd32f3",
+        "contract": "3b455c8135fe8cea8c594a6aed2b77d1",
+        "effects": "af1349b9f5f9a1a6a0404dea36dcc949",
+        "body": "af1349b9f5f9a1a6a0404dea36dcc949",
+        "docs": "d55c69c8100872a3db28f3028d6dea22",
+        "verification_policy": "af1349b9f5f9a1a6a0404dea36dcc949"
+      },
+      "definition": "b71ec391e93f46b3adbae1a9ec76a2fa",
+      "kind": "fn",
+      "module": "std.prelude",
+      "public": true,
+      "location": {
+        "file": "std/prelude.cpl",
+        "line": 123,
+        "col": 1,
+        "end_line": 127,
+        "end_col": 24
+      },
+      "verification_policy": {
+        "prove": false
+      },
+      "signature": "pub fn len<T>(list: List<T>) -> Int",
+      "contract": [
+        "ensures result >= 0"
+      ],
+      "effects": [],
+      "docs": "Number of elements.",
+      "relation": "call",
+      "interface": true
+    },
+    {
+      "id": "std.prelude.List.push",
+      "path": "std.prelude.List.push",
+      "provisional": true,
+      "facets": {
+        "identity": "b166a40f02e9e0a119145a947cd3e9be",
+        "name": "34f4d1b7edf638d1af7b5a50d77de4a1",
+        "signature": "93c04a733452a5c2527f49ffb7475208",
+        "contract": "371cb16aa3ef7e66b63637655e260cf6",
+        "effects": "af1349b9f5f9a1a6a0404dea36dcc949",
+        "body": "af1349b9f5f9a1a6a0404dea36dcc949",
+        "docs": "d05608b5706c017601d7a1daf1c91a94",
+        "verification_policy": "af1349b9f5f9a1a6a0404dea36dcc949"
+      },
+      "definition": "85c37646e3e9e3a517c0746c08ec39d9",
+      "kind": "fn",
+      "module": "std.prelude",
+      "public": true,
+      "location": {
+        "file": "std/prelude.cpl",
+        "line": 157,
+        "col": 1,
+        "end_line": 163,
+        "end_col": 39
+      },
+      "verification_policy": {
+        "prove": false
+      },
+      "signature": "pub fn push<T>(list: List<T>, value: T) -> List<T>",
+      "contract": [
+        "ensures result.len == list.len + 1",
+        "ensures result == list ++ [value]",
+        "ensures result.drop_last() == list"
+      ],
+      "effects": [],
+      "docs": "A new list with value appended; the receiver is unchanged.",
+      "relation": "call",
+      "interface": false
+    },
+    {
+      "id": "std.prelude.List.take",
+      "path": "std.prelude.List.take",
+      "provisional": true,
+      "facets": {
+        "identity": "a9ca91f78426f7716d5e390f4f34fc25",
+        "name": "bc7877b331f8a47e98d265dbff64c3e7",
+        "signature": "0c1e6e475c6f92721cc2e89b62134533",
+        "contract": "a2bf9dc60a357728b8631f0fa9f6f729",
+        "effects": "af1349b9f5f9a1a6a0404dea36dcc949",
+        "body": "af1349b9f5f9a1a6a0404dea36dcc949",
+        "docs": "f332c02634903a9958482cd044d5e836",
+        "verification_policy": "af1349b9f5f9a1a6a0404dea36dcc949"
+      },
+      "definition": "a9379d2c420e9c927a1676ddc4535d22",
+      "kind": "fn",
+      "module": "std.prelude",
+      "public": true,
+      "location": {
+        "file": "std/prelude.cpl",
+        "line": 134,
+        "col": 1,
+        "end_line": 140,
+        "end_col": 43
+      },
+      "verification_policy": {
+        "prove": false
+      },
+      "signature": "pub fn take<T>(list: List<T>, n: Int) -> List<T>",
+      "contract": [
+        "requires n >= 0",
+        "ensures result.len == n.min(list.len)",
+        "ensures result ++ list.drop(n) == list"
+      ],
+      "effects": [],
+      "docs": "The first n elements; clamps at the length.",
+      "relation": "call",
+      "interface": false
+    },
+    {
+      "id": "std.prelude.flatten",
+      "path": "std.prelude.flatten",
+      "provisional": true,
+      "facets": {
+        "identity": "8d7c48f3a462e75c46f41ef055a68ab4",
+        "name": "be2ddfa41fa60eeb51acb25611c156b0",
+        "signature": "7160609903cbcdc5f89ccc45d3753645",
+        "contract": "c322ded6d51286a011ea0966ffdf2fa8",
+        "effects": "af1349b9f5f9a1a6a0404dea36dcc949",
+        "body": "af1349b9f5f9a1a6a0404dea36dcc949",
+        "docs": "f62bb82488ce1f0949c3f657dc589d38",
+        "verification_policy": "af1349b9f5f9a1a6a0404dea36dcc949"
+      },
+      "definition": "5ad0ed9c89bf29cc3c92b0521f4c7fd7",
+      "kind": "fn",
+      "module": "std.prelude",
+      "public": true,
+      "location": {
+        "file": "std/prelude.cpl",
+        "line": 60,
+        "col": 1,
+        "end_line": 64,
+        "end_col": 57
+      },
+      "verification_policy": {
+        "prove": false
+      },
+      "signature": "pub fn flatten<T>(lists: List<List<T>>) -> List<T>",
+      "contract": [
+        "ensures not lists.is_empty() or result == []",
+        "ensures forall part in lists: part.len <= result.len"
+      ],
+      "effects": [],
+      "docs": "Concatenation of a list of lists, in order.",
+      "relation": "call",
+      "interface": true
+    }
+  ],
+  "callers": [
+    {
+      "id": "reader.pages.paginate_ints",
+      "path": "reader.pages.paginate_ints",
+      "provisional": true,
+      "facets": {
+        "identity": "7ed8d7a5b151ae79e59f470c0c268092",
+        "name": "b06bd0c1a2a6bf69ebd172e346864d37",
+        "signature": "8bc27802c739deb07f84f7cd98eaf032",
+        "contract": "af1349b9f5f9a1a6a0404dea36dcc949",
+        "effects": "af1349b9f5f9a1a6a0404dea36dcc949",
+        "body": "581343fc2f3f48eb1010bb12d88a936b",
+        "docs": "af1349b9f5f9a1a6a0404dea36dcc949",
+        "verification_policy": "af1349b9f5f9a1a6a0404dea36dcc949"
+      },
+      "definition": "8c07cc027eff53ecf092a2fb627ada8a",
+      "kind": "fn",
+      "module": "reader.pages",
+      "public": true,
+      "location": {
+        "file": "src/reader/pages.cpl",
+        "line": 69,
+        "col": 1,
+        "end_line": 76,
+        "end_col": 2
+      },
+      "verification_policy": {
+        "prove": false
+      },
+      "call_sites": [
+        {
+          "file": "src/reader/pages.cpl",
+          "line": 75,
+          "col": 8,
+          "end_line": 75,
+          "end_col": 37
+        }
+      ]
+    },
+    {
+      "id": "tests.pagination.\"pagination handles empty input\"",
+      "path": "tests.pagination.\"pagination handles empty input\"",
+      "provisional": true,
+      "facets": {
+        "identity": "31c3c70317659db6c2bf4ef0dd02df83",
+        "name": "173ec38c1b873b056e3906b594413124",
+        "body": "d843659fe1953b74a57bd9e7adad8cf8",
+        "docs": "af1349b9f5f9a1a6a0404dea36dcc949"
+      },
+      "definition": "56c4e7cddd4521180ce42f81501b9271",
+      "kind": "test",
+      "module": "tests.pagination",
+      "public": false,
+      "location": {
+        "file": "src/tests/pagination.cpl",
+        "line": 11,
+        "col": 1,
+        "end_line": 14,
+        "end_col": 2
+      },
+      "call_sites": [
+        {
+          "file": "src/tests/pagination.cpl",
+          "line": 13,
+          "col": 12,
+          "end_line": 13,
+          "end_col": 30
+        }
+      ]
+    },
+    {
+      "id": "tests.pagination.\"pagination preserves a short tail\"",
+      "path": "tests.pagination.\"pagination preserves a short tail\"",
+      "provisional": true,
+      "facets": {
+        "identity": "144fb6a004dba2292c07a1d82fab2602",
+        "name": "619f242b29b6ba9260f2da4635ed3766",
+        "body": "060a1c46fbb70cb11b66472d111e97d2",
+        "docs": "af1349b9f5f9a1a6a0404dea36dcc949"
+      },
+      "definition": "fb14d36c606e579e8459d4f66e122491",
+      "kind": "test",
+      "module": "tests.pagination",
+      "public": false,
+      "location": {
+        "file": "src/tests/pagination.cpl",
+        "line": 7,
+        "col": 1,
+        "end_line": 9,
+        "end_col": 2
+      },
+      "call_sites": [
+        {
+          "file": "src/tests/pagination.cpl",
+          "line": 8,
+          "col": 12,
+          "end_line": 8,
+          "end_col": 34
+        }
+      ]
+    },
+    {
+      "id": "tests.pagination.\"pagination preserves input\"",
+      "path": "tests.pagination.\"pagination preserves input\"",
+      "provisional": true,
+      "facets": {
+        "identity": "416c09982c322dd432debcaaaabe6a12",
+        "name": "3427e66ef2126ee8e176abeaecbed8e7",
+        "signature": "4932632095ae2d2b16eb7ddbfdb548a4",
+        "body": "5baabe1254a3c9a4e63142cf026ebbfd",
+        "docs": "af1349b9f5f9a1a6a0404dea36dcc949"
+      },
+      "definition": "69f3899e3831a49974ea192847081537",
+      "kind": "prop",
+      "module": "tests.pagination",
+      "public": false,
+      "location": {
+        "file": "src/tests/pagination.cpl",
+        "line": 16,
+        "col": 1,
+        "end_line": 21,
+        "end_col": 2
+      },
+      "call_sites": [
+        {
+          "file": "src/tests/pagination.cpl",
+          "line": 20,
+          "col": 20,
+          "end_line": 20,
+          "end_col": 41
+        }
+      ]
+    }
+  ],
+  "obligations": [
+    {
+      "id": "pgn_7c2d#ensures/1",
+      "kind": "ensures",
+      "clause": "flatten(result) == items",
+      "location": {
+        "file": "src/reader/pages.cpl",
+        "line": 46,
+        "col": 5,
+        "end_line": 46,
+        "end_col": 37
+      },
+      "status": "unknown",
+      "reason": "verifier_unavailable",
+      "evidence": null,
+      "assumptions": []
+    },
+    {
+      "id": "pgn_7c2d#ensures/2",
+      "kind": "ensures",
+      "clause": "forall page in result: page.len >= 1 and page.len <= size",
+      "location": {
+        "file": "src/reader/pages.cpl",
+        "line": 47,
+        "col": 5,
+        "end_line": 47,
+        "end_col": 70
+      },
+      "status": "unknown",
+      "reason": "verifier_unavailable",
+      "evidence": null,
+      "assumptions": []
+    },
+    {
+      "id": "pgn_7c2d#ensures/3",
+      "kind": "ensures",
+      "clause": "forall page in result.drop_last(): page.len == size",
+      "location": {
+        "file": "src/reader/pages.cpl",
+        "line": 48,
+        "col": 5,
+        "end_line": 48,
+        "end_col": 64
+      },
+      "status": "unknown",
+      "reason": "verifier_unavailable",
+      "evidence": null,
+      "assumptions": []
+    },
+    {
+      "id": "pgn_7c2d#loop/1/invariant/1/init",
+      "kind": "invariant_init",
+      "clause": "flatten(pages) ++ rest == items",
+      "location": {
+        "file": "src/reader/pages.cpl",
+        "line": 54,
+        "col": 9,
+        "end_line": 54,
+        "end_col": 50
+      },
+      "status": "unknown",
+      "reason": "verifier_unavailable",
+      "evidence": null,
+      "assumptions": []
+    },
+    {
+      "id": "pgn_7c2d#loop/1/invariant/1/preserve",
+      "kind": "invariant_preserve",
+      "clause": "flatten(pages) ++ rest == items",
+      "location": {
+        "file": "src/reader/pages.cpl",
+        "line": 54,
+        "col": 9,
+        "end_line": 54,
+        "end_col": 50
+      },
+      "status": "unknown",
+      "reason": "verifier_unavailable",
+      "evidence": null,
+      "assumptions": []
+    },
+    {
+      "id": "pgn_7c2d#loop/1/invariant/2/init",
+      "kind": "invariant_init",
+      "clause": "forall page in pages: page.len == size",
+      "location": {
+        "file": "src/reader/pages.cpl",
+        "line": 55,
+        "col": 9,
+        "end_line": 55,
+        "end_col": 57
+      },
+      "status": "unknown",
+      "reason": "verifier_unavailable",
+      "evidence": null,
+      "assumptions": []
+    },
+    {
+      "id": "pgn_7c2d#loop/1/invariant/2/preserve",
+      "kind": "invariant_preserve",
+      "clause": "forall page in pages: page.len == size",
+      "location": {
+        "file": "src/reader/pages.cpl",
+        "line": 55,
+        "col": 9,
+        "end_line": 55,
+        "end_col": 57
+      },
+      "status": "unknown",
+      "reason": "verifier_unavailable",
+      "evidence": null,
+      "assumptions": []
+    },
+    {
+      "id": "pgn_7c2d#loop/1/decreases",
+      "kind": "loop_decreases",
+      "clause": "rest.len",
+      "location": {
+        "file": "src/reader/pages.cpl",
+        "line": 56,
+        "col": 9,
+        "end_line": 56,
+        "end_col": 27
+      },
+      "status": "unknown",
+      "reason": "verifier_unavailable",
+      "evidence": null,
+      "assumptions": []
+    },
+    {
+      "id": "pgn_7c2d#call/11/requires/1",
+      "kind": "call_requires",
+      "clause": "n >= 0",
+      "location": {
+        "file": "src/reader/pages.cpl",
+        "line": 58,
+        "col": 28,
+        "end_line": 58,
+        "end_col": 43
+      },
+      "status": "unknown",
+      "reason": "verifier_unavailable",
+      "evidence": null,
+      "assumptions": []
+    },
+    {
+      "id": "pgn_7c2d#call/12/requires/1",
+      "kind": "call_requires",
+      "clause": "n >= 0",
+      "location": {
+        "file": "src/reader/pages.cpl",
+        "line": 59,
+        "col": 16,
+        "end_line": 59,
+        "end_col": 31
+      },
+      "status": "unknown",
+      "reason": "verifier_unavailable",
+      "evidence": null,
+      "assumptions": []
+    }
+  ],
+  "tests": [
+    {
+      "id": "tests.pagination.\"pagination handles empty input\"",
+      "path": "tests.pagination.\"pagination handles empty input\"",
+      "provisional": true,
+      "facets": {
+        "identity": "31c3c70317659db6c2bf4ef0dd02df83",
+        "name": "173ec38c1b873b056e3906b594413124",
+        "body": "d843659fe1953b74a57bd9e7adad8cf8",
+        "docs": "af1349b9f5f9a1a6a0404dea36dcc949"
+      },
+      "definition": "56c4e7cddd4521180ce42f81501b9271",
+      "kind": "test",
+      "module": "tests.pagination",
+      "public": false,
+      "location": {
+        "file": "src/tests/pagination.cpl",
+        "line": 11,
+        "col": 1,
+        "end_line": 14,
+        "end_col": 2
+      },
+      "relation": "direct"
+    },
+    {
+      "id": "tests.pagination.\"pagination preserves a short tail\"",
+      "path": "tests.pagination.\"pagination preserves a short tail\"",
+      "provisional": true,
+      "facets": {
+        "identity": "144fb6a004dba2292c07a1d82fab2602",
+        "name": "619f242b29b6ba9260f2da4635ed3766",
+        "body": "060a1c46fbb70cb11b66472d111e97d2",
+        "docs": "af1349b9f5f9a1a6a0404dea36dcc949"
+      },
+      "definition": "fb14d36c606e579e8459d4f66e122491",
+      "kind": "test",
+      "module": "tests.pagination",
+      "public": false,
+      "location": {
+        "file": "src/tests/pagination.cpl",
+        "line": 7,
+        "col": 1,
+        "end_line": 9,
+        "end_col": 2
+      },
+      "relation": "direct"
+    },
+    {
+      "id": "tests.pagination.\"pagination preserves input\"",
+      "path": "tests.pagination.\"pagination preserves input\"",
+      "provisional": true,
+      "facets": {
+        "identity": "416c09982c322dd432debcaaaabe6a12",
+        "name": "3427e66ef2126ee8e176abeaecbed8e7",
+        "signature": "4932632095ae2d2b16eb7ddbfdb548a4",
+        "body": "5baabe1254a3c9a4e63142cf026ebbfd",
+        "docs": "af1349b9f5f9a1a6a0404dea36dcc949"
+      },
+      "definition": "69f3899e3831a49974ea192847081537",
+      "kind": "prop",
+      "module": "tests.pagination",
+      "public": false,
+      "location": {
+        "file": "src/tests/pagination.cpl",
+        "line": 16,
+        "col": 1,
+        "end_line": 21,
+        "end_col": 2
+      },
+      "relation": "direct"
+    }
+  ],
+  "changes": {
+    "since": {
+      "commit": "<commit>",
+      "state": "clean",
+      "digest": "<digest>"
+    },
+    "statements": [
+      {
+        "statement": "contract_changed",
+        "id": "pgn_7c2d",
+        "path": "reader.pages.paginate",
+        "kind": "fn",
+        "facet": "contract",
+        "detail": {
+          "old": "b57e46d5b8e6685b08b351c8c667185d",
+          "new": "de5add4a2a05af7796fb4ed0eaeccc2d"
+        }
+      }
+    ]
+  }
+}

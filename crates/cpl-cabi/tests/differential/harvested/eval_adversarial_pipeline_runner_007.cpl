@@ -1,0 +1,8 @@
+module tests.ida
+
+property "before"
+    for x in gen.int
+    for xs in gen.list(gen.int)
+{
+    assert x < 20 or xs.len < 2
+}

@@ -1,0 +1,11 @@
+module cases.by_path
+
+// A qualified path to a private item from another module (semantics 2.4).
+
+fn call() -> Int {
+    cases.lib.secret() // expect-error: private_item
+}
+
+fn fine() -> Int {
+    cases.lib.open()
+}

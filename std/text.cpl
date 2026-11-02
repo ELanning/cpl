@@ -1,0 +1,77 @@
+/// Text operations. All are module functions: use std.text.{trim}, then trim(t).
+module std.text
+
+/// t without leading and trailing White_Space scalars (stdlib.md S22).
+@builtin("text_trim")
+pub fn trim(text: Text) -> Text
+    ensures result.len <= text.len
+    ensures trim(result) == result
+
+@builtin("text_trim_start")
+pub fn trim_start(text: Text) -> Text
+    ensures result.len <= text.len
+    ensures ends_with(text, result)
+
+@builtin("text_trim_end")
+pub fn trim_end(text: Text) -> Text
+    ensures result.len <= text.len
+    ensures starts_with(text, result)
+
+@builtin("text_starts_with")
+pub fn starts_with(text: Text, prefix: Text) -> Bool
+    ensures not result or prefix.len <= text.len
+    ensures not prefix.is_empty() or result
+
+@builtin("text_ends_with")
+pub fn ends_with(text: Text, suffix: Text) -> Bool
+    ensures not result or suffix.len <= text.len
+    ensures not suffix.is_empty() or result
+
+@builtin("text_contains")
+pub fn contains(text: Text, needle: Text) -> Bool
+    ensures not result or needle.len <= text.len
+    ensures not needle.is_empty() or result
+
+/// Pieces between leftmost-first, non-overlapping occurrences of sep.
+@builtin("text_split")
+pub fn split(text: Text, sep: Text) -> List<Text>
+    requires not sep.is_empty()
+    ensures result.len >= 1
+    ensures join(result, sep) == text
+    ensures forall part in result: not contains(part, sep)
+
+/// parts concatenated with sep between consecutive elements.
+@builtin("text_join")
+pub fn join(parts: List<Text>, sep: Text) -> Text
+    ensures not parts.is_empty() or result == ""
+    ensures parts.len != 1 or result == parts.get(0).unwrap_or("")
+
+/// ASCII letters to upper case; other scalars unchanged (S23).
+@builtin("text_to_upper")
+pub fn to_upper(text: Text) -> Text
+    ensures result.len == text.len
+    ensures to_upper(result) == result
+
+/// ASCII letters to lower case; other scalars unchanged (S23).
+@builtin("text_to_lower")
+pub fn to_lower(text: Text) -> Text
+    ensures result.len == text.len
+    ensures to_lower(result) == result
+
+/// Decimal integer: optional + or -, then ASCII digits; nothing else (S25).
+@builtin("text_parse_int")
+pub fn parse_int(text: Text) -> Result<Int, ConstraintError>
+    ensures not text.is_empty() or result.is_err()
+
+/// The canonical decimal rendering; equals value.to_text().
+@builtin("text_from_int")
+pub fn from_int(value: Int) -> Text
+    ensures result == value.to_text()
+    ensures parse_int(result) == Ok(value)
+
+/// Extension: the scalar values of text, each as a one-element text.
+@builtin("text_chars")
+pub fn chars(text: Text) -> List<Text>
+    ensures result.len == text.len
+    ensures forall c in result: c.len == 1
+    ensures join(result, "") == text

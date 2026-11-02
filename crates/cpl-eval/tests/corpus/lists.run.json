@@ -1,0 +1,12 @@
+[
+  {"function": "corpus.lists.take_n", "args": [[1, 2, 3], 5], "expect": {"value": [1, 2, 3]}},
+  {"function": "corpus.lists.take_n", "args": [[1, 2], 10000000000000000000000], "expect": {"value": [1, 2]}},
+  {"function": "corpus.lists.take_n", "args": [[1], -1], "expect": {"fault": "contract_violation"}},
+  {"function": "corpus.lists.without_last", "args": [[]], "expect": {"value": []}},
+  {"function": "corpus.lists.push_keeps_original", "args": [[1], 2], "expect": {"value": [[1], [1, 2]]}},
+  {"function": "corpus.lists.flat", "args": [[[1, 2], [], [3]]], "expect": {"value": [1, 2, 3]}},
+  {"function": "corpus.lists.element", "args": [[1, 2, 3], -1], "expect": {"value": {"$type": "Option", "$variant": "None"}}},
+  {"function": "corpus.lists.all_divide", "args": [[]], "expect": {"value": true}},
+  {"function": "corpus.lists.all_divide", "args": [[-1, 0]], "expect": {"value": false}},
+  {"function": "corpus.lists.all_divide", "args": [[1, 0]], "expect": {"fault": "division_by_zero"}}
+]

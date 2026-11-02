@@ -1,0 +1,8 @@
+(module reader.pages
+  (fn paginate_ints pub
+    (params (param items (ty List (ty Int))) (param size (ty Int)))
+    (ret (ty Result (ty List (ty List (ty Int))) (ty ConstraintError)))
+    (block
+      (let checked_size (propagate (call (name check) (generics (ty Positive)) (name size))))
+      (tail (call (name Ok) (call (name paginate) (name items) (name checked_size)))))
+    (trivia blank)))

@@ -1,0 +1,176 @@
+module accept.values
+
+test "division truncates toward zero" {
+    assert 7 / 2 == 3
+    assert -7 / 2 == -3
+    assert 7 / -2 == -3
+    assert -7 / -2 == 3
+}
+
+test "the remainder takes the dividend's sign" {
+    assert 7 % 2 == 1
+    assert -7 % 2 == -1
+    assert 7 % -2 == 1
+    assert -7 % -2 == -1
+}
+
+test "ints are arbitrary precision" {
+    assert 12345678901234567890 * 10 == 123456789012345678900
+}
+
+test "int members" {
+    assert (-5).abs() == 5
+    assert 3.min(5) == 3
+    assert (-3).max(0) == 0
+    assert 4.min(4) == 4
+    assert (-5).to_text() == "-5"
+    assert 0.to_text() == "0"
+    assert 1_000.to_text() == "1000"
+}
+
+test "take and drop clamp" {
+    assert [1, 2, 3].take(2) == [1, 2]
+    assert [1, 2, 3].take(5) == [1, 2, 3]
+    assert [1, 2, 3].take(0) == []
+    assert [1, 2, 3].drop(2) == [3]
+    assert [1, 2, 3].drop(5) == []
+    assert [1, 2, 3].drop(0) == [1, 2, 3]
+}
+
+test "drop_last, push, and concatenation" {
+    let empty: List<Int> = []
+    assert [1, 2, 3].drop_last() == [1, 2]
+    assert empty.drop_last() == []
+    assert [1].push(2) == [1, 2]
+    assert [1] ++ [2, 3] == [1, 2, 3]
+    assert empty ++ empty == []
+}
+
+test "flatten" {
+    let none: List<List<Int>> = []
+    assert flatten([[1, 2], [], [3]]) == [1, 2, 3]
+    assert flatten(none) == []
+}
+
+test "list lengths and lookups" {
+    let empty: List<Int> = []
+    assert [1, 2, 3].len == 3
+    assert empty.len == 0
+    assert empty.is_empty()
+    assert not [1].is_empty()
+    assert [1, 2, 3].get(1) == Some(2)
+    assert [1, 2, 3].get(3) == None
+    assert [1, 2, 3].get(-1) == None
+    assert [1, 2, 3].first() == Some(1)
+    assert [1, 2, 3].last() == Some(3)
+    assert empty.last() == None
+    assert [1, 2, 3].reverse() == [3, 2, 1]
+    assert [1, 2, 3].contains(2)
+    assert not [1, 2, 3].contains(4)
+}
+
+test "structural equality and forall" {
+    let empty: List<Int> = []
+    assert [[1], [2]] == [[1], [2]]
+    assert not ([1, 2] == [2, 1])
+    assert forall x in [1, 2, 3]: x > 0
+    assert forall x in empty: false
+}
+
+test "text counts scalar values" {
+    assert "h\u{e9}llo".len == 5
+    assert "\u{1f600}".len == 1
+    assert "e\u{301}".len == 2
+    assert "".len == 0
+    assert "".is_empty()
+    assert "a" ++ "b" == "ab"
+    assert not ("\u{e9}" == "e\u{301}")
+}
+
+test "trimming" {
+    assert std.text.trim("  5 ") == "5"
+    assert std.text.trim("\u{a0}x\u{a0}") == "x"
+    assert std.text.trim("\u{200b}x") == "\u{200b}x"
+    assert std.text.trim_start("  a ") == "a "
+    assert std.text.trim_end("  a ") == "  a"
+}
+
+test "prefixes, suffixes, and needles" {
+    assert std.text.starts_with("abc", "ab")
+    assert std.text.starts_with("abc", "")
+    assert not std.text.starts_with("a", "ab")
+    assert std.text.ends_with("abc", "bc")
+    assert std.text.contains("abc", "b")
+    assert std.text.contains("abc", "")
+}
+
+test "split and join" {
+    let none: List<Text> = []
+    assert std.text.split("a,b,,c", ",") == ["a", "b", "", "c"]
+    assert std.text.split("", ",") == [""]
+    assert std.text.split("a,", ",") == ["a", ""]
+    assert std.text.split("aaa", "aa") == ["", "a"]
+    assert std.text.join(["a", "b"], ", ") == "a, b"
+    assert std.text.join(none, ",") == ""
+    assert std.text.join(["x"], ",") == "x"
+}
+
+test "case mapping" {
+    assert std.text.to_upper("abc\u{e9}") == "ABC\u{e9}"
+    assert std.text.to_lower("ABC") == "abc"
+}
+
+test "parse_int" {
+    assert std.text.parse_int("42") == Ok(42)
+    assert std.text.parse_int("-0") == Ok(0)
+    assert std.text.parse_int("+7") == Ok(7)
+    assert std.text.parse_int("007") == Ok(7)
+    assert std.text.parse_int("99999999999999999999") == Ok(99999999999999999999)
+    assert std.text.parse_int(" 42").is_err()
+    assert std.text.parse_int("").is_err()
+    assert std.text.parse_int("4_2").is_err()
+    assert std.text.parse_int("\u{ff11}").is_err()
+    assert std.text.parse_int("-").is_err()
+}
+
+test "from_int and chars" {
+    assert std.text.from_int(-12) == "-12"
+    assert std.text.chars("h\u{e9}y") == ["h", "\u{e9}", "y"]
+}
+
+test "bytes" {
+    assert std.bytes.from_list([104, 105]).len == 2
+    assert std.bytes.to_list(std.bytes.from_list([1, 2])) == [1, 2]
+    assert std.bytes.from_text("\u{e9}").len == 2
+    assert std.bytes.to_text(std.bytes.from_text("\u{e9}")) == Ok("\u{e9}")
+    assert std.bytes.to_text(std.bytes.from_list([255])).is_err()
+}
+
+test "option members" {
+    let o: Option<Int> = None
+    assert Some(1).unwrap_or(0) == 1
+    assert o.unwrap_or(0) == 0
+    assert Some(1).is_some()
+    assert o.is_none()
+    assert Some(2).ok_or("e") == Ok(2)
+    assert o.ok_or("e") == Err("e")
+}
+
+test "result members" {
+    let failed: Result<Int, Text> = Err("x")
+    let one: Result<Int, Text> = Ok(1)
+    assert one.unwrap_or(0) == 1
+    assert failed.unwrap_or(0) == 0
+    assert one.is_ok()
+    assert failed.is_err()
+    assert one.ok() == Some(1)
+    assert failed.err() == Some("x")
+    assert one.err() == None
+}
+
+test "unit and wrapper equality" {
+    assert Unit == Unit
+    assert Tag("a") == Tag("a")
+}
+
+pub type Tag(Text)

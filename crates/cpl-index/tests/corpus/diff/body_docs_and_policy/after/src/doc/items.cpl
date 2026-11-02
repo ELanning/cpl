@@ -1,0 +1,33 @@
+module doc.items
+
+/// Adds one to n.
+pub fn inc(n: Int) -> Int {
+    n + 1
+}
+
+pub fn twice(n: Int) -> Int {
+    n + n
+}
+
+pub fn proved(n: Int) -> Int
+    ensures result == n
+{
+    n
+}
+
+@prove
+pub fn unproved(n: Int) -> Int
+    ensures result == n
+{
+    n
+}
+
+/// A record.
+pub struct Rec {
+    /// The stored value.
+    value: Int
+}
+
+test "a test" {
+    assert inc(2) == 3
+}

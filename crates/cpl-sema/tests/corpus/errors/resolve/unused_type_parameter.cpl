@@ -1,0 +1,17 @@
+module negative.unused_type_parameter
+
+// A type parameter unused by any field or payload is an error on a struct or
+// enum and a warning on a `fn` (semantics 1.8).
+
+pub struct Tagged<T, U> { // expect-error: unused_type_parameter
+    value: T
+}
+
+pub enum Shape<T> { // expect-error: unused_type_parameter
+    Circle(Int)
+    Square(Int)
+}
+
+fn identity<T, U>(value: T) -> T { // expect-warning: unused_type_parameter
+    value
+}

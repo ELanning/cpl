@@ -1,0 +1,5 @@
+# Cargo build output (on this machine `target` is a symlink to a Linux-side cache dir)
+/target
+# Editor swap files
+*.swp
+*~

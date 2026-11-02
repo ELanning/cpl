@@ -1,0 +1,7 @@
+module tests.bad
+
+property "h"
+    for x in gen.range(0, ?h)
+{
+    assert x == x
+}

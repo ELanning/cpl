@@ -1,0 +1,9 @@
+[
+  {"function": "corpus.refine.to_positive", "args": [3], "expect": {"value": {"$type": "Result", "$variant": "Ok", "$payload": [3]}}},
+  {"function": "corpus.refine.to_positive", "args": [0], "expect": {"value": {"$type": "Result", "$variant": "Err", "$payload": [{"$type": "ConstraintError", "type_name": "corpus.refine.Positive", "message": "0 does not satisfy self > 0"}]}}},
+  {"function": "corpus.refine.to_small", "args": [0], "expect": {"value": {"$type": "Result", "$variant": "Err", "$payload": [{"$type": "ConstraintError", "type_name": "corpus.refine.Positive", "message": "0 does not satisfy self > 0"}]}}},
+  {"function": "corpus.refine.to_small", "args": [20], "expect": {"value": {"$type": "Result", "$variant": "Err", "$payload": [{"$type": "ConstraintError", "type_name": "corpus.refine.Small", "message": "20 does not satisfy self < 10"}]}}},
+  {"function": "corpus.refine.to_nz", "args": [0], "expect": {"fault": "division_by_zero"}},
+  {"function": "corpus.refine.double", "args": [0], "expect": {"fault": "refinement_violation"}},
+  {"function": "corpus.refine.doubled", "args": [4], "expect": {"value": {"$type": "Result", "$variant": "Ok", "$payload": [8]}}}
+]

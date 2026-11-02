@@ -1,0 +1,159 @@
+{
+  "command": "id assign",
+  "toolchain": {
+    "version": "0.1.0",
+    "edition": "0.1",
+    "json_schema": 1
+  },
+  "revision": {
+    "commit": "<commit>",
+    "state": "clean",
+    "digest": "<digest>"
+  },
+  "status": "unsuccessful",
+  "diagnostics": [],
+  "check": true,
+  "assignments": [
+    {
+      "path": "src/reader/images.cpl",
+      "line": 6,
+      "symbol": "reader.images.Dimensions",
+      "kind": "ty",
+      "id": "ty_<generated>"
+    },
+    {
+      "path": "src/reader/images.cpl",
+      "line": 11,
+      "symbol": "reader.images.ImageCodec",
+      "kind": "cap",
+      "id": "cap_<generated>"
+    },
+    {
+      "path": "src/reader/images.cpl",
+      "line": 15,
+      "symbol": "reader.images.image_width",
+      "kind": "fn",
+      "id": "fn_<generated>"
+    },
+    {
+      "path": "src/reader/pages.cpl",
+      "line": 8,
+      "symbol": "reader.pages.PageId",
+      "kind": "ty",
+      "id": "ty_<generated>"
+    },
+    {
+      "path": "src/reader/pages.cpl",
+      "line": 9,
+      "symbol": "reader.pages.Positive",
+      "kind": "ty",
+      "id": "ty_<generated>"
+    },
+    {
+      "path": "src/reader/pages.cpl",
+      "line": 11,
+      "symbol": "reader.pages.Page",
+      "kind": "ty",
+      "id": "ty_<generated>"
+    },
+    {
+      "path": "src/reader/pages.cpl",
+      "line": 16,
+      "symbol": "reader.pages.StoreError",
+      "kind": "ty",
+      "id": "ty_<generated>"
+    },
+    {
+      "path": "src/reader/pages.cpl",
+      "line": 21,
+      "symbol": "reader.pages.clean",
+      "kind": "fn",
+      "id": "fn_<generated>"
+    },
+    {
+      "path": "src/reader/pages.cpl",
+      "line": 25,
+      "symbol": "reader.pages.label",
+      "kind": "fn",
+      "id": "fn_<generated>"
+    },
+    {
+      "path": "src/reader/pages.cpl",
+      "line": 34,
+      "symbol": "reader.pages.parse_size",
+      "kind": "fn",
+      "id": "fn_<generated>"
+    },
+    {
+      "path": "src/reader/pages.cpl",
+      "line": 38,
+      "symbol": "reader.pages.positive_size",
+      "kind": "fn",
+      "id": "fn_<generated>"
+    },
+    {
+      "path": "src/reader/pages.cpl",
+      "line": 69,
+      "symbol": "reader.pages.paginate_ints",
+      "kind": "fn",
+      "id": "fn_<generated>"
+    },
+    {
+      "path": "src/reader/pages.cpl",
+      "line": 78,
+      "symbol": "reader.pages.PageRead",
+      "kind": "cap",
+      "id": "cap_<generated>"
+    },
+    {
+      "path": "src/reader/pages.cpl",
+      "line": 82,
+      "symbol": "reader.pages.PageWrite",
+      "kind": "cap",
+      "id": "cap_<generated>"
+    },
+    {
+      "path": "src/reader/pages.cpl",
+      "line": 86,
+      "symbol": "reader.pages.load_page",
+      "kind": "fn",
+      "id": "fn_<generated>"
+    },
+    {
+      "path": "src/reader/pages.cpl",
+      "line": 95,
+      "symbol": "reader.pages.load_text",
+      "kind": "fn",
+      "id": "fn_<generated>"
+    },
+    {
+      "path": "src/reader/pages.cpl",
+      "line": 105,
+      "symbol": "reader.pages.divide_exactly",
+      "kind": "fn",
+      "id": "fn_<generated>"
+    },
+    {
+      "path": "src/tests/pagination.cpl",
+      "line": 7,
+      "symbol": "tests.pagination.\"pagination preserves a short tail\"",
+      "kind": "test",
+      "id": "test_<generated>"
+    },
+    {
+      "path": "src/tests/pagination.cpl",
+      "line": 11,
+      "symbol": "tests.pagination.\"pagination handles empty input\"",
+      "kind": "test",
+      "id": "test_<generated>"
+    },
+    {
+      "path": "src/tests/pagination.cpl",
+      "line": 16,
+      "symbol": "tests.pagination.\"pagination preserves input\"",
+      "kind": "prop",
+      "id": "prop_<generated>"
+    }
+  ],
+  "skipped_files": []
+}

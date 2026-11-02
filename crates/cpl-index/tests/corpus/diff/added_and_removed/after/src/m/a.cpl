@@ -1,0 +1,13 @@
+module m.a
+
+pub fn keep() -> Int {
+    1
+}
+
+fn fresh() -> Int {
+    3
+}
+
+test "new test" {
+    assert fresh() == 3
+}

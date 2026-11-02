@@ -1,0 +1,17 @@
+(module reader.images
+  (use reader.pages (items Positive) (trivia blank))
+  (use std.foreign (items ForeignError))
+  (struct Dimensions pub (field width (ty Positive)) (field height (ty Positive)) (trivia blank))
+  (capability ImageCodec pub
+    (op dimensions
+      (params (param image (ty Bytes)))
+      (ret (ty Result (ty Dimensions) (ty ForeignError))))
+    (trivia blank))
+  (fn image_width pub
+    (params (param image (ty Bytes)) (using codec (ty ImageCodec)))
+    (ret (ty Result (ty Positive) (ty ForeignError)))
+    (effects codec.dimensions)
+    (block
+      (let dimensions (propagate (call (member (name codec) dimensions) (name image))))
+      (tail (call (name Ok) (member (name dimensions) width))))
+    (trivia blank)))

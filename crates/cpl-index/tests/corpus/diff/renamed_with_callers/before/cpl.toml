@@ -1,0 +1,3 @@
+[project]
+name = "renamed_with_callers"
+edition = "0.1"

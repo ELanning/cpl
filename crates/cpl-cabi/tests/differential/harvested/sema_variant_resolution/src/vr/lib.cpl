@@ -1,0 +1,31 @@
+module vr.lib
+
+// Directory case: the enum and wrapper are declared here; vr.user reaches
+// their constructors through expected types alone.
+
+pub type PageId(Text)
+
+pub struct Page {
+    id: PageId
+    text: Text
+}
+
+pub enum StoreError {
+    Missing(PageId)
+    Unavailable
+}
+
+pub fn describe(e: StoreError) -> Text {
+    match e {
+        Missing(_) => "missing"
+        Unavailable => "unavailable"
+    }
+}
+
+pub fn fetch(id: PageId) -> Result<Page, StoreError> {
+    Err(Missing(id))
+}
+
+pub fn make_id(text: Text) -> PageId {
+    PageId(text)
+}

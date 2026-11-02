@@ -1,0 +1,12 @@
+module negative.duplicate_declaration_type_vs_fn
+
+// One item namespace holds types and functions alike (S3): a struct and a
+// capability may not share a name even though their grammar classes differ.
+
+pub struct Store {
+    size: Int
+}
+
+pub capability Store { // expect-error: duplicate_declaration
+    fn get(key: Text) -> Option<Int>
+}

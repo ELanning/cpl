@@ -1,0 +1,43 @@
+module tests.shape
+
+fn half(n: Int) -> Int
+    ensures result * 2 == n
+{
+    n / 2
+}
+
+test "passes" {
+    assert true
+}
+
+test "fails" {
+    assert 1 == 2
+}
+
+test "finds a counterexample" {
+    let _ = half(3)
+}
+
+property "always"
+    for x in gen.int
+{
+    assert x == x
+}
+
+property "never"
+    for x in gen.int
+{
+    assert false
+}
+
+property "half of odd"
+    for n in gen.range(1, 9)
+{
+    let _ = half(n * 2 + 1)
+}
+
+property "setup"
+    for x in gen.range(2, 1)
+{
+    assert x == x
+}

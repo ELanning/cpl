@@ -1,0 +1,19 @@
+module negative.propagate_error_mismatch
+
+// The operand's error type must be identical to the function's error type;
+// `?` performs no conversion (semantics 3.8, stdlib 5.2).
+
+use std.text.{parse_int}
+
+pub enum StoreError {
+    Unavailable
+}
+
+fn a(text: Text) -> Result<Int, StoreError> {
+    let n = parse_int(text)? // expect-error: propagate_error_mismatch
+    Ok(n)
+}
+
+fn b(r: Result<Int, Text>) -> Result<Int, ConstraintError> {
+    Ok(r?) // expect-error: propagate_error_mismatch
+}

@@ -1,0 +1,10 @@
+[project]
+name = "project_export_unknown"
+edition = "0.1"
+
+[interop]
+targets = ["c"]
+
+[interop.c]
+prefix = "cases"
+exports = ["cases.lib.nothing"]

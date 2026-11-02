@@ -1,0 +1,19 @@
+module negative.type_mismatch_refinement_invariance
+
+// Refinement subtyping applies at the top level only (S15): `List<Positive>`
+// is not a `List<Int>` and vice versa; the note says refinements convert
+// only at the top level.
+
+pub type Positive = Int where self > 0
+
+fn widen(ps: List<Positive>) -> List<Int> {
+    ps // expect-error: type_mismatch
+}
+
+fn narrow(ns: List<Int>) -> List<Positive> {
+    ns // expect-error: type_mismatch
+}
+
+fn option(p: Option<Positive>) -> Option<Int> {
+    p // expect-error: type_mismatch
+}

@@ -1,0 +1,11 @@
+[
+  {"function": "corpus.reader.paginate_ints", "args": [[1, 2, 3], 2], "expect": {"value": {"$type": "Result", "$variant": "Ok", "$payload": [[[1, 2], [3]]]}}},
+  {"function": "corpus.reader.paginate_ints", "args": [[], 2], "expect": {"value": {"$type": "Result", "$variant": "Ok", "$payload": [[]]}}},
+  {"function": "corpus.reader.paginate_ints", "args": [[1], 0], "expect": {"value": {"$type": "Result", "$variant": "Err", "$payload": [{"$type": "ConstraintError", "type_name": "corpus.reader.Positive", "message": "0 does not satisfy self > 0"}]}}},
+  {"function": "corpus.reader.divide_exactly", "args": [6, 3], "expect": {"value": 2}},
+  {"function": "corpus.reader.divide_exactly", "args": [7, 0], "expect": {"fault": "contract_violation"}},
+  {"function": "corpus.reader.divide_exactly", "args": [7, 2], "expect": {"fault": "contract_violation"}},
+  {"function": "corpus.reader.positive_size", "args": ["  12 "], "expect": {"value": {"$type": "Result", "$variant": "Ok", "$payload": [12]}}},
+  {"function": "corpus.reader.positive_size", "args": ["-3"], "expect": {"value": {"$type": "Result", "$variant": "Err", "$payload": [{"$type": "ConstraintError", "type_name": "corpus.reader.Positive", "message": "-3 does not satisfy self > 0"}]}}},
+  {"function": "corpus.reader.label", "args": [{"$type": "Result", "$variant": "Err", "$payload": [{"$type": "corpus.reader.StoreError", "$variant": "Missing", "$payload": [{"$type": "corpus.reader.PageId", "$payload": ["p"]}]}]}], "expect": {"value": "Missing page"}}
+]

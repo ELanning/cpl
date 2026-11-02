@@ -1,0 +1,39 @@
+module negative.unknown_member
+
+// Member tables are closed (S22): an unknown field, method, or operation
+// (semantics 3.9, 2.6); `unwrap` does not exist (stdlib S19).
+
+pub struct Page {
+    text: Text
+}
+
+pub capability PageRead {
+    fn get(key: Text) -> Int
+}
+
+fn a(page: Page) -> Text {
+    page.title // expect-error: unknown_member
+}
+
+fn b(n: Int) -> Int {
+    n.double() // expect-error: unknown_member
+}
+
+fn c(o: Option<Int>) -> Int {
+    o.unwrap() // expect-error: unknown_member
+}
+
+fn d(key: Text, using db: PageRead) -> Int
+    effects { db.get }
+{
+    let _ = db.get(key)
+    db.put(key) // expect-error: unknown_member
+}
+
+fn e(flag: Bool) -> Int {
+    flag.len // expect-error: unknown_member
+}
+
+fn f(xs: List<Int>) -> List<Int> {
+    xs.map(1) // expect-error: unknown_member
+}

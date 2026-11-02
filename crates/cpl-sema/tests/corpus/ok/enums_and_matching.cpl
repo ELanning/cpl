@@ -1,0 +1,146 @@
+module positive.enums_and_matching
+
+// Constructor resolution (S10): expected-type directed, lexical, and
+// qualified forms; pattern typing (3.12) and exhaustiveness (S25) over user
+// enums, Option, Result, Bool, Unit, wrappers, nested constructors, and
+// literal patterns with a wildcard; match as expression, statement, and
+// operand.
+
+pub type PageId(Text)
+
+pub struct Page {
+    id: PageId
+    text: Text
+}
+
+pub enum StoreError {
+    Missing(PageId)
+    Unavailable
+}
+
+pub enum Shape {
+    Circle(Int)
+    Rect(Int, Int)
+    Point
+}
+
+fn label(result: Result<Page, StoreError>) -> Text {
+    match result {
+        Ok(page) => page.text
+        Err(Missing(_)) => "Missing page"
+        Err(Unavailable) => "Storage unavailable"
+    }
+}
+
+fn construct(id: PageId) -> List<StoreError> {
+    let by_expected: StoreError = Missing(id)
+    let lexical = Unavailable
+    let qualified = StoreError.Missing(id)
+    let fully = positive.enums_and_matching.StoreError.Unavailable
+    let prelude_qualified: Option<Int> = Option.None
+    let also: Result<Int, Text> = Result.Ok(1)
+    if prelude_qualified.is_none() and also.is_ok() { [by_expected, lexical, qualified, fully] } else { [] }
+}
+
+fn area(s: Shape) -> Int {
+    match s {
+        Circle(r) => 3 * r * r
+        Rect(w, h) => w * h
+        Point => 0
+    }
+}
+
+fn describe(n: Int) -> Text {
+    match n {
+        0 => "zero"
+        -1 => "minus one"
+        1 => "one"
+        _ => "many"
+    }
+}
+
+fn texts(t: Text) -> Int {
+    match t {
+        "a" => 1
+        "b" => 2
+        other => other.len
+    }
+}
+
+fn bools(b: Bool) -> Int {
+    match b {
+        true => 1
+        false => 0
+    }
+}
+
+fn units(u: Unit) -> Int {
+    match u {
+        Unit => 1
+    }
+}
+
+fn unwrap(id: PageId) -> Text {
+    match id {
+        PageId(t) => t
+    }
+}
+
+fn nested(o: Option<Option<Bool>>) -> Int {
+    match o {
+        Some(Some(true)) => 1
+        Some(Some(false)) => 2
+        Some(None) => 3
+        None => 4
+    }
+}
+
+fn wildcard_after_specific(e: StoreError) -> Int {
+    match e {
+        Missing(_) => 1
+        _ => 2
+    }
+}
+
+fn binding_arm(r: Result<Int, StoreError>) -> Int {
+    match r {
+        Ok(n) => n
+        failure => match failure {
+            Err(Unavailable) => -1
+            _ => -2
+        }
+    }
+}
+
+fn as_statement(e: StoreError) -> Int {
+    var n = 0
+    match e {
+        Missing(_) => { n = 1 }
+        Unavailable => { n = 2 }
+    }
+    match e {
+        Missing(_) => { assert n == 1 }
+        Unavailable => { assert n == 2 }
+    }
+    n
+}
+
+fn as_operand(o: Option<Int>) -> Int {
+    1 + match o {
+        Some(v) => v
+        None => 0
+    }
+}
+
+fn struct_scrutinee(p: Page) -> Int {
+    match p {
+        whole => whole.text.len
+    }
+}
+
+test "matching values" {
+    assert area(Rect(2, 3)) == 6
+    assert describe(-1) == "minus one"
+    assert nested(Some(None)) == 3
+    assert label(Err(Unavailable)) == "Storage unavailable"
+}

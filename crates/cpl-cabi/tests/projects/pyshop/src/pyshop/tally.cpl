@@ -1,0 +1,26 @@
+module pyshop.tally
+
+/// A running total kept by its adapter: state that a grant owns (spec/python.md 5.3).
+pub capability Tally {
+    fn add(n: Int) -> Int
+    fn total() -> Int
+    fn interrupt() -> Int
+}
+
+pub fn tally_add(n: Int, using tally: Tally) -> Int
+    effects { tally.add }
+{
+    tally.add(n)
+}
+
+pub fn tally_total(using tally: Tally) -> Int
+    effects { tally.total }
+{
+    tally.total()
+}
+
+pub fn tally_interrupt(using tally: Tally) -> Int
+    effects { tally.interrupt }
+{
+    tally.interrupt()
+}

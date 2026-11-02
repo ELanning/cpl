@@ -1,0 +1,19 @@
+module tests.setup_ce
+
+fn bump(n: Int) -> Int
+    ensures result > n
+{
+    n
+}
+
+property "bumped bound"
+    for x in gen.range(bump(4), 10)
+{
+    assert x == x
+}
+
+property "qualified range"
+    for x in std.gen.range(-1 / 0, 2)
+{
+    assert x == x
+}

@@ -1,0 +1,19 @@
+module negative.duplicate_field
+
+// A field must be unique within its struct (semantics 1.4) and listed at
+// most once in a struct literal (3.8). Both are `duplicate_field`.
+
+pub struct Point {
+    x: Int
+    y: Int
+    x: Int // expect-error: duplicate_field
+}
+
+pub struct Size {
+    width: Int
+    height: Int
+}
+
+fn make() -> Size {
+    Size { width: 1, height: 2, width: 3 } // expect-error: duplicate_field
+}

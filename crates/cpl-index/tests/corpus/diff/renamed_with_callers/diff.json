@@ -1,0 +1,51 @@
+{
+  "old": {
+    "commit": null,
+    "state": "worktree",
+    "digest": "73e21fcdb82ac53f9bca89fd4661754ba4f8489e98d8484129811fdd3de3d3a3"
+  },
+  "new": {
+    "commit": null,
+    "state": "worktree",
+    "digest": "aa7c2f8ab8f42ad0321b6e62cc16f2d2bbe10bde2ca227febbf5944bcacdd877"
+  },
+  "statements": [
+    {
+      "statement": "identity_renamed",
+      "id": "test_aaaaaaaaaaaaaaaa",
+      "path": "lib.pages.\"new name\"",
+      "kind": "test",
+      "facet": "name",
+      "detail": {
+        "from": "lib.pages.\"old name\"",
+        "to": "lib.pages.\"new name\""
+      }
+    },
+    {
+      "statement": "body_changed",
+      "id": "lib.pages.caller",
+      "path": "lib.pages.caller",
+      "kind": "fn",
+      "facet": "body",
+      "detail": {
+        "old": "79a4bc3e381615093695ac0105820934",
+        "new": "15e0230a89d644418c9820a3d4410420"
+      }
+    },
+    {
+      "statement": "identity_renamed",
+      "id": "fn_abcdefghijklmnop",
+      "path": "lib.pages.paginate",
+      "kind": "fn",
+      "facet": "name",
+      "detail": {
+        "from": "lib.pages.pages_of",
+        "to": "lib.pages.paginate"
+      }
+    }
+  ],
+  "duplicates": {
+    "old": [],
+    "new": []
+  }
+}

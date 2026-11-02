@@ -1,0 +1,17 @@
+module negative.forall_range_not_list
+
+// The collection of `forall` must be a List (stdlib S17, semantics 3.8).
+// The predicates do not mention the binder, whose type is unknown after the
+// error.
+
+fn a(n: Int) -> Bool {
+    forall x in n: true // expect-error: forall_range_not_list
+}
+
+fn b(t: Text) -> Bool {
+    forall c in t: true // expect-error: forall_range_not_list
+}
+
+fn c(o: Option<Int>) -> Bool {
+    forall x in o: true // expect-error: forall_range_not_list
+}

@@ -1,0 +1,29 @@
+(work
+  (use reader.pages
+    (items paginate Positive)
+    (trivia (lead "// Every production of grammar 4.1-4.4.")))
+  (use tests pagination)
+  (change first_change
+    (docs "The first change.")
+    (base "main")
+    (target "refs/heads/main")
+    (workers 2)
+    (task build
+      (docs "The first task.")
+      (write paginate.body project.manifest)
+      (add tests.pagination.*)
+      (depend paginate.contract Positive.definition reader.pages.Page)
+      (preserve paginate.signature paginate.effects)
+      (goal "Build it.")
+      (trivia blank))
+    (task review_it (after build) (write) (goal "Check it.") (trivia blank))
+    (integrate
+      (require typecheck)
+      (require no_holes)
+      (require no_unresolved_assumptions)
+      (require (prove paginate))
+      (require (test tests.pagination.*))
+      (require (review review_it))
+      (trivia blank))
+    (trivia blank))
+  (change second (base "v1.0") (target "main") (trivia blank)))

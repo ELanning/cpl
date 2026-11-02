@@ -1,0 +1,9 @@
+module cases.lib
+
+pub fn width(n: Int) -> Int { // expect-error: duplicate_declaration
+    n * 2
+}
+
+pub fn height(n: Int) -> Int {
+    n
+}

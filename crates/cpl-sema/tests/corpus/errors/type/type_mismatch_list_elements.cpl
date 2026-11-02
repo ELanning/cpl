@@ -1,0 +1,18 @@
+module negative.type_mismatch_list_elements
+
+// With an expected type every element checks against the element type (S19);
+// without one the first element sets it and later elements must be
+// assignable to it (S20).
+
+fn a() -> List<Int> {
+    [1, "two", 3] // expect-error: type_mismatch
+}
+
+fn b() -> Int {
+    let _ = [1, true] // expect-error: type_mismatch
+    1
+}
+
+fn c() -> List<List<Int>> {
+    [[1], 2] // expect-error: type_mismatch
+}

@@ -1,0 +1,15 @@
+module negative.return_value_missing
+
+// A bare `return` is permitted only where the return type strips to Unit
+// (semantics 3.11, D47).
+
+fn a(n: Int) -> Int {
+    if n > 0 {
+        return // expect-error: return_value_missing
+    }
+    n
+}
+
+fn b(n: Int) -> Result<Unit, Text> {
+    return // expect-error: return_value_missing
+}

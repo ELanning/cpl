@@ -1,0 +1,253 @@
+/// The CPL prelude: every pub declaration here is in scope in every module
+/// without a use declaration, and the module std.gen is in scope as gen (S1).
+module std.prelude
+
+// ---- builtin types ------------------------------------------------------
+
+/// Arbitrary-precision integer.
+@builtin("int")
+pub type Int
+
+/// Boolean; the literals are true and false.
+@builtin("bool")
+pub type Bool
+
+/// A sequence of Unicode scalar values.
+@builtin("text")
+pub type Text
+
+/// A sequence of 8-bit values; built by std.bytes or by adapters.
+@builtin("bytes")
+pub type Bytes
+
+/// An immutable sequence.
+@builtin("list")
+pub type List<T>
+
+// ---- prelude data types -------------------------------------------------
+
+/// The type with one value, also written Unit.
+pub enum Unit {
+    Unit
+}
+
+/// A possibly missing value; there is no null.
+pub enum Option<T> {
+    Some(T)
+    None
+}
+
+/// Recoverable failure.
+pub enum Result<T, E> {
+    Ok(T)
+    Err(E)
+}
+
+/// The error of check<T> and of the standard parsers.
+pub struct ConstraintError {
+    /// Name of the type whose constraint failed (stdlib.md S44); stable.
+    type_name: Text
+    /// One human-readable line; not stable across toolchain versions.
+    message: Text
+}
+
+// check<T>(value) -> Result<T, ConstraintError> is a typechecker intrinsic
+// (stdlib.md Section 1.4); its parameter type is the root base of T, which no
+// declaration can express, so it has no stub.
+
+// ---- prelude functions --------------------------------------------------
+
+/// Concatenation of a list of lists, in order.
+@builtin("flatten")
+pub fn flatten<T>(lists: List<List<T>>) -> List<T>
+    ensures not lists.is_empty() or result == []
+    ensures forall part in lists: part.len <= result.len
+
+// ---- Int members --------------------------------------------------------
+
+/// Decimal rendering with a leading - for negatives.
+@method
+@builtin("int_to_text")
+pub fn to_text(value: Int) -> Text
+    ensures result.len >= 1
+
+/// Absolute value.
+@method
+@builtin("int_abs")
+pub fn abs(value: Int) -> Int
+    ensures result >= 0
+    ensures result == value or result == -value
+
+/// The smaller operand.
+@method
+@builtin("int_min")
+pub fn min(value: Int, other: Int) -> Int
+    ensures result == value or result == other
+    ensures result <= value and result <= other
+
+/// The larger operand.
+@method
+@builtin("int_max")
+pub fn max(value: Int, other: Int) -> Int
+    ensures result == value or result == other
+    ensures result >= value and result >= other
+
+// ---- Text members -------------------------------------------------------
+
+/// Number of Unicode scalar values.
+@property
+@builtin("text_len")
+pub fn len(text: Text) -> Int
+    ensures result >= 0
+
+@method
+@builtin("text_is_empty")
+pub fn is_empty(text: Text) -> Bool
+    ensures result == (text.len == 0)
+
+// ---- Bytes members ------------------------------------------------------
+
+/// Number of bytes.
+@property
+@builtin("bytes_len")
+pub fn len(bytes: Bytes) -> Int
+    ensures result >= 0
+
+@method
+@builtin("bytes_is_empty")
+pub fn is_empty(bytes: Bytes) -> Bool
+    ensures result == (bytes.len == 0)
+
+// ---- List members -------------------------------------------------------
+
+/// Number of elements.
+@property
+@builtin("list_len")
+pub fn len<T>(list: List<T>) -> Int
+    ensures result >= 0
+
+@method
+@builtin("list_is_empty")
+pub fn is_empty<T>(list: List<T>) -> Bool
+    ensures result == (list.len == 0)
+
+/// The first n elements; clamps at the length.
+@method
+@builtin("list_take")
+pub fn take<T>(list: List<T>, n: Int) -> List<T>
+    requires n >= 0
+    ensures result.len == n.min(list.len)
+    ensures result ++ list.drop(n) == list
+
+/// All but the first n elements; clamps at the length.
+@method
+@builtin("list_drop")
+pub fn drop<T>(list: List<T>, n: Int) -> List<T>
+    requires n >= 0
+    ensures result.len == (list.len - n).max(0)
+    ensures list.take(n) ++ result == list
+
+/// All but the last element; [] for [].
+@method
+@builtin("list_drop_last")
+pub fn drop_last<T>(list: List<T>) -> List<T>
+    ensures result.len == (list.len - 1).max(0)
+    ensures result == list.take((list.len - 1).max(0))
+
+/// A new list with value appended; the receiver is unchanged.
+@method
+@builtin("list_push")
+pub fn push<T>(list: List<T>, value: T) -> List<T>
+    ensures result.len == list.len + 1
+    ensures result == list ++ [value]
+    ensures result.drop_last() == list
+
+/// Extension: the element at a zero-based index, or None when out of range.
+@method
+@builtin("list_get")
+pub fn get<T>(list: List<T>, index: Int) -> Option<T>
+    ensures result.is_some() == (index >= 0 and index < list.len)
+
+/// Extension: the first element.
+@method
+@builtin("list_first")
+pub fn first<T>(list: List<T>) -> Option<T>
+    ensures result == list.get(0)
+    ensures result.is_none() == list.is_empty()
+
+/// Extension: the last element.
+@method
+@builtin("list_last")
+pub fn last<T>(list: List<T>) -> Option<T>
+    ensures result == list.get(list.len - 1)
+    ensures result.is_none() == list.is_empty()
+
+/// Extension: the elements in reverse order.
+@method
+@builtin("list_reverse")
+pub fn reverse<T>(list: List<T>) -> List<T>
+    ensures result.len == list.len
+    ensures forall x in list: result.contains(x)
+    ensures forall x in result: list.contains(x)
+
+/// Extension: whether some element equals value.
+@method
+@builtin("list_contains")
+pub fn contains<T>(list: List<T>, value: T) -> Bool
+    ensures result == (not (forall x in list: x != value))
+
+// ---- Option members -----------------------------------------------------
+
+@method
+@builtin("option_is_some")
+pub fn is_some<T>(option: Option<T>) -> Bool
+    ensures result == (not option.is_none())
+
+@method
+@builtin("option_is_none")
+pub fn is_none<T>(option: Option<T>) -> Bool
+    ensures result == (option == None)
+
+/// The payload of Some, or default.
+@method
+@builtin("option_unwrap_or")
+pub fn unwrap_or<T>(option: Option<T>, default: T) -> T
+    ensures option.is_none() or option == Some(result)
+    ensures option.is_some() or result == default
+
+/// Extension: Some(v) becomes Ok(v); None becomes Err(error).
+@method
+@builtin("option_ok_or")
+pub fn ok_or<T, E>(option: Option<T>, error: E) -> Result<T, E>
+    ensures result.is_ok() == option.is_some()
+    ensures option.is_some() or result == Err(error)
+
+// ---- Result members -----------------------------------------------------
+
+@method
+@builtin("result_is_ok")
+pub fn is_ok<T, E>(res: Result<T, E>) -> Bool
+
+@method
+@builtin("result_is_err")
+pub fn is_err<T, E>(res: Result<T, E>) -> Bool
+    ensures result == (not res.is_ok())
+
+/// The payload of Ok, or default.
+@method
+@builtin("result_unwrap_or")
+pub fn unwrap_or<T, E>(res: Result<T, E>, default: T) -> T
+    ensures res.is_err() or res == Ok(result)
+    ensures res.is_ok() or result == default
+
+/// Extension: the success value, if any.
+@method
+@builtin("result_ok")
+pub fn ok<T, E>(res: Result<T, E>) -> Option<T>
+    ensures result.is_some() == res.is_ok()
+
+/// Extension: the error value, if any.
+@method
+@builtin("result_err")
+pub fn err<T, E>(res: Result<T, E>) -> Option<E>
+    ensures result.is_some() == res.is_err()

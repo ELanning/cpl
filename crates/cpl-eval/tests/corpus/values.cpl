@@ -1,0 +1,68 @@
+module corpus.values
+
+// Structs, nominal wrappers, Unit, and structural equality:
+// semantics.md 6.1, 6.5, S17, S23, S25; stdlib.md 1.2, 1.7; toolchain.md 7.3.
+
+pub type Meters(Int)
+pub type Tag(Text)
+
+pub struct Point {
+    x: Int
+    y: Int
+}
+
+// why: moved(Point { x: 1, y: 2 }, 5) == [Point { x: 1, y: 2 }, Point { x: 6, y: 2 }]:
+// a struct literal with spread copies the base and replaces the listed fields,
+// producing a new value; the base `p` is unchanged (semantics.md 6.1). Value
+// JSON of a struct is {"$type": "corpus.values.Point", "x": ..., "y": ...} with
+// the fields in declaration order (toolchain.md 7.3, T30: qualified name).
+fn moved(p: Point, dx: Int) -> List<Point> {
+    let q = Point { ..p, x: p.x + dx }
+    [p, q]
+}
+
+// why: points_equal(Point { x: 1, y: 2 }, Point { x: 1, y: 2 }) == true: two
+// separately constructed structs are equal field by field (semantics.md 6.5);
+// equality is structural, never identity.
+fn points_equal(a: Point, b: Point) -> Bool {
+    a == b
+}
+
+// why: wrap(3) == Meters(3): a nominal wrapper is a distinct value from its
+// payload; its value JSON is {"$type": "corpus.values.Meters", "$payload": [3]}
+// (toolchain.md 7.3), not the bare number 3.
+fn wrap(n: Int) -> Meters {
+    Meters(n)
+}
+
+// why: unwrap(Meters(7)) == 7: the payload of a wrapper is reached only by the
+// one-arm match (semantics.md S23), which is exhaustive (S25).
+fn unwrap(m: Meters) -> Int {
+    match m {
+        Meters(n) => n
+    }
+}
+
+// why: same_tag(Tag("a"), Tag("a")) == true: wrappers compare by payload
+// (stdlib.md 1.7: PageId("a") == PageId("a")).
+fn same_tag(a: Tag, b: Tag) -> Bool {
+    a == b
+}
+
+// why: nothing() == Unit: the constructor Unit is the single value of the
+// prelude enum Unit (stdlib.md S2); value JSON {"$type": "Unit"}.
+fn nothing() -> Unit {
+    Unit
+}
+
+// why: noop() == Unit: a block with no tail expression has value Unit
+// (grammar.md 3.11, semantics.md 3.10), so a `-> Unit` body needs no `Unit`.
+fn noop() -> Unit {
+    let _ = 1
+}
+
+// why: nested_equal([[1], [2]], [[1], [2]]) == true: list equality is
+// elementwise and recursive (stdlib.md 12 row).
+fn nested_equal(a: List<List<Int>>, b: List<List<Int>>) -> Bool {
+    a == b
+}

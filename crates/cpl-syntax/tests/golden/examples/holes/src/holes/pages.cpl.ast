@@ -1,0 +1,30 @@
+(module holes.pages
+  (type PageId pub
+    (wrapper (ty Text))
+    (trivia
+      (lead-blank "// glue: the Page type that paginate's callers and summarize need,")
+      (lead "// copied from the design's reader.pages module.")))
+  (type Positive pub (refinement (ty Int) (where (> (name self) (int 0)))))
+  (struct Page pub (field id (ty PageId)) (field text (ty Text)) (trivia blank))
+  (fn paginate pub
+    (annotation id (text "pgn_7c2d"))
+    (annotation prove)
+    (generics T)
+    (params (param items (ty List (ty T))) (param size (ty Positive)))
+    (ret (ty List (ty List (ty T))))
+    (ensures (== (call (name flatten) (name result)) (name items)))
+    (ensures
+      (forall page
+        (name result)
+        (and (> (member (name page) len) (int 0)) (<= (member (name page) len) (name size)))))
+    (ensures
+      (forall page
+        (call (member (name result) drop_last))
+        (== (member (name page) len) (name size))))
+    (block (tail (hole build_pages)))
+    (trivia blank))
+  (fn summarize
+    (params (param page (ty Page)))
+    (ret (ty Text))
+    (block (tail (hole summary)))
+    (trivia blank)))

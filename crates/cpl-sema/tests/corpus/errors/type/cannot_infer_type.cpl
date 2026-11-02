@@ -1,0 +1,26 @@
+module negative.cannot_infer_type
+
+// An inference variable unbound when its statement ends is
+// `cannot_infer_type` at the expression that created it (semantics 3.7).
+// Bindings use `_` so that no later use of an unresolved type follows.
+
+fn a() -> Int {
+    let _xs = [] // expect-error: cannot_infer_type
+    1
+}
+
+fn b() -> Int {
+    let _ = None // expect-error: cannot_infer_type
+    1
+}
+
+fn c() -> Int {
+    let _ = Ok(1) // expect-error: cannot_infer_type
+    1
+}
+
+fn d() -> Int {
+    match [] { // expect-error: cannot_infer_type
+        _ => 1
+    }
+}

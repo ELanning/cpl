@@ -1,0 +1,191 @@
+{
+  "command": "inspect",
+  "toolchain": {
+    "version": "0.1.0",
+    "edition": "0.1",
+    "json_schema": 1
+  },
+  "revision": {
+    "commit": "<commit>",
+    "state": "clean",
+    "digest": "<digest>"
+  },
+  "status": "ok",
+  "diagnostics": [],
+  "include": [
+    "signature",
+    "contract",
+    "effects",
+    "callers"
+  ],
+  "symbol": {
+    "id": "pgn_7c2d",
+    "path": "reader.pages.paginate",
+    "provisional": false,
+    "facets": {
+      "identity": "bd3f91f48de8b527b3cb33c4f2b1b66b",
+      "name": "c7c6593c3beabcd67c41127d206918f5",
+      "signature": "11367ea8051ec723a2947f3c23cbc6be",
+      "contract": "b57e46d5b8e6685b08b351c8c667185d",
+      "effects": "af1349b9f5f9a1a6a0404dea36dcc949",
+      "body": "7d1bb2835a6b401c0619ef13dc24e817",
+      "docs": "af1349b9f5f9a1a6a0404dea36dcc949",
+      "verification_policy": "855639fcf39ddd0cba719e0c76039a29"
+    },
+    "definition": "89b3dc79b6d7fb61f0ac85d1c984bb88",
+    "kind": "fn",
+    "module": "reader.pages",
+    "public": true,
+    "location": {
+      "file": "src/reader/pages.cpl",
+      "line": 43,
+      "col": 1,
+      "end_line": 67,
+      "end_col": 2
+    },
+    "verification_policy": {
+      "prove": true
+    },
+    "signature": "pub fn paginate<T>(items: List<T>, size: Positive) -> List<List<T>>",
+    "contract": [
+      "ensures flatten(result) == items",
+      "ensures forall page in result: page.len > 0 and page.len <= size",
+      "ensures forall page in result.drop_last(): page.len == size"
+    ],
+    "effects": []
+  },
+  "callers": [
+    {
+      "id": "reader.pages.paginate_ints",
+      "path": "reader.pages.paginate_ints",
+      "provisional": true,
+      "facets": {
+        "identity": "7ed8d7a5b151ae79e59f470c0c268092",
+        "name": "b06bd0c1a2a6bf69ebd172e346864d37",
+        "signature": "8bc27802c739deb07f84f7cd98eaf032",
+        "contract": "af1349b9f5f9a1a6a0404dea36dcc949",
+        "effects": "af1349b9f5f9a1a6a0404dea36dcc949",
+        "body": "581343fc2f3f48eb1010bb12d88a936b",
+        "docs": "af1349b9f5f9a1a6a0404dea36dcc949",
+        "verification_policy": "af1349b9f5f9a1a6a0404dea36dcc949"
+      },
+      "definition": "8c07cc027eff53ecf092a2fb627ada8a",
+      "kind": "fn",
+      "module": "reader.pages",
+      "public": true,
+      "location": {
+        "file": "src/reader/pages.cpl",
+        "line": 69,
+        "col": 1,
+        "end_line": 76,
+        "end_col": 2
+      },
+      "verification_policy": {
+        "prove": false
+      },
+      "call_sites": [
+        {
+          "file": "src/reader/pages.cpl",
+          "line": 75,
+          "col": 8,
+          "end_line": 75,
+          "end_col": 37
+        }
+      ]
+    },
+    {
+      "id": "tests.pagination.\"pagination handles empty input\"",
+      "path": "tests.pagination.\"pagination handles empty input\"",
+      "provisional": true,
+      "facets": {
+        "identity": "31c3c70317659db6c2bf4ef0dd02df83",
+        "name": "173ec38c1b873b056e3906b594413124",
+        "body": "d843659fe1953b74a57bd9e7adad8cf8",
+        "docs": "af1349b9f5f9a1a6a0404dea36dcc949"
+      },
+      "definition": "56c4e7cddd4521180ce42f81501b9271",
+      "kind": "test",
+      "module": "tests.pagination",
+      "public": false,
+      "location": {
+        "file": "src/tests/pagination.cpl",
+        "line": 11,
+        "col": 1,
+        "end_line": 14,
+        "end_col": 2
+      },
+      "call_sites": [
+        {
+          "file": "src/tests/pagination.cpl",
+          "line": 13,
+          "col": 12,
+          "end_line": 13,
+          "end_col": 30
+        }
+      ]
+    },
+    {
+      "id": "tests.pagination.\"pagination preserves a short tail\"",
+      "path": "tests.pagination.\"pagination preserves a short tail\"",
+      "provisional": true,
+      "facets": {
+        "identity": "144fb6a004dba2292c07a1d82fab2602",
+        "name": "619f242b29b6ba9260f2da4635ed3766",
+        "body": "060a1c46fbb70cb11b66472d111e97d2",
+        "docs": "af1349b9f5f9a1a6a0404dea36dcc949"
+      },
+      "definition": "fb14d36c606e579e8459d4f66e122491",
+      "kind": "test",
+      "module": "tests.pagination",
+      "public": false,
+      "location": {
+        "file": "src/tests/pagination.cpl",
+        "line": 7,
+        "col": 1,
+        "end_line": 9,
+        "end_col": 2
+      },
+      "call_sites": [
+        {
+          "file": "src/tests/pagination.cpl",
+          "line": 8,
+          "col": 12,
+          "end_line": 8,
+          "end_col": 34
+        }
+      ]
+    },
+    {
+      "id": "tests.pagination.\"pagination preserves input\"",
+      "path": "tests.pagination.\"pagination preserves input\"",
+      "provisional": true,
+      "facets": {
+        "identity": "416c09982c322dd432debcaaaabe6a12",
+        "name": "3427e66ef2126ee8e176abeaecbed8e7",
+        "signature": "4932632095ae2d2b16eb7ddbfdb548a4",
+        "body": "5baabe1254a3c9a4e63142cf026ebbfd",
+        "docs": "af1349b9f5f9a1a6a0404dea36dcc949"
+      },
+      "definition": "69f3899e3831a49974ea192847081537",
+      "kind": "prop",
+      "module": "tests.pagination",
+      "public": false,
+      "location": {
+        "file": "src/tests/pagination.cpl",
+        "line": 16,
+        "col": 1,
+        "end_line": 21,
+        "end_col": 2
+      },
+      "call_sites": [
+        {
+          "file": "src/tests/pagination.cpl",
+          "line": 20,
+          "col": 20,
+          "end_line": 20,
+          "end_col": 41
+        }
+      ]
+    }
+  ]
+}

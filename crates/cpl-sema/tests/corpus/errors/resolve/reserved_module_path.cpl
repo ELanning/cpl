@@ -1,0 +1,8 @@
+// A project module may not use a path whose first segment is `gen` (or
+// `std`); semantics 1.1, S54. The diagnostic spans the module path
+// (semantics S63 [D-230]), so the marker is trailing on the header line.
+module gen.extra // expect-error: reserved_module_path
+
+fn one() -> Int {
+    1
+}

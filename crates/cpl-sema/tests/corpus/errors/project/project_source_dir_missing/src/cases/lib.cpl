@@ -1,0 +1,9 @@
+module cases.lib
+
+// Directory case: `[build] sources` names a directory `lib` that does not
+// exist (toolchain 11.1).
+// expect-error(global): project_source_dir_missing
+
+pub fn one() -> Int {
+    1
+}

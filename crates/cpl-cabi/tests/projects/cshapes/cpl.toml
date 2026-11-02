@@ -1,0 +1,20 @@
+[project]
+name = "shapes"
+edition = "0.1"
+
+[interop]
+targets = ["c"]
+
+[interop.c]
+prefix = "geom"
+abi = 1
+
+[bindings.shapes]
+capability = "app.shapes.Shapes"
+backend = "c"
+adapter = "adapters/shapes.cbind.toml"
+isolation = "in_process"
+
+[bindings.shapes.c]
+sources = ["vendor/shapes/shapes.c"]
+include_dirs = ["vendor/shapes"]

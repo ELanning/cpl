@@ -1,0 +1,77 @@
+module positive.if_expressions
+
+// `if` as an expression, in `else if` chains, as a statement (type Unit),
+// as an operand, with block bodies, and the D41 struct-literal rulings
+// (grammar 5 (a)).
+
+pub struct Page {
+    text: Text
+}
+
+fn pick(c: Bool, a: Int, b: Int) -> Int {
+    if c { a } else { b }
+}
+
+fn chain(n: Int) -> Text {
+    if n < 0 {
+        "negative"
+    } else if n == 0 {
+        "zero"
+    } else if n < 10 {
+        let small = "small"
+        small
+    } else {
+        "large"
+    }
+}
+
+fn statement(c: Bool, xs: List<Int>) -> List<Int> {
+    var out = xs
+    if c {
+        out = out.push(1)
+    }
+    if not c {
+        let _ = out.len
+    } else {
+        out = out.push(2)
+    }
+    if c {}
+    out
+}
+
+fn operand(c: Bool) -> Int {
+    1 + if c { 1 } else { 2 } * 3
+}
+
+fn header_on_next_line(c: Bool) -> Int {
+    let label = if c
+    {
+        1
+    } else {
+        2
+    }
+    label
+}
+
+fn relabel(c: Bool, p: Page) -> Page {
+    if c {
+        let _ = 1
+    }
+    Page { ..p, text: "x" }
+}
+
+fn compare_struct(p: Page) -> Bool {
+    if p == (Page { text: "x" }) {
+        true
+    } else {
+        false
+    }
+}
+
+fn nested(a: Bool, b: Bool) -> Int {
+    if a {
+        if b { 1 } else { 2 }
+    } else {
+        if b { 3 } else { 4 }
+    }
+}

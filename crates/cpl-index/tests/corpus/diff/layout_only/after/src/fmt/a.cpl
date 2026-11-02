@@ -1,0 +1,26 @@
+// A header comment.
+module fmt.a
+
+use std.text.{trim}
+use std.text.{parse_int}
+
+/// Trims.
+@id("fn_kkkkkkkkkkkkkkkk") // stable
+pub fn clean(
+    text: Text, // input
+    using db: Db,
+) -> Text
+    requires text  !=  "" // non-empty
+    effects { db.put, db.get }
+{
+    // trim it
+
+    let t = trim(text)
+    t // done
+}
+
+// The store.
+pub capability Db {
+    fn get(id: Int) -> Int // reads
+    fn put(id: Int) -> Int
+}

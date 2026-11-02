@@ -1,0 +1,101 @@
+module pl.text
+
+use std.text.{trim, split, join, chars}
+
+fn concat(a: Text, b: Text) -> List<Int> {
+    let c = a ++ b
+    [a.len, b.len, c.len]
+}
+
+fn empties(t: Text) -> List<Bool> {
+    [t.is_empty(), (t ++ "").is_empty(), ("" ++ t) == t, t == ""]
+}
+
+fn classify(t: Text) -> Int {
+    match t {
+        "é" => 1
+        "e\u{301}" => 2
+        "a\nb" => 3
+        "" => 4
+        _ => 0
+    }
+}
+
+fn round_trip(t: Text, sep: Text) -> Bool
+    requires not sep.is_empty()
+{
+    join(split(t, sep), sep) == t and join(chars(t), "") == t and chars(t).len == t.len
+}
+
+fn split_empty(t: Text) -> List<Text> {
+    split(t, "")
+}
+
+fn trimmed(t: Text) -> Text {
+    trim(t)
+}
+
+fn utf8(t: Text) -> List<Int> {
+    std.bytes.to_list(std.bytes.from_text(t))
+}
+
+fn bytes_ops(a: Bytes, b: Bytes) -> List<Int> {
+    let c = a ++ b
+    [a.len, b.len, c.len]
+}
+
+fn bytes_eq(a: Bytes, b: Bytes) -> List<Bool> {
+    [a == b, a != b, a.is_empty(), (a ++ b) == (b ++ a)]
+}
+
+fn pack(values: List<Int>) -> Bytes {
+    std.bytes.from_list(values)
+}
+
+fn concat_bytes(a: List<Int>, b: List<Int>) -> Bytes {
+    std.bytes.from_list(a) ++ std.bytes.from_list(b)
+}
+
+fn decode(values: List<Int>) -> Result<Text, ConstraintError> {
+    std.bytes.to_text(std.bytes.from_list(values))
+}
+
+fn unicode_ops(t: Text) -> List<Text> {
+    [
+        join(["\u{e9}", "\u{1f600}"], "\u{b7}"),
+        std.text.to_upper(t),
+        std.text.to_lower("\u{130}A"),
+        std.text.from_int(-1000000000000000000000000000000),
+        std.text.trim_start("\u{2003}x"),
+        std.text.trim_end("x\u{2003}\u{200b}"),
+    ]
+}
+
+fn unicode_preds() -> List<Bool> {
+    [
+        std.text.starts_with("\u{e9}", "e"),
+        std.text.contains("e\u{301}", "\u{301}"),
+        std.text.ends_with("a\u{1f600}", "\u{1f600}"),
+        std.text.starts_with("", ""),
+        std.text.contains("", "a"),
+    ]
+}
+
+fn unicode_split() -> List<List<Text>> {
+    [split("a\u{1f600}b\u{1f600}", "\u{1f600}"), chars("e\u{301}\u{1f600}"), split("\u{e9}", "e")]
+}
+
+fn parses(t: Text) -> Result<Int, ConstraintError> {
+    std.text.parse_int(t)
+}
+
+fn wide_line(n: Int) -> Int {
+    "\u{1f600}é中".len + 10 / n
+}
+
+fn decode_type(values: List<Int>) -> Text {
+    match decode(values) {
+        Ok(_) => "ok"
+        Err(e) => e.type_name
+    }
+}

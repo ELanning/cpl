@@ -1,0 +1,32 @@
+(module corpus.statements
+  (docs "Every statement form of grammar 3.11.")
+  (fn statements
+    (params (param limit (ty Int)))
+    (ret (ty Int))
+    (block
+      (let fixed (ty Int) (int 1))
+      (var total (int 0))
+      (var steps (ty List (ty Int)) (list))
+      (let _ (call (member (name steps) push) (name fixed)))
+      (while
+        (< (name total) (name limit))
+        (invariant (>= (name total) (int 0)))
+        (invariant (<= (name total) (name limit)))
+        (decreases (- (name limit) (name total)))
+        (block
+          (assign total (+ (name total) (int 1)))
+          (assign steps (call (member (name steps) push) (name total))))
+        (trivia blank))
+      (while
+        (> (name total) (name limit))
+        (block (assign total (- (name total) (int 1))))
+        (trivia blank))
+      (assert (== (name total) (name limit)) (trivia blank))
+      (expr (if (== (name total) (int 0)) (block (return (int 0)))))
+      (tail (name total)))
+    (trivia blank))
+  (fn early
+    (params (param flag (ty Bool)))
+    (ret (ty Unit))
+    (block (tail (if (name flag) (block (return)))))
+    (trivia blank)))

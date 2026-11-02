@@ -1,0 +1,34 @@
+module cases.holes
+
+// Release case (checked with CheckConfig::release = true, see
+// release/README.md). Every hole in a `fn` body is `hole_in_release` (S47);
+// a hole in a test or property body stays `hole`, raised to warning. The
+// project carries no cpl.lock, so `project_lock_missing` is also reported
+// (toolchain T37), span-less.
+// expect-warning(global): project_lock_missing
+
+pub type PageId(Text)
+
+pub struct Page {
+    id: PageId
+    text: Text
+}
+
+fn summarize(page: Page) -> Text {
+    ?summary // expect-error: hole_in_release
+}
+
+fn count(pages: List<Page>) -> Int {
+    let n: Int = ?count_pages // expect-error: hole_in_release
+    n + pages.len
+}
+
+test "a hole in a test is not linked" {
+    assert ?claim // expect-warning: hole
+}
+
+property "a hole in a property is not linked either"
+    for n in gen.int
+{
+    assert n == ?other // expect-warning: hole
+}

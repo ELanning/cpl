@@ -1,0 +1,6 @@
+module ord_x
+
+@id("aaa_first")
+test "z" {
+    assert true
+}

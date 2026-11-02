@@ -1,0 +1,59 @@
+module positive.quantifiers
+
+// `forall x in c: p` over lists (stdlib S17): the binder is visible in `p`
+// only, the predicate extends to the end of the expression (D45), nesting,
+// and parenthesized use as an operand.
+
+pub type Positive = Int where self > 0
+
+fn all_positive(xs: List<Int>) -> Bool {
+    forall x in xs: x > 0
+}
+
+fn conjunction(pages: List<List<Int>>, size: Positive) -> Bool {
+    forall page in pages: page.len > 0 and page.len <= size
+}
+
+fn nested(grid: List<List<Int>>) -> Bool {
+    forall row in grid: forall cell in row: cell >= 0
+}
+
+fn as_operand(xs: List<Int>, ys: List<Int>) -> Bool {
+    (forall x in xs: x > 0) and (forall y in ys: y < 0) or xs.is_empty()
+}
+
+fn over_methods(pages: List<List<Int>>, size: Positive) -> Bool {
+    forall page in pages.drop_last(): page.len == size
+}
+
+fn over_literals() -> Bool {
+    let none: List<Int> = []
+    (forall x in [1, 2, 3]: x > 0) and (forall x in none: false)
+}
+
+fn binder_scopes(xs: List<Int>) -> Bool {
+    let x = 1
+    let _ = x
+    forall y in xs: y > 0 and y != 1
+}
+
+fn reused_binder_in_siblings(xs: List<Int>, ys: List<Int>) -> Bool {
+    (forall x in xs: x > 0) and (forall x in ys: x < 0)
+}
+
+fn in_contracts(xs: List<Int>) -> List<Int>
+    requires forall x in xs: x > 0
+    ensures forall x in result: x > 0
+    ensures forall x in xs: result.contains(x)
+{
+    var out: List<Int> = []
+    var rest = xs
+    while not rest.is_empty()
+        invariant forall x in out: x > 0
+        decreases rest.len
+    {
+        out = out.push(rest.first().unwrap_or(1))
+        rest = rest.drop(1)
+    }
+    out
+}

@@ -1,0 +1,24 @@
+module cthumbs.thumbs
+
+use std.foreign.{ForeignError}
+
+pub capability Thumbnails {
+    fn thumbnail(image: Bytes, max_side: Int) -> Result<Bytes, ForeignError>
+    fn decoder_version() -> Int
+}
+
+pub fn thumbnail_of(
+    image: Bytes,
+    max_side: Int,
+    using thumbs: Thumbnails,
+) -> Result<Bytes, ForeignError>
+    effects { thumbs.thumbnail }
+{
+    thumbs.thumbnail(image, max_side)
+}
+
+pub fn decoder_version_of(using thumbs: Thumbnails) -> Int
+    effects { thumbs.decoder_version }
+{
+    thumbs.decoder_version()
+}

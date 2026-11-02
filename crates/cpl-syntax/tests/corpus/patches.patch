@@ -1,0 +1,14 @@
+/// Replace the body of paginate.
+patch paginate.body
+    expect base(paginate.body)
+{
+    items.take(size)
+}
+
+patch reader.pages.clean.body
+    expect base(reader.pages.clean.body)
+{
+    // a comment in the block
+    let trimmed = trim(page.text)
+    Page { ..page, text: trimmed }
+}

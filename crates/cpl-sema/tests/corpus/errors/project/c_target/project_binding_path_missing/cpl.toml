@@ -1,0 +1,18 @@
+[project]
+name = "project_binding_path_missing"
+edition = "0.1"
+
+[interop]
+targets = ["c"]
+
+[interop.c]
+prefix = "cases"
+
+[bindings.codec]
+capability = "cases.lib.Codec"
+backend = "c"
+adapter = "adapters/codec.c"
+isolation = "in_process"
+
+[bindings.codec.c]
+sources = ["vendor/missing.c"]

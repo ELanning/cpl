@@ -1,0 +1,4 @@
+change c {
+    base git("main")
+    target git("feature")
+}

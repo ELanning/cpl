@@ -1,0 +1,127 @@
+{
+  "command": "build",
+  "toolchain": {
+    "version": "0.1.0",
+    "edition": "0.1",
+    "json_schema": 1
+  },
+  "revision": {
+    "commit": "<commit>",
+    "state": "clean",
+    "digest": "<digest>"
+  },
+  "status": "ok",
+  "diagnostics": [
+    {
+      "code": "project_export_skipped_generic",
+      "category": "project",
+      "severity": "info",
+      "message": "reader.pages.paginate is generic and is not exported: the default export set leaves out generic functions, which need a monomorphic wrapper",
+      "function": "reader.pages.paginate"
+    }
+  ],
+  "target": "c",
+  "release": false,
+  "profile": "optimized",
+  "sanitize": [],
+  "out_dir": ".cpl/build/c",
+  "compiler": {
+    "path": "<compiler_path>",
+    "family": "gcc",
+    "version": "<compiler_version>",
+    "target": "<target>",
+    "digest": "<digest>"
+  },
+  "runtime": {
+    "version": "0.1.0",
+    "api": "0.1",
+    "source": "embedded",
+    "digest": "<digest>"
+  },
+  "program_digest": "<digest>",
+  "exports_digest": "<digest>",
+  "exports": [
+    {
+      "symbol": "reader_image_width",
+      "function": "reader.images.image_width",
+      "id": "reader.images.image_width",
+      "signature": "<digest>",
+      "int": "handle",
+      "effects": [
+        "codec.dimensions"
+      ]
+    },
+    {
+      "symbol": "reader_load_page",
+      "function": "reader.pages.load_page",
+      "id": "reader.pages.load_page",
+      "signature": "<digest>",
+      "int": "handle",
+      "effects": [
+        "db.get"
+      ]
+    },
+    {
+      "symbol": "reader_load_text",
+      "function": "reader.pages.load_text",
+      "id": "reader.pages.load_text",
+      "signature": "<digest>",
+      "int": "handle",
+      "effects": [
+        "db.get"
+      ]
+    },
+    {
+      "symbol": "reader_paginate_ints",
+      "function": "reader.pages.paginate_ints",
+      "id": "reader.pages.paginate_ints",
+      "signature": "<digest>",
+      "int": "handle",
+      "effects": []
+    }
+  ],
+  "bindings": [
+    {
+      "binding": "image_codec",
+      "capability": "reader.images.ImageCodec",
+      "form": "python",
+      "isolation": "worker",
+      "grant": "reader_bind_image_codec"
+    }
+  ],
+  "artifacts": [
+    {
+      "kind": "header",
+      "path": ".cpl/build/c/include/cpl.h",
+      "digest": "<digest>"
+    },
+    {
+      "kind": "header",
+      "path": ".cpl/build/c/include/cpl_adapter.h",
+      "digest": "<digest>"
+    },
+    {
+      "kind": "header",
+      "path": ".cpl/build/c/include/reader.h",
+      "digest": "<digest>"
+    },
+    {
+      "kind": "static_library",
+      "path": ".cpl/build/c/lib/libreader.a",
+      "digest": "<digest>"
+    },
+    {
+      "kind": "shared_library",
+      "path": ".cpl/build/c/lib/libreader.so.0",
+      "digest": "<digest>"
+    }
+  ],
+  "inputs": [],
+  "holes": 0,
+  "lock": {
+    "checked": false,
+    "written": false
+  },
+  "cached": false,
+  "duration_ms": 0
+}

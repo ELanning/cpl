@@ -1,0 +1,43 @@
+module ord
+
+test "B" {
+    assert true
+}
+
+test "a" {
+    assert true
+}
+
+test "a b" {
+    assert true
+}
+
+property "a!"
+    for flag in gen.bool
+{
+    assert flag == flag
+}
+
+test "a\"q" {
+    assert true
+}
+
+test "a\\b" {
+    assert true
+}
+
+test "\t" {
+    assert true
+}
+
+test "\u{7f}" {
+    assert true
+}
+
+test "~" {
+    assert true
+}
+
+test "é" {
+    assert true
+}

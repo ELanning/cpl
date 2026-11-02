@@ -1,0 +1,35 @@
+module pl.app
+
+use pl.lib.{recip}
+
+pub type Positive = Int where self > 0
+
+fn call_imported(n: Int) -> Int {
+    recip(n)
+}
+
+fn call_qualified(n: Int) -> Int {
+    pl.lib.recip(n)
+}
+
+fn mine(n: Int) -> Result<Positive, ConstraintError> {
+    check<Positive>(n)
+}
+
+fn theirs(n: Int) -> Result<pl.lib.Positive, ConstraintError> {
+    check<pl.lib.Positive>(n)
+}
+
+// pl.lib.Positive and pl.app.Positive are one type (S55).
+fn cross(n: Int) -> Result<Positive, ConstraintError> {
+    pl.lib.checked(n)
+}
+
+fn use_lib_positive(p: pl.lib.Positive) -> Int {
+    p
+}
+
+@id("fn_app_tracker")
+fn tracker(n: Int) -> Int {
+    pl.lib.tracked(n)
+}

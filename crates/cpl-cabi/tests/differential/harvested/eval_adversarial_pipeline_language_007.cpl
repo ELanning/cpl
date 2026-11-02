@@ -1,0 +1,93 @@
+module pl.results
+
+pub type Positive = Int where self > 0
+
+fn half(n: Int) -> Result<Int, Text> {
+    if n % 2 == 0 { Ok(n / 2) } else { Err("odd") }
+}
+
+fn quarter(n: Int) -> Result<Int, Text> {
+    let h = half(n)?
+    half(h)
+}
+
+fn chain(n: Int) -> Result<Int, Text> {
+    Ok(half(half(n)?)? + 1)
+}
+
+fn pair(a: Int, b: Int) -> Int {
+    a + b
+}
+
+// A `?` in an argument position exits before the later arguments run.
+fn exits_early(n: Int) -> Result<Int, Text> {
+    Ok(pair(half(n)?, 10 / (n - n)))
+}
+
+fn method_after(n: Int) -> Result<Int, Text> {
+    Ok(half(n)?.abs())
+}
+
+fn scrutinee(n: Int) -> Result<Text, Text> {
+    match half(n)? {
+        0 => Ok("zero")
+        h => Ok(h.to_text())
+    }
+}
+
+fn unit_steps(n: Int) -> Result<Unit, Text> {
+    let _ = half(n)?
+    if n < 0 {
+        return Err("negative")
+    }
+    Ok(Unit)
+}
+
+fn in_loop(xs: List<Int>) -> Result<Int, Text>
+    ensures (match result {
+        Ok(v) => v >= 0
+        Err(_) => true
+    })
+{
+    var total = 0
+    var rest = xs
+    while not rest.is_empty()
+        invariant total >= 0
+        decreases rest.len
+    {
+        let h = half(rest.get(0).unwrap_or(0))?
+        total = total + h
+        rest = rest.drop(1)
+    }
+    Ok(total - 100)
+}
+
+fn from_options(xs: List<Int>) -> Result<Int, Text> {
+    let first = xs.first().ok_or("empty")?
+    let last = xs.last().ok_or("no last")?
+    Ok(first * 10 + last)
+}
+
+fn options(o: Option<Int>) -> List<Int> {
+    [o.unwrap_or(-1), if o.is_some() { 1 } else { 0 }, if o.is_none() { 1 } else { 0 }]
+}
+
+fn results(r: Result<Int, Text>) -> List<Option<Int>> {
+    [r.ok(), Some(r.unwrap_or(-1)), if r.is_err() { None } else { Some(0) }]
+}
+
+fn errs(r: Result<Int, Text>) -> Option<Text> {
+    r.err()
+}
+
+fn checked(n: Int) -> Result<Positive, ConstraintError> {
+    let p = check<Positive>(n)?
+    Ok(p)
+}
+
+fn nested_options(o: Option<Option<Int>>) -> Int {
+    match o {
+        Some(inner) => inner.unwrap_or(-1)
+        None => -2
+    }
+}

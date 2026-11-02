@@ -1,0 +1,13 @@
+module cases.lib
+
+// Directory case: a `type_names` key that names no type reachable from
+// the exports (toolchain 11.1, spec/cabi.md 5.2).
+// expect-error(global): project_type_name_unknown
+
+pub struct Point {
+    x: Int
+}
+
+pub fn one() -> Int {
+    1
+}

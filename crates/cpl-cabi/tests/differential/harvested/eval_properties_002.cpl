@@ -1,0 +1,65 @@
+module tests.ranges
+
+fn f(n: Int) -> Int
+    requires 10 / n > 0
+{
+    n
+}
+
+fn g(n: Int) -> Int
+    requires n > 0
+{
+    n
+}
+
+property "division"
+    for x in gen.range(1 / 0, 5)
+{
+    assert x == x
+}
+
+property "nested"
+    for b in gen.bool
+    for xs in gen.list(gen.range(0, 1 % 0))
+{
+    assert b == b
+}
+
+property "builtin"
+    for x in gen.range([1].take(-1).len, 5)
+{
+    assert x == x
+}
+
+property "inner clause"
+    for x in gen.range(f(0), 5)
+{
+    assert x == x
+}
+
+property "callee requires"
+    for x in gen.range(0, g(0))
+{
+    assert x == x
+}
+
+property "canonical"
+    for x in gen.range((1)/0 ,5)
+{
+    assert x == x
+}
+
+property "blocks"
+    for x in gen.range(if true { 1 / 0 } else { 0 }, 5)
+{
+    assert x == x
+}
+
+property "arms"
+    for x in gen.range(0, match 0 {
+        0 => 1 / 0
+        _ => 1
+    })
+{
+    assert x == x
+}

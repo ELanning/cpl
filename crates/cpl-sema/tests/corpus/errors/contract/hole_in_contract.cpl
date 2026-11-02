@@ -1,0 +1,25 @@
+module negative.hole_in_contract
+
+// Ruling [D-231] (semantics S64, 5.1, 8.1): a hole in a contract expression
+// is `hole_in_contract` only; no `hole` info and no hole-report entry
+// accompany an error hole.
+
+fn a(n: Int) -> Int
+    requires ?precondition // expect-error: hole_in_contract
+{
+    n
+}
+
+fn b(n: Int) -> Int
+    ensures result > ?bound // expect-error: hole_in_contract
+{
+    n
+}
+
+pub type Bounded = Int where self < ?limit // expect-error: hole_in_contract
+
+property "no holes in ranges"
+    for n in ?generator // expect-error: hole_in_contract
+{
+    assert true
+}

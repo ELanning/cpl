@@ -1,0 +1,17 @@
+[package]
+name = "cpl-project"
+version.workspace = true
+edition.workspace = true
+build = "build.rs"
+
+[lints]
+workspace = true
+
+[dependencies]
+cpl-diag.workspace = true
+cpl-syntax.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+toml.workspace = true
+blake3.workspace = true
+thiserror.workspace = true

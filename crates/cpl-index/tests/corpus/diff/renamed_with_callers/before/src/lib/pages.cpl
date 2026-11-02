@@ -1,0 +1,19 @@
+module lib.pages
+
+@id("fn_abcdefghijklmnop")
+pub fn pages_of(items: List<Int>) -> List<Int> {
+    items
+}
+
+fn caller(items: List<Int>) -> List<Int> {
+    pages_of(items)
+}
+
+fn unrelated() -> Int {
+    1
+}
+
+@id("test_aaaaaaaaaaaaaaaa")
+test "old name" {
+    assert unrelated() == 1
+}

@@ -1,0 +1,5 @@
+module tests.limits
+
+pub fn limit() -> Int {
+    4
+}

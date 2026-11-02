@@ -1,0 +1,36 @@
+(module reader.pages
+  (fn paginate pub
+    (annotation id (text "pgn_7c2d"))
+    (annotation prove)
+    (generics T)
+    (params (param items (ty List (ty T))) (param size (ty Positive)))
+    (ret (ty List (ty List (ty T))))
+    (ensures (== (call (name flatten) (name result)) (name items)))
+    (ensures
+      (forall page
+        (name result)
+        (and (> (member (name page) len) (int 0)) (<= (member (name page) len) (name size)))))
+    (ensures
+      (forall page
+        (call (member (name result) drop_last))
+        (== (member (name page) len) (name size))))
+    (block
+      (var pages (ty List (ty List (ty T))) (list))
+      (var rest (name items))
+      (while
+        (> (member (name rest) len) (name size))
+        (invariant (== (++ (call (name flatten) (name pages)) (name rest)) (name items)))
+        (invariant (forall page (name pages) (== (member (name page) len) (name size))))
+        (decreases (member (name rest) len))
+        (block
+          (assign pages
+            (call (member (name pages) push) (call (member (name rest) take) (name size))))
+          (assign rest (call (member (name rest) drop) (name size))))
+        (trivia blank))
+      (expr
+        (if
+          (not (call (member (name rest) is_empty)))
+          (block (assign pages (call (member (name pages) push) (name rest)))))
+        (trivia blank))
+      (tail (name pages) (trivia blank)))
+    (trivia blank)))

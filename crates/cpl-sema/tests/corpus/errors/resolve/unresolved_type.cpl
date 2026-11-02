@@ -1,0 +1,17 @@
+module negative.unresolved_type
+
+// A type position naming no type (semantics 2.2), a reserved type name
+// (stdlib S11: note "reserved for a later edition"), and `Gen`, which users
+// cannot write (S14).
+
+fn a(x: Nope) -> Int { // expect-error: unresolved_type
+    1
+}
+
+fn b(x: Int64) -> Int { // expect-error: unresolved_type
+    1
+}
+
+fn c(g: Gen<Int>) -> Int { // expect-error: unresolved_type
+    1
+}

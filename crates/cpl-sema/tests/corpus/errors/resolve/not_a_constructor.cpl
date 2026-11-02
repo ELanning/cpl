@@ -1,0 +1,33 @@
+module negative.not_a_constructor
+
+// A struct name not followed by `{`, a non-constructor type in expression
+// position, and a struct literal naming a wrapper or refinement are
+// `not_a_constructor` (S10 step 3, semantics 3.8).
+
+pub type PageId(Text)
+pub type Positive = Int where self > 0
+
+pub struct Page {
+    id: PageId
+    text: Text
+}
+
+fn a() -> Int {
+    let _ = Page // expect-error: not_a_constructor
+    1
+}
+
+fn b() -> Int {
+    let _ = Int // expect-error: not_a_constructor
+    1
+}
+
+fn c() -> Int {
+    let _ = PageId { text: "a" } // expect-error: not_a_constructor
+    1
+}
+
+fn d() -> Int {
+    let _ = Positive { value: 1 } // expect-error: not_a_constructor
+    1
+}

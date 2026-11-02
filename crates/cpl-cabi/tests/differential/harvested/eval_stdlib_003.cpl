@@ -1,0 +1,29 @@
+module accept.faults
+
+fn take_negative() -> List<Int> {
+    [1].take(-1)
+}
+
+fn drop_negative() -> List<Int> {
+    [1].drop(-1)
+}
+
+fn divide() -> Int {
+    1 / 0
+}
+
+fn remainder() -> Int {
+    1 % 0
+}
+
+fn split_empty() -> List<Text> {
+    std.text.split("a", "")
+}
+
+fn byte_too_big() -> Bytes {
+    std.bytes.from_list([256])
+}
+
+fn byte_negative() -> Bytes {
+    std.bytes.from_list([-1])
+}

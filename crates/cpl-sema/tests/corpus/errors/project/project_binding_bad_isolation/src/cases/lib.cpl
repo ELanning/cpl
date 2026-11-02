@@ -1,0 +1,9 @@
+module cases.lib
+
+// Directory case: `isolation` must be "worker" or "in_process" (toolchain
+// 11.1).
+// expect-error(global): project_binding_bad_isolation
+
+pub capability Codec {
+    fn size(image: Bytes) -> Int
+}

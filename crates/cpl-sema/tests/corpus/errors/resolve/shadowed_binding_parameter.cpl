@@ -1,0 +1,10 @@
+module negative.shadowed_binding_parameter
+
+// A local binding may not reuse a parameter name (S8); the design's own
+// export wrapper writes `checked_size` for this reason. Both readings of the
+// later `size` have type Int, so no second diagnostic can follow.
+
+fn normalize(size: Int) -> Int {
+    let size = size.abs() // expect-error: shadowed_binding
+    size
+}

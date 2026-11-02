@@ -1,0 +1,238 @@
+module pl.refine
+
+pub type PageId(Text)
+pub type Meters(Int)
+pub type Twice(Meters)
+pub type Positive = Int where self > 0
+pub type Small = Positive where self < 10
+pub type Even = Small where self % 2 == 0
+pub type Neg = Int where self < 0
+pub type NonEmpty = List<Int> where self.len > 0
+pub type Word = Text where not std.text.contains(self, " ")
+pub type Line = Text where not std.text.contains(self, "\n")
+pub type Truth = Bool where self
+pub type Short = PageId where match self { PageId(t) => t.len < 5 }
+pub type SomeInt = Option<Int> where (match self {
+    Some(_) => true
+    None => false
+})
+
+pub type Big = gen.Positive where self > 100
+pub type Nz = Int where 10 / self > 0
+pub type ShortBytes = Bytes where self.len < 3
+pub type Ordered = List<Int> where (if self.len < 2 {
+    true
+} else {
+    let a = self.get(0).unwrap_or(0)
+    let b = self.get(1).unwrap_or(0)
+    a <= b
+})
+
+pub struct Rect {
+    w: Positive
+    h: Positive
+}
+
+pub struct Box<T> {
+    v: T
+}
+
+pub type Wrapped(Small)
+
+pub enum Sized {
+    Pair(Positive, Small)
+    Nothing
+}
+
+pub type Square = Rect where self.w == self.h
+pub type Wide = Rect where self.w / self.h > 1
+
+fn double(p: Positive) -> Int {
+    p * 2
+}
+
+fn small_id(s: Small) -> Int {
+    s
+}
+
+fn even_id(e: Even) -> Int {
+    e
+}
+
+fn neg_id(n: Neg) -> Int {
+    n
+}
+
+// Literals proved against the parameter types at argument positions.
+fn literal_args() -> List<Int> {
+    [double(3), small_id(9), even_id(4), neg_id(-1), double(2 * 3 - 1), double(-(-1)), double((7))]
+}
+
+// Literals proved at assignment, annotation, and return positions; widening
+// along a chain needs no proof (rule 2').
+fn assigned(c: Bool) -> Positive {
+    var p: Positive = 1
+    p = 5
+    let q: Small = 9
+    if c {
+        return q
+    }
+    p = q
+    p
+}
+
+// Literals proved at field, payload, wrapper, and method-argument positions.
+fn positions() -> List<Bool> {
+    let r = Rect { w: 2, h: 3 }
+    let w = Wrapped(5)
+    let s = Pair(1, 9)
+    let ps: List<Positive> = [1]
+    let more = ps.push(2)
+    let o: Box<Option<Small>> = Box { v: Some(3) }
+    [r.w * r.h == 6, w == Wrapped(5), s == Pair(1, 9), more == [1, 2], o.v == Some(3)]
+}
+
+fn compound() -> List<Bool> {
+    let xs: NonEmpty = [1, 2]
+    let o: Option<Positive> = Some(2)
+    let t: Truth = true
+    let id: Short = PageId("abc")
+    let ms: List<Meters> = [Meters(1), Meters(1)]
+    [xs.len == 2, o == Some(2), t, id == PageId("abc"), ms.contains(Meters(1))]
+}
+
+fn erased(p: Positive) -> List<Bool> {
+    let ps: List<Positive> = [p]
+    [p == 3, p + 1 == 4, ps == [3], Some(p) == Some(3)]
+}
+
+fn unwrap_twice(t: Twice) -> Int {
+    match t {
+        Twice(Meters(0)) => -1
+        Twice(Meters(n)) => n
+    }
+}
+
+fn wrap_twice(n: Int) -> Twice {
+    Twice(Meters(n))
+}
+
+fn wrappers_equal(a: PageId, b: PageId) -> Bool {
+    a == b
+}
+
+fn to_even(n: Int) -> Result<Even, ConstraintError> {
+    check<Even>(n)
+}
+
+fn to_even_from_small(s: Small) -> Result<Even, ConstraintError> {
+    check<Even>(s)
+}
+
+fn to_word(t: Text) -> Result<Word, ConstraintError> {
+    check<Word>(t)
+}
+
+fn to_line(t: Text) -> Result<Line, ConstraintError> {
+    check<Line>(t)
+}
+
+fn to_nonempty(xs: List<Int>) -> Result<NonEmpty, ConstraintError> {
+    check<NonEmpty>(xs)
+}
+
+fn to_square(r: Rect) -> Result<Square, ConstraintError> {
+    check<Square>(r)
+}
+
+fn to_short(id: PageId) -> Result<Short, ConstraintError> {
+    check<Short>(id)
+}
+
+fn to_some(o: Option<Int>) -> Result<SomeInt, ConstraintError> {
+    check<SomeInt>(o)
+}
+
+fn to_truth(b: Bool) -> Result<Truth, ConstraintError> {
+    check<Truth>(b)
+}
+
+fn to_gen_positive(n: Int) -> Result<gen.Positive, ConstraintError> {
+    check<gen.Positive>(n)
+}
+
+fn to_big(n: Int) -> Result<Big, ConstraintError> {
+    check<Big>(n)
+}
+
+fn to_short_bytes(values: List<Int>) -> Result<ShortBytes, ConstraintError> {
+    check<ShortBytes>(std.bytes.from_list(values))
+}
+
+fn to_ordered(xs: List<Int>) -> Result<Ordered, ConstraintError> {
+    check<Ordered>(xs)
+}
+
+fn take_box(b: Box<Small>) -> Int {
+    b.v
+}
+
+fn take_deep(r: Result<List<Positive>, Text>) -> Int {
+    0
+}
+
+fn take_rect(r: Rect) -> Int {
+    r.w * r.h
+}
+
+fn take_wide(r: Wide) -> Int {
+    r.w
+}
+
+fn take_square(s: Square) -> Int {
+    s.w
+}
+
+fn take_opt(o: Option<Small>) -> Int {
+    match o {
+        Some(s) => s
+        None => 0
+    }
+}
+
+fn take_res(r: Result<Positive, Neg>) -> Int {
+    match r {
+        Ok(p) => p
+        Err(n) => n
+    }
+}
+
+fn take_nested(xss: List<List<Even>>) -> Int {
+    flatten(xss).len
+}
+
+fn take_many(a: Positive, b: Neg) -> Int {
+    a + b
+}
+
+fn take_word(w: Word) -> Text {
+    w
+}
+
+fn take_short(s: Short) -> Int {
+    0
+}
+
+fn take_truth(t: Truth) -> Bool {
+    t
+}
+
+fn take_nonempty(xs: NonEmpty) -> Int {
+    xs.len
+}
+
+fn guarded(p: Positive) -> Int
+    requires p > 5
+{
+    p
+}

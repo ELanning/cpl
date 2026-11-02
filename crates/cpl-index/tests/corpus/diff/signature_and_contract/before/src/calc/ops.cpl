@@ -1,0 +1,29 @@
+module calc.ops
+
+pub type Small = Int where self < 100
+
+@id("fn_dddddddddddddddd")
+pub fn scale(a: Int, factor: Int) -> Int
+    requires factor > 0
+    ensures result >= a
+{
+    a * factor
+}
+
+pub capability Store {
+    fn get(id: Int) -> Int
+    fn put(id: Int) -> Int
+        requires id > 0
+}
+
+pub struct Pair {
+    left: Int
+    right: Int
+}
+
+fn count(n: Int) -> Int
+    requires n >= 0
+    decreases n
+{
+    0
+}

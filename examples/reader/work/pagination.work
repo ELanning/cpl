@@ -1,0 +1,37 @@
+use reader.pages.{paginate, Positive}
+
+change pagination_update {
+    base git("main")
+    target git("main")
+    workers 3
+
+    task implementation {
+        write { paginate.body }
+        depend { paginate.contract, Positive.definition }
+        preserve {
+            paginate.signature,
+            paginate.contract,
+            paginate.effects,
+            paginate.verification_policy,
+        }
+        goal "Implement pagination and discharge its proof obligations."
+    }
+
+    task examples {
+        add { tests.pagination.* }
+        goal "Add boundary cases for empty input and partial final pages."
+    }
+
+    task audit after implementation, examples {
+        write {}
+        goal "Review both patches against the frozen pagination contract."
+    }
+
+    integrate {
+        require typecheck
+        require prove(paginate)
+        require test(tests.pagination.*)
+        require review(audit)
+        require no_holes
+    }
+}

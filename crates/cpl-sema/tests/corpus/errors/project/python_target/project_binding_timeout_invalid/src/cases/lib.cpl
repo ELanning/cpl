@@ -1,0 +1,13 @@
+module cases.lib
+
+// Directory case (Milestone 3, spec/python.md, toolchain 11.1): a `timeout_ms` of 0, and one on an in-process C binding, which has no worker.
+// expect-error(global): project_binding_timeout_invalid
+// expect-error(global): project_binding_timeout_invalid
+
+pub capability Codec {
+    fn size(image: Bytes) -> Int
+}
+
+pub capability Other {
+    fn size(image: Bytes) -> Int
+}

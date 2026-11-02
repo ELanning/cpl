@@ -1,0 +1,42 @@
+{
+  "command": "diff",
+  "toolchain": {
+    "version": "0.1.0",
+    "edition": "0.1",
+    "json_schema": 1
+  },
+  "revision": {
+    "commit": "<commit>",
+    "state": "clean",
+    "digest": "<digest>"
+  },
+  "status": "ok",
+  "diagnostics": [],
+  "old": {
+    "commit": "<commit>",
+    "state": "clean",
+    "digest": "<digest>"
+  },
+  "new": {
+    "commit": "<commit>",
+    "state": "clean",
+    "digest": "<digest>"
+  },
+  "statements": [
+    {
+      "statement": "contract_changed",
+      "id": "pgn_7c2d",
+      "path": "reader.pages.paginate",
+      "kind": "fn",
+      "facet": "contract",
+      "detail": {
+        "old": "b57e46d5b8e6685b08b351c8c667185d",
+        "new": "de5add4a2a05af7796fb4ed0eaeccc2d"
+      }
+    }
+  ],
+  "duplicates": {
+    "old": [],
+    "new": []
+  }
+}

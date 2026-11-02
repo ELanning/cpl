@@ -1,0 +1,98 @@
+/// Every declaration form of grammar 3.3-3.10: wrappers and refinements
+/// (adjacent ones stay adjacent, T51), generic structs and enums with
+/// documented members, a capability with contracts, functions with every
+/// clause, annotations, a test, and a property.
+module corpus.items
+
+use std.text.{trim, parse_int}
+use std.text.split
+use reader.pages.{Page, PageId}
+
+pub type Name(Text)
+pub type Small = Int where self >= 0 and self < 10
+type Odd = Int where (self % 2 == 1
+    or self % 2 == -1)
+
+/// The standard library's stub forms (grammar 3.5 `opaque_decl` and the
+/// bodiless `fn` of 3.9): they parse in any file and are check errors
+/// outside std. An annotation name may be a keyword (D71).
+@builtin("corpus.opaque")
+pub type Opaque<T>
+
+@builtin("corpus.size")
+@property
+pub fn size<T>(value: Opaque<T>) -> Int
+    ensures result >= 0
+
+/// A pair; generic parameters belong to structs and enums (D19).
+pub struct Pair<A, B> {
+    /// The first component.
+    first: A
+    second: B
+}
+
+struct Empty {}
+
+/// A shape with payload variants (D20).
+pub enum Shape<T> {
+    /// A single point.
+    Dot
+    Line(T, T)
+    Many(List<T>)
+}
+
+pub capability Store {
+    /// Read one entry.
+    fn get(key: Text) -> Result<Text, Unit>
+        requires key != ""
+        ensures result != Err(Unit)
+    fn put(key: Text, value: Text) -> Result<Unit, Unit>
+}
+
+/// The first component of a pair.
+@id("fn_k7w3qz2mb6ptx4ve")
+@prove
+pub fn first<A, B>(pair: Pair<A, B>) -> A {
+    pair.first
+}
+
+fn load(key: Text, using store: Store) -> Result<Text, Unit>
+    effects { store.get }
+    requires key.len > 0
+    ensures result == result
+{
+    store.get(key)
+}
+
+fn count_down(n: Int) -> Int
+    requires n >= 0
+    decreases n
+{
+    if n == 0 {
+        0
+    } else {
+        count_down(n - 1)
+    }
+}
+
+fn nothing() -> Unit {}
+
+@experimental()
+pub fn wide(
+    items: List<Int>,
+    size: Int,
+) -> Int
+{
+    size
+}
+
+test "pairs keep their first component" {
+    assert first(Pair { first: 1, second: "x" }) == 1
+}
+
+property "small numbers stay small"
+    for n in gen.int_range(0, 9)
+    for m in gen.int
+{
+    assert n < 10
+}

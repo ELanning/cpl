@@ -1,0 +1,72 @@
+module pl.structs
+
+pub struct Point {
+    x: Int
+    y: Int
+}
+
+pub struct Line {
+    from: Point
+    to: Point
+    label: Text
+}
+
+pub struct Empty {}
+
+pub struct Box<T> {
+    v: T
+    n: Int
+}
+
+fn moved(l: Line, dx: Int) -> List<Line> {
+    let m = Line { ..l, to: Point { ..l.to, x: l.to.x + dx }, label: "moved" }
+    [l, m]
+}
+
+fn all_overridden(p: Point) -> Point {
+    Point { ..p, y: 1, x: 2 }
+}
+
+fn spread_only(p: Point) -> Bool {
+    Point { ..p } == p
+}
+
+fn empty() -> Empty {
+    Empty {}
+}
+
+fn empties_equal() -> Bool {
+    Empty {} == empty()
+}
+
+fn boom(n: Int) -> Point {
+    Point { x: 1 / n, y: 0 }
+}
+
+fn base_first(n: Int) -> Point {
+    Point { ..boom(n), x: 10 % n }
+}
+
+fn source_order(n: Int) -> Point {
+    Point { y: 7 / n, x: 9 / n }
+}
+
+fn field_of_call() -> Int {
+    all_overridden(Point { x: 0, y: 0 }).y
+}
+
+fn boxes() -> List<Bool> {
+    let a = Box { v: 1, n: 0 }
+    let b = Box { v: "t", n: 0 }
+    let c = Box { v: [Box { v: Some(1), n: 1 }], n: 2 }
+    let d = Box { ..a, v: 2 }
+    [a.v + 1 == 2, b.v ++ "u" == "tu", c.v.len == 1, d.v == 2 and d.n == 0, a == Box { v: 1, n: 0 }]
+}
+
+fn boxed_text(t: Text) -> Box<Text> {
+    Box { v: t, n: t.len }
+}
+
+fn same(a: Line, b: Line) -> Bool {
+    a == b
+}

@@ -1,0 +1,10 @@
+module positive.unused_var_assigned_only
+
+// Ruling [D-234] (semantics S67): an assignment is a write, not a read, so a
+// `var` that is only assigned is `unused_binding`.
+
+fn count(n: Int) -> Int {
+    var written = 0 // expect-warning: unused_binding
+    written = n
+    n
+}

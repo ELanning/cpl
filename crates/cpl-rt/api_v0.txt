@@ -1,0 +1,74 @@
+# The frozen entry order of `struct cpl_api`, the function table of the CPL C API (spec/cabi.md 4.1, 4.2,
+# Appendix A.1; spec/toolchain.md 1.12, 12, T78).
+#
+# Format: one entry per line, `<version> <member>`, in the order of the members after `struct_size` and
+# `api_version`, entry i (0-based) at byte offset 8 + 8 * i on an LP64 target; `<version>` is the version
+# `<major>.<minor>` of the C API that added the entry. Lines that are empty or start with `#` are comments.
+#
+# The table is append-only within a major version: an entry is never reordered or removed, and a new entry is
+# appended with the minor version that adds it, which must then be CPL_API_VERSION_MINOR of cpl.h. Every entry of
+# C API 0.1 is present in every library of major version 0. crates/cpl-rt/tests/headers.rs checks this file against
+# cpl.h; spec/cabi.md 4.1 names the test that also guards the rule on later edits.
+0.1 cpl_runtime_close
+0.1 cpl_runtime_info
+0.1 cpl_runtime_stats
+0.1 cpl_type_lookup
+0.1 cpl_type_name
+0.1 cpl_value_dup
+0.1 cpl_value_release
+0.1 cpl_value_kind
+0.1 cpl_value_type
+0.1 cpl_value_equal
+0.1 cpl_value_to_json
+0.1 cpl_value_from_json
+0.1 cpl_value_to_text
+0.1 cpl_buf_release
+0.1 cpl_int_from_i64
+0.1 cpl_int_from_u64
+0.1 cpl_int_from_decimal
+0.1 cpl_int_from_words
+0.1 cpl_int_to_i64
+0.1 cpl_int_to_u64
+0.1 cpl_int_to_decimal
+0.1 cpl_int_to_words
+0.1 cpl_bool_new
+0.1 cpl_bool_get
+0.1 cpl_text_new
+0.1 cpl_text_view
+0.1 cpl_text_scalars
+0.1 cpl_bytes_new
+0.1 cpl_bytes_view
+0.1 cpl_list_new
+0.1 cpl_list_len
+0.1 cpl_list_get
+0.1 cpl_list_from_i64
+0.1 cpl_list_to_i64
+0.1 cpl_struct_new
+0.1 cpl_struct_field
+0.1 cpl_enum_new
+0.1 cpl_enum_variant
+0.1 cpl_enum_payload
+0.1 cpl_wrapper_new
+0.1 cpl_wrapper_inner
+0.1 cpl_unit
+0.1 cpl_option_some
+0.1 cpl_option_none
+0.1 cpl_result_ok
+0.1 cpl_result_err
+0.1 cpl_foreign_error_new
+0.1 cpl_cancel_new
+0.1 cpl_cancel_request
+0.1 cpl_cancel_release
+0.1 cpl_cap_new
+0.1 cpl_cap_release
+0.1 cpl_call_runtime
+0.1 cpl_call_operation
+0.1 cpl_call_cancelled
+0.1 cpl_call_foreign_detail
+0.1 cpl_call_foreign_error
+0.1 cpl_error_status
+0.1 cpl_error_code
+0.1 cpl_error_category
+0.1 cpl_error_message
+0.1 cpl_error_json
+0.1 cpl_error_release

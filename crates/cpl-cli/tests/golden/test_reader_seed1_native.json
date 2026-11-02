@@ -1,0 +1,632 @@
+{
+  "command": "test",
+  "toolchain": {
+    "version": "0.1.0",
+    "edition": "0.1",
+    "json_schema": 1
+  },
+  "revision": {
+    "commit": "<commit>",
+    "state": "clean",
+    "digest": "<digest>"
+  },
+  "status": "ok",
+  "diagnostics": [
+    {
+      "code": "test_result",
+      "category": "test",
+      "severity": "info",
+      "message": "tested",
+      "symbol": "tests.pagination.\"pagination handles empty input\"",
+      "qualified_name": "tests.pagination.\"pagination handles empty input\"",
+      "duration_ms": 0,
+      "kind": "test",
+      "receipt": {
+        "assumptions": [],
+        "check_configuration": {
+          "cases": 100,
+          "engine": "native",
+          "max_call_depth": 10000,
+          "max_shrinks": 1000,
+          "native": {
+            "compiler_digest": "<digest>",
+            "runtime_digest": "<digest>"
+          },
+          "seed": 1
+        },
+        "environment": {
+          "arch": "x86_64",
+          "os": "linux"
+        },
+        "fixtures": [],
+        "modules": [
+          {
+            "content_hash": "3280168ad6eefffe1abb46548d01e818a610f76548aac5ad58946731de99fdca",
+            "module": "reader.pages"
+          },
+          {
+            "content_hash": "a8d012e2ae05b0332bc212f206a17cf3a57ff4966bec45bacd576b1cd09d445f",
+            "module": "tests.pagination"
+          }
+        ],
+        "source_revision": "<commit>",
+        "toolchain": {
+          "cpl": "0.1.0",
+          "edition": "0.1",
+          "std": "42236a5efaffeb1110f986d858c30c7dabeb7efa54a3d80ec548b77135351388"
+        }
+      },
+      "status": "tested"
+    },
+    {
+      "code": "test_result",
+      "category": "test",
+      "severity": "info",
+      "message": "tested",
+      "symbol": "tests.pagination.\"pagination preserves a short tail\"",
+      "qualified_name": "tests.pagination.\"pagination preserves a short tail\"",
+      "duration_ms": 0,
+      "kind": "test",
+      "receipt": {
+        "assumptions": [],
+        "check_configuration": {
+          "cases": 100,
+          "engine": "native",
+          "max_call_depth": 10000,
+          "max_shrinks": 1000,
+          "native": {
+            "compiler_digest": "<digest>",
+            "runtime_digest": "<digest>"
+          },
+          "seed": 1
+        },
+        "environment": {
+          "arch": "x86_64",
+          "os": "linux"
+        },
+        "fixtures": [],
+        "modules": [
+          {
+            "content_hash": "3280168ad6eefffe1abb46548d01e818a610f76548aac5ad58946731de99fdca",
+            "module": "reader.pages"
+          },
+          {
+            "content_hash": "a8d012e2ae05b0332bc212f206a17cf3a57ff4966bec45bacd576b1cd09d445f",
+            "module": "tests.pagination"
+          }
+        ],
+        "source_revision": "<commit>",
+        "toolchain": {
+          "cpl": "0.1.0",
+          "edition": "0.1",
+          "std": "42236a5efaffeb1110f986d858c30c7dabeb7efa54a3d80ec548b77135351388"
+        }
+      },
+      "status": "tested"
+    },
+    {
+      "code": "test_result",
+      "category": "test",
+      "severity": "info",
+      "message": "tested (100 cases)",
+      "symbol": "tests.pagination.\"pagination preserves input\"",
+      "qualified_name": "tests.pagination.\"pagination preserves input\"",
+      "cases": 100,
+      "duration_ms": 0,
+      "kind": "property",
+      "property_seed": "88edd5473a9608b57d9c5aa835cdac4672db1ee486a9ed7ef6c7bce530bae058",
+      "receipt": {
+        "assumptions": [],
+        "check_configuration": {
+          "cases": 100,
+          "engine": "native",
+          "max_call_depth": 10000,
+          "max_shrinks": 1000,
+          "native": {
+            "compiler_digest": "<digest>",
+            "runtime_digest": "<digest>"
+          },
+          "seed": 1
+        },
+        "environment": {
+          "arch": "x86_64",
+          "os": "linux"
+        },
+        "fixtures": [],
+        "modules": [
+          {
+            "content_hash": "3280168ad6eefffe1abb46548d01e818a610f76548aac5ad58946731de99fdca",
+            "module": "reader.pages"
+          },
+          {
+            "content_hash": "a8d012e2ae05b0332bc212f206a17cf3a57ff4966bec45bacd576b1cd09d445f",
+            "module": "tests.pagination"
+          }
+        ],
+        "source_revision": "<commit>",
+        "toolchain": {
+          "cpl": "0.1.0",
+          "edition": "0.1",
+          "std": "42236a5efaffeb1110f986d858c30c7dabeb7efa54a3d80ec548b77135351388"
+        }
+      },
+      "seed": 1,
+      "status": "tested"
+    }
+  ],
+  "seed": 1,
+  "cases": 100,
+  "selected": 3,
+  "tested": 3,
+  "failed": 0,
+  "results": [
+    {
+      "symbol": "tests.pagination.\"pagination handles empty input\"",
+      "qualified_name": "tests.pagination.\"pagination handles empty input\"",
+      "kind": "test",
+      "status": "tested",
+      "duration_ms": 0,
+      "receipt": {
+        "source_revision": "<commit>",
+        "toolchain": {
+          "cpl": "0.1.0",
+          "edition": "0.1",
+          "std": "42236a5efaffeb1110f986d858c30c7dabeb7efa54a3d80ec548b77135351388"
+        },
+        "modules": [
+          {
+            "module": "reader.pages",
+            "content_hash": "3280168ad6eefffe1abb46548d01e818a610f76548aac5ad58946731de99fdca"
+          },
+          {
+            "module": "tests.pagination",
+            "content_hash": "a8d012e2ae05b0332bc212f206a17cf3a57ff4966bec45bacd576b1cd09d445f"
+          }
+        ],
+        "check_configuration": {
+          "cases": 100,
+          "max_call_depth": 10000,
+          "max_shrinks": 1000,
+          "seed": 1
+        },
+        "assumptions": [],
+        "fixtures": [],
+        "environment": {
+          "arch": "x86_64",
+          "os": "linux"
+        }
+      }
+    },
+    {
+      "symbol": "tests.pagination.\"pagination preserves a short tail\"",
+      "qualified_name": "tests.pagination.\"pagination preserves a short tail\"",
+      "kind": "test",
+      "status": "tested",
+      "duration_ms": 0,
+      "receipt": {
+        "source_revision": "<commit>",
+        "toolchain": {
+          "cpl": "0.1.0",
+          "edition": "0.1",
+          "std": "42236a5efaffeb1110f986d858c30c7dabeb7efa54a3d80ec548b77135351388"
+        },
+        "modules": [
+          {
+            "module": "reader.pages",
+            "content_hash": "3280168ad6eefffe1abb46548d01e818a610f76548aac5ad58946731de99fdca"
+          },
+          {
+            "module": "tests.pagination",
+            "content_hash": "a8d012e2ae05b0332bc212f206a17cf3a57ff4966bec45bacd576b1cd09d445f"
+          }
+        ],
+        "check_configuration": {
+          "cases": 100,
+          "max_call_depth": 10000,
+          "max_shrinks": 1000,
+          "seed": 1
+        },
+        "assumptions": [],
+        "fixtures": [],
+        "environment": {
+          "arch": "x86_64",
+          "os": "linux"
+        }
+      }
+    },
+    {
+      "symbol": "tests.pagination.\"pagination preserves input\"",
+      "qualified_name": "tests.pagination.\"pagination preserves input\"",
+      "kind": "property",
+      "status": "tested",
+      "duration_ms": 0,
+      "seed": 1,
+      "property_seed": "88edd5473a9608b57d9c5aa835cdac4672db1ee486a9ed7ef6c7bce530bae058",
+      "cases": 100,
+      "receipt": {
+        "source_revision": "<commit>",
+        "toolchain": {
+          "cpl": "0.1.0",
+          "edition": "0.1",
+          "std": "42236a5efaffeb1110f986d858c30c7dabeb7efa54a3d80ec548b77135351388"
+        },
+        "modules": [
+          {
+            "module": "reader.pages",
+            "content_hash": "3280168ad6eefffe1abb46548d01e818a610f76548aac5ad58946731de99fdca"
+          },
+          {
+            "module": "tests.pagination",
+            "content_hash": "a8d012e2ae05b0332bc212f206a17cf3a57ff4966bec45bacd576b1cd09d445f"
+          }
+        ],
+        "check_configuration": {
+          "cases": 100,
+          "max_call_depth": 10000,
+          "max_shrinks": 1000,
+          "seed": 1
+        },
+        "assumptions": [],
+        "fixtures": [],
+        "environment": {
+          "arch": "x86_64",
+          "os": "linux"
+        }
+      }
+    }
+  ],
+  "receipt": {
+    "receipt": "test",
+    "schema": 1,
+    "toolchain": {
+      "version": "0.1.0",
+      "edition": "0.1",
+      "json_schema": 1
+    },
+    "revision": {
+      "commit": "<commit>",
+      "state": "clean",
+      "digest": "<digest>"
+    },
+    "inputs": {
+      "manifest": "e74d1df8f21726f407fbba0a7c044aa9198794649c922bf66a08d19c59533668",
+      "lock": null,
+      "std": "42236a5efaffeb1110f986d858c30c7dabeb7efa54a3d80ec548b77135351388",
+      "sources": {
+        "cpl.toml": "e74d1df8f21726f407fbba0a7c044aa9198794649c922bf66a08d19c59533668",
+        "src/reader/images.cpl": "4df92f1b1b7673b5e7a9b5b20d5a0ba46a4058ce9885cf3d86d7e5611e0a9171",
+        "src/reader/pages.cpl": "3280168ad6eefffe1abb46548d01e818a610f76548aac5ad58946731de99fdca",
+        "src/tests/pagination.cpl": "a8d012e2ae05b0332bc212f206a17cf3a57ff4966bec45bacd576b1cd09d445f",
+        "work/pagination.patch": "59d695d5980737b338bad2e190d3a88e60c6bbec40a9f79adbdb7a6f8d95cf62",
+        "work/pagination.work": "eb5f2c7d2fe8fce46ee0e031dc479c0812b486dee5a9eafe1b3edf636d27e1a6"
+      }
+    },
+    "core": {
+      "source_revision": "<commit>",
+      "toolchain": {
+        "cpl": "0.1.0",
+        "edition": "0.1",
+        "std": "42236a5efaffeb1110f986d858c30c7dabeb7efa54a3d80ec548b77135351388"
+      },
+      "modules": [
+        {
+          "module": "reader.pages",
+          "content_hash": "3280168ad6eefffe1abb46548d01e818a610f76548aac5ad58946731de99fdca"
+        },
+        {
+          "module": "tests.pagination",
+          "content_hash": "a8d012e2ae05b0332bc212f206a17cf3a57ff4966bec45bacd576b1cd09d445f"
+        }
+      ],
+      "check_configuration": {
+        "cases": 100,
+        "max_call_depth": 10000,
+        "max_shrinks": 1000,
+        "seed": 1
+      },
+      "assumptions": [],
+      "fixtures": [],
+      "environment": {
+        "arch": "x86_64",
+        "os": "linux"
+      }
+    },
+    "configuration": {
+      "seed": 1,
+      "cases": 100,
+      "max_shrinks": 1000,
+      "timeout_ms": 0,
+      "selector": {
+        "namespace": null,
+        "name": null,
+        "id": null
+      },
+      "check_contracts": true,
+      "fail_fast": false
+    },
+    "tested": [
+      {
+        "id": "pgn_7c2d",
+        "path": "reader.pages.paginate",
+        "provisional": false,
+        "facets": {
+          "identity": "bd3f91f48de8b527b3cb33c4f2b1b66b",
+          "name": "c7c6593c3beabcd67c41127d206918f5",
+          "signature": "11367ea8051ec723a2947f3c23cbc6be",
+          "contract": "b57e46d5b8e6685b08b351c8c667185d",
+          "effects": "af1349b9f5f9a1a6a0404dea36dcc949",
+          "body": "7d1bb2835a6b401c0619ef13dc24e817",
+          "docs": "af1349b9f5f9a1a6a0404dea36dcc949",
+          "verification_policy": "855639fcf39ddd0cba719e0c76039a29"
+        },
+        "definition": "89b3dc79b6d7fb61f0ac85d1c984bb88"
+      },
+      {
+        "id": "std.gen.int",
+        "path": "std.gen.int",
+        "provisional": true,
+        "facets": {
+          "identity": "efedddce5a30f948959a26c2a4fd88d7",
+          "name": "9f285237743838bd559a57c538138983",
+          "signature": "8a9a1554418543efa0763677c5919f70",
+          "contract": "af1349b9f5f9a1a6a0404dea36dcc949",
+          "effects": "af1349b9f5f9a1a6a0404dea36dcc949",
+          "body": "af1349b9f5f9a1a6a0404dea36dcc949",
+          "docs": "05142f9cfa86a20565bfcbc01d1d473a",
+          "verification_policy": "af1349b9f5f9a1a6a0404dea36dcc949"
+        },
+        "definition": "8786a43f1181ee2ecaa9cf952054ba40"
+      },
+      {
+        "id": "std.gen.list",
+        "path": "std.gen.list",
+        "provisional": true,
+        "facets": {
+          "identity": "b73870a45217c69ed577b3fb0f54fe07",
+          "name": "0ffec6f74130be3227428d6017134054",
+          "signature": "f5062d7390faa8d70d6dc193443903a7",
+          "contract": "af1349b9f5f9a1a6a0404dea36dcc949",
+          "effects": "af1349b9f5f9a1a6a0404dea36dcc949",
+          "body": "af1349b9f5f9a1a6a0404dea36dcc949",
+          "docs": "3af1e20881bf117234bcb44edc023149",
+          "verification_policy": "af1349b9f5f9a1a6a0404dea36dcc949"
+        },
+        "definition": "41895541e0dba59e5253541862f8e401"
+      },
+      {
+        "id": "std.gen.positive_int",
+        "path": "std.gen.positive_int",
+        "provisional": true,
+        "facets": {
+          "identity": "cf0d0e85de1ed3c77bc584d8b8e39b23",
+          "name": "6374f4263e71aae13c3d285612c26f1d",
+          "signature": "6a7fcbfdde74fa956f18e8bb416a14df",
+          "contract": "af1349b9f5f9a1a6a0404dea36dcc949",
+          "effects": "af1349b9f5f9a1a6a0404dea36dcc949",
+          "body": "af1349b9f5f9a1a6a0404dea36dcc949",
+          "docs": "115c3cf3247944cf227f8bb6a12a3ecf",
+          "verification_policy": "af1349b9f5f9a1a6a0404dea36dcc949"
+        },
+        "definition": "be5228e20514519ca3b50e34e8818911"
+      },
+      {
+        "id": "std.prelude.Int.max",
+        "path": "std.prelude.Int.max",
+        "provisional": true,
+        "facets": {
+          "identity": "dd796bde3e7dffe0614acb400efa0340",
+          "name": "261a6ea33e6d66a38940ba05fc3a39cc",
+          "signature": "d5fe9d1a6d4645e799f5c429df0e9505",
+          "contract": "6d5b414118d83232d2a12c39fe977d51",
+          "effects": "af1349b9f5f9a1a6a0404dea36dcc949",
+          "body": "af1349b9f5f9a1a6a0404dea36dcc949",
+          "docs": "27214177b66109c993f0d4057194f2cf",
+          "verification_policy": "af1349b9f5f9a1a6a0404dea36dcc949"
+        },
+        "definition": "7a9a557a0f57f4034c44ca0a0ff52031"
+      },
+      {
+        "id": "std.prelude.Int.min",
+        "path": "std.prelude.Int.min",
+        "provisional": true,
+        "facets": {
+          "identity": "8c05ec5b2342b8133e7242f825d32667",
+          "name": "15f412752c48943f8c90af79d3a01909",
+          "signature": "d5fe9d1a6d4645e799f5c429df0e9505",
+          "contract": "aa5daae9edba628c727f0aa867526582",
+          "effects": "af1349b9f5f9a1a6a0404dea36dcc949",
+          "body": "af1349b9f5f9a1a6a0404dea36dcc949",
+          "docs": "08686da379009b7823346892b9b3a6a3",
+          "verification_policy": "af1349b9f5f9a1a6a0404dea36dcc949"
+        },
+        "definition": "f4edcfedd1dd0f0ef89390ad79226803"
+      },
+      {
+        "id": "std.prelude.List.drop",
+        "path": "std.prelude.List.drop",
+        "provisional": true,
+        "facets": {
+          "identity": "75d364c4944bed1ba40514494891857f",
+          "name": "372f90a8f6b87ea2339d88ca9cdf6e0e",
+          "signature": "0c1e6e475c6f92721cc2e89b62134533",
+          "contract": "d71e387b91c500696a64bb4e7b4d52cc",
+          "effects": "af1349b9f5f9a1a6a0404dea36dcc949",
+          "body": "af1349b9f5f9a1a6a0404dea36dcc949",
+          "docs": "78572a00edd64187f93146529032f3ac",
+          "verification_policy": "af1349b9f5f9a1a6a0404dea36dcc949"
+        },
+        "definition": "50b2a4652be735c4a3ce97cc82e1b583"
+      },
+      {
+        "id": "std.prelude.List.drop_last",
+        "path": "std.prelude.List.drop_last",
+        "provisional": true,
+        "facets": {
+          "identity": "092d433a1bef3210cc589336ebfb72d6",
+          "name": "13a680143afe47bdc2fbe56be2ab87cb",
+          "signature": "32d0ecac598bcbcd3800181c3b494f7e",
+          "contract": "3a4f6bf9b63371f7a78632fa79604e0a",
+          "effects": "af1349b9f5f9a1a6a0404dea36dcc949",
+          "body": "af1349b9f5f9a1a6a0404dea36dcc949",
+          "docs": "55070e3d3d2e5e0513e18c503deb8e29",
+          "verification_policy": "af1349b9f5f9a1a6a0404dea36dcc949"
+        },
+        "definition": "3db926bceaf6fac9be1aac4c9fadc8c3"
+      },
+      {
+        "id": "std.prelude.List.is_empty",
+        "path": "std.prelude.List.is_empty",
+        "provisional": true,
+        "facets": {
+          "identity": "aaacbb41c1e7a43b149ec352da56e838",
+          "name": "69e0e83d1530ff064f08f3da470a26e4",
+          "signature": "b38904a7a7612ca33b339fda8c04d890",
+          "contract": "03a4aaeb2c747d4f29475146eb152852",
+          "effects": "af1349b9f5f9a1a6a0404dea36dcc949",
+          "body": "af1349b9f5f9a1a6a0404dea36dcc949",
+          "docs": "af1349b9f5f9a1a6a0404dea36dcc949",
+          "verification_policy": "af1349b9f5f9a1a6a0404dea36dcc949"
+        },
+        "definition": "b4143df0e08af38c6f3986cce5840e09"
+      },
+      {
+        "id": "std.prelude.List.len",
+        "path": "std.prelude.List.len",
+        "provisional": true,
+        "facets": {
+          "identity": "f19133b5e97047801a0c8e3244b0a504",
+          "name": "7d0f6d0f178ceedc363d520c14de9cdc",
+          "signature": "a56593fdfcc2860dcde71a4b22dd32f3",
+          "contract": "3b455c8135fe8cea8c594a6aed2b77d1",
+          "effects": "af1349b9f5f9a1a6a0404dea36dcc949",
+          "body": "af1349b9f5f9a1a6a0404dea36dcc949",
+          "docs": "d55c69c8100872a3db28f3028d6dea22",
+          "verification_policy": "af1349b9f5f9a1a6a0404dea36dcc949"
+        },
+        "definition": "b71ec391e93f46b3adbae1a9ec76a2fa"
+      },
+      {
+        "id": "std.prelude.List.push",
+        "path": "std.prelude.List.push",
+        "provisional": true,
+        "facets": {
+          "identity": "b166a40f02e9e0a119145a947cd3e9be",
+          "name": "34f4d1b7edf638d1af7b5a50d77de4a1",
+          "signature": "93c04a733452a5c2527f49ffb7475208",
+          "contract": "371cb16aa3ef7e66b63637655e260cf6",
+          "effects": "af1349b9f5f9a1a6a0404dea36dcc949",
+          "body": "af1349b9f5f9a1a6a0404dea36dcc949",
+          "docs": "d05608b5706c017601d7a1daf1c91a94",
+          "verification_policy": "af1349b9f5f9a1a6a0404dea36dcc949"
+        },
+        "definition": "85c37646e3e9e3a517c0746c08ec39d9"
+      },
+      {
+        "id": "std.prelude.List.take",
+        "path": "std.prelude.List.take",
+        "provisional": true,
+        "facets": {
+          "identity": "a9ca91f78426f7716d5e390f4f34fc25",
+          "name": "bc7877b331f8a47e98d265dbff64c3e7",
+          "signature": "0c1e6e475c6f92721cc2e89b62134533",
+          "contract": "a2bf9dc60a357728b8631f0fa9f6f729",
+          "effects": "af1349b9f5f9a1a6a0404dea36dcc949",
+          "body": "af1349b9f5f9a1a6a0404dea36dcc949",
+          "docs": "f332c02634903a9958482cd044d5e836",
+          "verification_policy": "af1349b9f5f9a1a6a0404dea36dcc949"
+        },
+        "definition": "a9379d2c420e9c927a1676ddc4535d22"
+      },
+      {
+        "id": "std.prelude.flatten",
+        "path": "std.prelude.flatten",
+        "provisional": true,
+        "facets": {
+          "identity": "8d7c48f3a462e75c46f41ef055a68ab4",
+          "name": "be2ddfa41fa60eeb51acb25611c156b0",
+          "signature": "7160609903cbcdc5f89ccc45d3753645",
+          "contract": "c322ded6d51286a011ea0966ffdf2fa8",
+          "effects": "af1349b9f5f9a1a6a0404dea36dcc949",
+          "body": "af1349b9f5f9a1a6a0404dea36dcc949",
+          "docs": "f62bb82488ce1f0949c3f657dc589d38",
+          "verification_policy": "af1349b9f5f9a1a6a0404dea36dcc949"
+        },
+        "definition": "5ad0ed9c89bf29cc3c92b0521f4c7fd7"
+      },
+      {
+        "id": "tests.pagination.\"pagination handles empty input\"",
+        "path": "tests.pagination.\"pagination handles empty input\"",
+        "provisional": true,
+        "facets": {
+          "identity": "31c3c70317659db6c2bf4ef0dd02df83",
+          "name": "173ec38c1b873b056e3906b594413124",
+          "body": "d843659fe1953b74a57bd9e7adad8cf8",
+          "docs": "af1349b9f5f9a1a6a0404dea36dcc949"
+        },
+        "definition": "56c4e7cddd4521180ce42f81501b9271"
+      },
+      {
+        "id": "tests.pagination.\"pagination preserves a short tail\"",
+        "path": "tests.pagination.\"pagination preserves a short tail\"",
+        "provisional": true,
+        "facets": {
+          "identity": "144fb6a004dba2292c07a1d82fab2602",
+          "name": "619f242b29b6ba9260f2da4635ed3766",
+          "body": "060a1c46fbb70cb11b66472d111e97d2",
+          "docs": "af1349b9f5f9a1a6a0404dea36dcc949"
+        },
+        "definition": "fb14d36c606e579e8459d4f66e122491"
+      },
+      {
+        "id": "tests.pagination.\"pagination preserves input\"",
+        "path": "tests.pagination.\"pagination preserves input\"",
+        "provisional": true,
+        "facets": {
+          "identity": "416c09982c322dd432debcaaaabe6a12",
+          "name": "3427e66ef2126ee8e176abeaecbed8e7",
+          "signature": "4932632095ae2d2b16eb7ddbfdb548a4",
+          "body": "5baabe1254a3c9a4e63142cf026ebbfd",
+          "docs": "af1349b9f5f9a1a6a0404dea36dcc949"
+        },
+        "definition": "69f3899e3831a49974ea192847081537"
+      }
+    ],
+    "tests": [
+      {
+        "symbol": "tests.pagination.\"pagination handles empty input\"",
+        "qualified_name": "tests.pagination.\"pagination handles empty input\"",
+        "kind": "test",
+        "status": "tested"
+      },
+      {
+        "symbol": "tests.pagination.\"pagination preserves a short tail\"",
+        "qualified_name": "tests.pagination.\"pagination preserves a short tail\"",
+        "kind": "test",
+        "status": "tested"
+      },
+      {
+        "symbol": "tests.pagination.\"pagination preserves input\"",
+        "qualified_name": "tests.pagination.\"pagination preserves input\"",
+        "kind": "property",
+        "status": "tested",
+        "property_seed": "88edd5473a9608b57d9c5aa835cdac4672db1ee486a9ed7ef6c7bce530bae058",
+        "cases": 100
+      }
+    ],
+    "summary": {
+      "selected": 3,
+      "tested": 3,
+      "failed": 0
+    },
+    "fixtures": [],
+    "assumptions": [],
+    "environment": {
+      "arch": "x86_64",
+      "os": "linux"
+    },
+    "status": "tested",
+    "produced_at": "<produced_at>",
+    "duration_ms": 0
+  },
+  "engine": "native"
+}

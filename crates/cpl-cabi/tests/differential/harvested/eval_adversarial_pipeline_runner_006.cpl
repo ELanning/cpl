@@ -1,0 +1,13 @@
+module tests.idb
+
+test "unrelated" {
+    assert true
+}
+
+@id("prop_move_k2")
+property "after the move"
+    for x in gen.int
+    for xs in gen.list(gen.int)
+{
+    assert x < 20 or xs.len < 2
+}

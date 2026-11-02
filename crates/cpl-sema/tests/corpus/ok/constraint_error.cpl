@@ -1,0 +1,47 @@
+module positive.constraint_error
+
+// ConstraintError is an ordinary prelude struct (stdlib 1.5): constructed by
+// user code, returned by `check` and the parsers, propagated with `?`, and
+// inspected by field.
+
+use std.text.{parse_int}
+
+pub type Positive = Int where self > 0
+pub type Small = Positive where self < 10
+
+fn parse_size(text: Text) -> Result<Int, ConstraintError> {
+    parse_int(std.text.trim(text))
+}
+
+fn positive_size(text: Text) -> Result<Positive, ConstraintError> {
+    let n = parse_size(text)?
+    check<Positive>(n)
+}
+
+fn small_size(text: Text) -> Result<Small, ConstraintError> {
+    let p = positive_size(text)?
+    check<Small>(p)
+}
+
+fn own_error(text: Text) -> Result<Int, ConstraintError> {
+    if text.is_empty() {
+        Err(ConstraintError { type_name: "positive.constraint_error.Size", message: "empty" })
+    } else {
+        Ok(text.len)
+    }
+}
+
+fn type_name_of(r: Result<Positive, ConstraintError>) -> Text {
+    match r {
+        Err(e) => e.type_name
+        Ok(_) => ""
+    }
+}
+
+test "check reports the refinement's name" {
+    assert type_name_of(check<Positive>(0)) == "positive.constraint_error.Positive"
+    assert check<Positive>(3) == Ok(3)
+    let failed = parse_int("x")
+    assert failed.is_err()
+    assert own_error("").is_err()
+}

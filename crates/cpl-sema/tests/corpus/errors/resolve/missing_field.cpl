@@ -1,0 +1,18 @@
+module negative.missing_field
+
+// Without a spread, every field must be listed (semantics 3.8); `missing`
+// lists the absent names.
+
+pub struct Size {
+    width: Int
+    height: Int
+    depth: Int
+}
+
+fn make() -> Size {
+    Size { width: 1 } // expect-error: missing_field
+}
+
+fn empty() -> Size {
+    Size {} // expect-error: missing_field
+}

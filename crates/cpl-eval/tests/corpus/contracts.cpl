@@ -1,0 +1,127 @@
+module corpus.contracts
+
+// One function per contract-violation kind, so that `contract_violation` on a
+// given function identifies the clause kind without extra fields in the
+// .run.json (toolchain.md 12 permits only { "fault": code }).
+// Rules: semantics.md 5.2 (functions), 5.3 (loops), 5.4 / S35 (recursive
+// decreases), S34 (a faulting clause), 5.6 summary, 9.4 fields.
+
+// why: recip(0) is the fault contract_violation, not division_by_zero: the
+// requires clause is evaluated before the body (5.2 step 3) and fails first.
+// Expected fields: clause_kind "requires", symbol "corpus.contracts.recip",
+// facet "contract", attributed_to "caller", clause "n != 0", input {"n": 0},
+// status "failed"; `caller` is absent because the call comes from the harness
+// (semantics.md S39 (c)).
+fn recip(n: Int) -> Int
+    requires n != 0
+{
+    100 / n
+}
+
+// why: half(5) is the fault contract_violation: 5 / 2 == 2 and 2 * 2 != 5.
+// Expected fields: clause_kind "ensures", attributed_to "body",
+// clause "result * 2 == n", input {"n": 5}, actual 2.
+fn half(n: Int) -> Int
+    ensures result * 2 == n
+{
+    n / 2
+}
+
+// why: passthrough(Err("e")) is the fault contract_violation: a `?` that
+// propagates an Err is an exit of the body and the ensures clauses run on the
+// propagated value (5.2 step 5; design: "A Result return is checked as a
+// whole, including error variants"). result.is_ok() is false for Err("e").
+// Expected fields: clause_kind "ensures", clause "result.is_ok()",
+// actual {"$type": "Result", "$variant": "Err", "$payload": ["e"]}.
+fn passthrough(r: Result<Int, Text>) -> Result<Int, Text>
+    ensures result.is_ok()
+{
+    let v = r?
+    Ok(v)
+}
+
+// why: bad_loop(3) is the fault contract_violation with clause_kind
+// "invariant": the invariant holds at entry (0 < 3) and after the first two
+// bodies (1 < 3, 2 < 3) but not after the third (3 < 3 is false). Expected
+// fields: clause "i < 3", attributed_to "body", iteration 3,
+// actual {"bindings": {"n": 3, "i": 3}} (5.3: bindings only).
+fn bad_loop(n: Int) -> Int
+    requires n >= 0
+{
+    var i = 0
+    while i < n
+        invariant i < 3
+        decreases n - i
+    {
+        i = i + 1
+    }
+    i
+}
+
+// why: stuck(1) == 1: the measure is evaluated only after the condition
+// held, before the body (5.3 pseudo-code), so it is evaluated once (value 1,
+// no previous value) and never after the loop exits; a constant measure is
+// therefore not a fault for a single iteration.
+// why: stuck(2) is the fault contract_violation with clause_kind "decreases":
+// before the second body the measure is 2, not strictly smaller than the
+// previous 2. Expected fields: clause "n", iteration 1,
+// actual {"bindings": {"n": 2, "i": 1}, "previous": 2, "measure": 2}.
+fn stuck(n: Int) -> Int
+    requires n >= 0
+{
+    var i = 0
+    while i < n
+        invariant i >= 0
+        decreases n
+    {
+        i = i + 1
+    }
+    i
+}
+
+// why: neg_measure(1) is the fault contract_violation with clause_kind
+// "decreases": before the first body the measure i - 1 == -1 is negative
+// (5.3: `if v < 0`). Expected fields: clause "i - 1", iteration 0,
+// actual {"bindings": {"n": 1, "i": 0}, "measure": -1}.
+fn neg_measure(n: Int) -> Int {
+    var i = 0
+    while i < n
+        decreases i - 1
+    {
+        i = i + 1
+    }
+    i
+}
+
+// why: bad_rec(1) is the fault contract_violation with clause_kind
+// "decreases" (semantics.md S35): the outer activation records measure 1; on
+// entry to the nested call the measure is again 1, not strictly smaller than
+// the nearest activation's, so the fault is raised at the second entry and the
+// recursion never runs away. Expected: clause "n",
+// actual {"previous": 1, "measure": 1}, attributed_to "body".
+fn bad_rec(n: Int) -> Int
+    decreases n
+{
+    if n == 0 { 0 } else { bad_rec(n) }
+}
+
+// why: count_down(3) == 3: the measures 3, 2, 1, 0 are nonnegative and each
+// is strictly smaller than the nearest enclosing activation's (S35 (a)); the
+// requires n >= 0 holds at every level because the measure is checked after
+// the preconditions (5.2 step 3).
+fn count_down(n: Int) -> Int
+    requires n >= 0
+    decreases n
+{
+    if n == 0 { 0 } else { count_down(n - 1) + 1 }
+}
+
+// why: faulting_clause(0) is the fault division_by_zero, not a
+// contract_violation: a fault raised while evaluating a clause is reported as
+// that fault (semantics.md S34) with facet "contract", clause "10 / n > 0",
+// symbol "corpus.contracts.faulting_clause", input {"a": 10, "b": 0}.
+fn faulting_clause(n: Int) -> Int
+    requires 10 / n > 0
+{
+    n
+}

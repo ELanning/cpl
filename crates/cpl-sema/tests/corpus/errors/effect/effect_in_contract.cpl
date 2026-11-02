@@ -1,0 +1,34 @@
+module negative.effect_in_contract
+
+// Contract expressions are typed with an empty bound: an operation call in
+// one is `effect_in_contract` (4.5, 5.1), whatever the function's bound.
+
+pub capability Store {
+    fn get(key: Text) -> Int
+}
+
+fn a(key: Text, using db: Store) -> Int
+    requires db.get(key) > 0 // expect-error: effect_in_contract
+    effects { db.get }
+{
+    db.get(key)
+}
+
+fn b(key: Text, using db: Store) -> Int
+    ensures result == db.get(key) // expect-error: effect_in_contract
+    effects { db.get }
+{
+    db.get(key)
+}
+
+fn c(key: Text, using db: Store) -> Int
+    effects { db.get }
+{
+    var n = db.get(key)
+    while n > 0
+        invariant db.get(key) >= 0 // expect-error: effect_in_contract
+    {
+        n = n - 1
+    }
+    n
+}

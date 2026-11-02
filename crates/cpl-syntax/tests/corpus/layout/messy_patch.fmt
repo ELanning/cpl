@@ -1,0 +1,11 @@
+patch paginate.body
+    expect base(paginate.body)
+{
+    pages
+}
+
+patch reader.pages.clean.body
+    expect base(reader.pages.clean.body)
+{
+    page
+}

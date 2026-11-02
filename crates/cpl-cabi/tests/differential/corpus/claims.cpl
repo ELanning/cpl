@@ -1,0 +1,503 @@
+module claims.cases
+
+// D4 (spec/toolchain.md 12.6): every kind of claim site of semantics S34, S70, and S71, each with a fault raised
+// while its clause is evaluated, and the "already claimed" path of S70; the stack guard and a time budget.
+
+pub fn zero_div(n: Int) -> Int {
+    10 / n
+}
+
+// a fault in a requires clause
+pub fn req(n: Int) -> Int
+    requires 10 / n > 0
+{
+    n
+}
+
+// in an ensures clause
+pub fn ens(n: Int) -> Int
+    ensures 10 / result > 0
+{
+    n
+}
+
+// in a header decreases
+pub fn hdec(n: Int) -> Int
+    decreases 10 / n
+{
+    0
+}
+
+// in a loop invariant
+pub fn inv(n: Int) -> Int {
+    var i = 0
+    while i < 1
+        invariant 10 / n > 0
+        decreases 1 - i
+    {
+        i = i + 1
+    }
+    i
+}
+
+// in a loop decreases
+pub fn ldec(n: Int) -> Int {
+    var i = 0
+    while i < 1
+        decreases 10 / n
+    {
+        i = i + 1
+    }
+    i
+}
+
+// already claimed (S70): the clause of outer calls inner, whose own clause claims the fault first
+pub fn inner(n: Int) -> Bool
+    requires 10 / n > 0
+{
+    true
+}
+
+pub fn outer(n: Int) -> Int
+    requires inner(n)
+{
+    n
+}
+
+// the stack guard (no depth limit) and the call-depth counter
+pub fn deep(n: Int) -> Int
+    requires n >= 0
+{
+    if n == 0 { 0 } else { deep(n - 1) + 1 }
+}
+
+// the stack guard: a branch never taken reserves a wide native frame (each let has its own slot), so the guard of the
+// driver's 1 GiB stack trips after some hundred thousand frames rather than millions, and the backtrace, which is
+// never shortened (semantics 6.7), stays small enough to compare quickly
+pub fn deep_wide(n: Int) -> Int
+    requires n >= 0
+{
+    if n < 0 {
+        let a0 = n + 0
+        let a1 = a0 + 1
+        let a2 = a1 + 2
+        let a3 = a2 + 3
+        let a4 = a3 + 4
+        let a5 = a4 + 5
+        let a6 = a5 + 6
+        let a7 = a6 + 7
+        let a8 = a7 + 8
+        let a9 = a8 + 9
+        let a10 = a9 + 10
+        let a11 = a10 + 11
+        let a12 = a11 + 12
+        let a13 = a12 + 13
+        let a14 = a13 + 14
+        let a15 = a14 + 15
+        let a16 = a15 + 16
+        let a17 = a16 + 17
+        let a18 = a17 + 18
+        let a19 = a18 + 19
+        let a20 = a19 + 20
+        let a21 = a20 + 21
+        let a22 = a21 + 22
+        let a23 = a22 + 23
+        let a24 = a23 + 24
+        let a25 = a24 + 25
+        let a26 = a25 + 26
+        let a27 = a26 + 27
+        let a28 = a27 + 28
+        let a29 = a28 + 29
+        let a30 = a29 + 30
+        let a31 = a30 + 31
+        let a32 = a31 + 32
+        let a33 = a32 + 33
+        let a34 = a33 + 34
+        let a35 = a34 + 35
+        let a36 = a35 + 36
+        let a37 = a36 + 37
+        let a38 = a37 + 38
+        let a39 = a38 + 39
+        let a40 = a39 + 40
+        let a41 = a40 + 41
+        let a42 = a41 + 42
+        let a43 = a42 + 43
+        let a44 = a43 + 44
+        let a45 = a44 + 45
+        let a46 = a45 + 46
+        let a47 = a46 + 47
+        let a48 = a47 + 48
+        let a49 = a48 + 49
+        let a50 = a49 + 50
+        let a51 = a50 + 51
+        let a52 = a51 + 52
+        let a53 = a52 + 53
+        let a54 = a53 + 54
+        let a55 = a54 + 55
+        let a56 = a55 + 56
+        let a57 = a56 + 57
+        let a58 = a57 + 58
+        let a59 = a58 + 59
+        let a60 = a59 + 60
+        let a61 = a60 + 61
+        let a62 = a61 + 62
+        let a63 = a62 + 63
+        let a64 = a63 + 64
+        let a65 = a64 + 65
+        let a66 = a65 + 66
+        let a67 = a66 + 67
+        let a68 = a67 + 68
+        let a69 = a68 + 69
+        let a70 = a69 + 70
+        let a71 = a70 + 71
+        let a72 = a71 + 72
+        let a73 = a72 + 73
+        let a74 = a73 + 74
+        let a75 = a74 + 75
+        let a76 = a75 + 76
+        let a77 = a76 + 77
+        let a78 = a77 + 78
+        let a79 = a78 + 79
+        let a80 = a79 + 80
+        let a81 = a80 + 81
+        let a82 = a81 + 82
+        let a83 = a82 + 83
+        let a84 = a83 + 84
+        let a85 = a84 + 85
+        let a86 = a85 + 86
+        let a87 = a86 + 87
+        let a88 = a87 + 88
+        let a89 = a88 + 89
+        let a90 = a89 + 90
+        let a91 = a90 + 91
+        let a92 = a91 + 92
+        let a93 = a92 + 93
+        let a94 = a93 + 94
+        let a95 = a94 + 95
+        let a96 = a95 + 96
+        let a97 = a96 + 97
+        let a98 = a97 + 98
+        let a99 = a98 + 99
+        let a100 = a99 + 100
+        let a101 = a100 + 101
+        let a102 = a101 + 102
+        let a103 = a102 + 103
+        let a104 = a103 + 104
+        let a105 = a104 + 105
+        let a106 = a105 + 106
+        let a107 = a106 + 107
+        let a108 = a107 + 108
+        let a109 = a108 + 109
+        let a110 = a109 + 110
+        let a111 = a110 + 111
+        let a112 = a111 + 112
+        let a113 = a112 + 113
+        let a114 = a113 + 114
+        let a115 = a114 + 115
+        let a116 = a115 + 116
+        let a117 = a116 + 117
+        let a118 = a117 + 118
+        let a119 = a118 + 119
+        let a120 = a119 + 120
+        let a121 = a120 + 121
+        let a122 = a121 + 122
+        let a123 = a122 + 123
+        let a124 = a123 + 124
+        let a125 = a124 + 125
+        let a126 = a125 + 126
+        let a127 = a126 + 127
+        let a128 = a127 + 128
+        let a129 = a128 + 129
+        let a130 = a129 + 130
+        let a131 = a130 + 131
+        let a132 = a131 + 132
+        let a133 = a132 + 133
+        let a134 = a133 + 134
+        let a135 = a134 + 135
+        let a136 = a135 + 136
+        let a137 = a136 + 137
+        let a138 = a137 + 138
+        let a139 = a138 + 139
+        let a140 = a139 + 140
+        let a141 = a140 + 141
+        let a142 = a141 + 142
+        let a143 = a142 + 143
+        let a144 = a143 + 144
+        let a145 = a144 + 145
+        let a146 = a145 + 146
+        let a147 = a146 + 147
+        let a148 = a147 + 148
+        let a149 = a148 + 149
+        let a150 = a149 + 150
+        let a151 = a150 + 151
+        let a152 = a151 + 152
+        let a153 = a152 + 153
+        let a154 = a153 + 154
+        let a155 = a154 + 155
+        let a156 = a155 + 156
+        let a157 = a156 + 157
+        let a158 = a157 + 158
+        let a159 = a158 + 159
+        let a160 = a159 + 160
+        let a161 = a160 + 161
+        let a162 = a161 + 162
+        let a163 = a162 + 163
+        let a164 = a163 + 164
+        let a165 = a164 + 165
+        let a166 = a165 + 166
+        let a167 = a166 + 167
+        let a168 = a167 + 168
+        let a169 = a168 + 169
+        let a170 = a169 + 170
+        let a171 = a170 + 171
+        let a172 = a171 + 172
+        let a173 = a172 + 173
+        let a174 = a173 + 174
+        let a175 = a174 + 175
+        let a176 = a175 + 176
+        let a177 = a176 + 177
+        let a178 = a177 + 178
+        let a179 = a178 + 179
+        let a180 = a179 + 180
+        let a181 = a180 + 181
+        let a182 = a181 + 182
+        let a183 = a182 + 183
+        let a184 = a183 + 184
+        let a185 = a184 + 185
+        let a186 = a185 + 186
+        let a187 = a186 + 187
+        let a188 = a187 + 188
+        let a189 = a188 + 189
+        let a190 = a189 + 190
+        let a191 = a190 + 191
+        let a192 = a191 + 192
+        let a193 = a192 + 193
+        let a194 = a193 + 194
+        let a195 = a194 + 195
+        let a196 = a195 + 196
+        let a197 = a196 + 197
+        let a198 = a197 + 198
+        let a199 = a198 + 199
+        let a200 = a199 + 200
+        let a201 = a200 + 201
+        let a202 = a201 + 202
+        let a203 = a202 + 203
+        let a204 = a203 + 204
+        let a205 = a204 + 205
+        let a206 = a205 + 206
+        let a207 = a206 + 207
+        let a208 = a207 + 208
+        let a209 = a208 + 209
+        let a210 = a209 + 210
+        let a211 = a210 + 211
+        let a212 = a211 + 212
+        let a213 = a212 + 213
+        let a214 = a213 + 214
+        let a215 = a214 + 215
+        let a216 = a215 + 216
+        let a217 = a216 + 217
+        let a218 = a217 + 218
+        let a219 = a218 + 219
+        let a220 = a219 + 220
+        let a221 = a220 + 221
+        let a222 = a221 + 222
+        let a223 = a222 + 223
+        let a224 = a223 + 224
+        let a225 = a224 + 225
+        let a226 = a225 + 226
+        let a227 = a226 + 227
+        let a228 = a227 + 228
+        let a229 = a228 + 229
+        let a230 = a229 + 230
+        let a231 = a230 + 231
+        let a232 = a231 + 232
+        let a233 = a232 + 233
+        let a234 = a233 + 234
+        let a235 = a234 + 235
+        let a236 = a235 + 236
+        let a237 = a236 + 237
+        let a238 = a237 + 238
+        let a239 = a238 + 239
+        let a240 = a239 + 240
+        let a241 = a240 + 241
+        let a242 = a241 + 242
+        let a243 = a242 + 243
+        let a244 = a243 + 244
+        let a245 = a244 + 245
+        let a246 = a245 + 246
+        let a247 = a246 + 247
+        let a248 = a247 + 248
+        let a249 = a248 + 249
+        let a250 = a249 + 250
+        let a251 = a250 + 251
+        let a252 = a251 + 252
+        let a253 = a252 + 253
+        let a254 = a253 + 254
+        let a255 = a254 + 255
+        let a256 = a255 + 256
+        let a257 = a256 + 257
+        let a258 = a257 + 258
+        let a259 = a258 + 259
+        let a260 = a259 + 260
+        let a261 = a260 + 261
+        let a262 = a261 + 262
+        let a263 = a262 + 263
+        let a264 = a263 + 264
+        let a265 = a264 + 265
+        let a266 = a265 + 266
+        let a267 = a266 + 267
+        let a268 = a267 + 268
+        let a269 = a268 + 269
+        let a270 = a269 + 270
+        let a271 = a270 + 271
+        let a272 = a271 + 272
+        let a273 = a272 + 273
+        let a274 = a273 + 274
+        let a275 = a274 + 275
+        let a276 = a275 + 276
+        let a277 = a276 + 277
+        let a278 = a277 + 278
+        let a279 = a278 + 279
+        let a280 = a279 + 280
+        let a281 = a280 + 281
+        let a282 = a281 + 282
+        let a283 = a282 + 283
+        let a284 = a283 + 284
+        let a285 = a284 + 285
+        let a286 = a285 + 286
+        let a287 = a286 + 287
+        let a288 = a287 + 288
+        let a289 = a288 + 289
+        let a290 = a289 + 290
+        let a291 = a290 + 291
+        let a292 = a291 + 292
+        let a293 = a292 + 293
+        let a294 = a293 + 294
+        let a295 = a294 + 295
+        let a296 = a295 + 296
+        let a297 = a296 + 297
+        let a298 = a297 + 298
+        let a299 = a298 + 299
+        let a300 = a299 + 300
+        let a301 = a300 + 301
+        let a302 = a301 + 302
+        let a303 = a302 + 303
+        let a304 = a303 + 304
+        let a305 = a304 + 305
+        let a306 = a305 + 306
+        let a307 = a306 + 307
+        let a308 = a307 + 308
+        let a309 = a308 + 309
+        let a310 = a309 + 310
+        let a311 = a310 + 311
+        let a312 = a311 + 312
+        let a313 = a312 + 313
+        let a314 = a313 + 314
+        let a315 = a314 + 315
+        let a316 = a315 + 316
+        let a317 = a316 + 317
+        let a318 = a317 + 318
+        let a319 = a318 + 319
+        let a320 = a319 + 320
+        let a321 = a320 + 321
+        let a322 = a321 + 322
+        let a323 = a322 + 323
+        let a324 = a323 + 324
+        let a325 = a324 + 325
+        let a326 = a325 + 326
+        let a327 = a326 + 327
+        let a328 = a327 + 328
+        let a329 = a328 + 329
+        let a330 = a329 + 330
+        let a331 = a330 + 331
+        let a332 = a331 + 332
+        let a333 = a332 + 333
+        let a334 = a333 + 334
+        let a335 = a334 + 335
+        let a336 = a335 + 336
+        let a337 = a336 + 337
+        let a338 = a337 + 338
+        let a339 = a338 + 339
+        let a340 = a339 + 340
+        let a341 = a340 + 341
+        let a342 = a341 + 342
+        let a343 = a342 + 343
+        let a344 = a343 + 344
+        let a345 = a344 + 345
+        let a346 = a345 + 346
+        let a347 = a346 + 347
+        let a348 = a347 + 348
+        let a349 = a348 + 349
+        let a350 = a349 + 350
+        let a351 = a350 + 351
+        let a352 = a351 + 352
+        let a353 = a352 + 353
+        let a354 = a353 + 354
+        let a355 = a354 + 355
+        let a356 = a355 + 356
+        let a357 = a356 + 357
+        let a358 = a357 + 358
+        let a359 = a358 + 359
+        let a360 = a359 + 360
+        let a361 = a360 + 361
+        let a362 = a361 + 362
+        let a363 = a362 + 363
+        let a364 = a363 + 364
+        let a365 = a364 + 365
+        let a366 = a365 + 366
+        let a367 = a366 + 367
+        let a368 = a367 + 368
+        let a369 = a368 + 369
+        let a370 = a369 + 370
+        let a371 = a370 + 371
+        let a372 = a371 + 372
+        let a373 = a372 + 373
+        let a374 = a373 + 374
+        let a375 = a374 + 375
+        let a376 = a375 + 376
+        let a377 = a376 + 377
+        let a378 = a377 + 378
+        let a379 = a378 + 379
+        let a380 = a379 + 380
+        let a381 = a380 + 381
+        let a382 = a381 + 382
+        let a383 = a382 + 383
+        let a384 = a383 + 384
+        let a385 = a384 + 385
+        let a386 = a385 + 386
+        let a387 = a386 + 387
+        let a388 = a387 + 388
+        let a389 = a388 + 389
+        let a390 = a389 + 390
+        let a391 = a390 + 391
+        let a392 = a391 + 392
+        let a393 = a392 + 393
+        let a394 = a393 + 394
+        let a395 = a394 + 395
+        let a396 = a395 + 396
+        let a397 = a396 + 397
+        let a398 = a397 + 398
+        let a399 = a398 + 399
+        a399
+    } else if n == 0 {
+        0
+    } else {
+        deep_wide(n - 1) + 1
+    }
+}
+
+// a loop that never ends: a time budget
+pub fn spin(n: Int) -> Int {
+    var i = n
+    while i >= 0 {
+        i = i + 1
+    }
+    i
+}
+
+// a range bound that faults (S71): claimed by the property's range
+property "a range bound that faults"
+    for x in gen.range(0, zero_div(0))
+{
+    assert x >= 0
+}

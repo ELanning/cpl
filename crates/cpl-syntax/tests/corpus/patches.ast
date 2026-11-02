@@ -1,0 +1,13 @@
+(patch-file
+  (patch paginate.body
+    (docs "Replace the body of paginate.")
+    (expect paginate.body)
+    (block (tail (call (member (name items) take) (name size)))))
+  (patch reader.pages.clean.body
+    (expect reader.pages.clean.body)
+    (block
+      (let trimmed
+        (call (name trim) (member (name page) text))
+        (trivia (lead "// a comment in the block")))
+      (tail (struct-lit Page (spread (name page)) (field text (name trimmed)))))
+    (trivia blank)))

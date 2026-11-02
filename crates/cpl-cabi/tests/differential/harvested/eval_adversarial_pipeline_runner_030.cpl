@@ -1,0 +1,8 @@
+module tests.other
+
+property "p"
+    for xs in gen.list(gen.int)
+    for n in gen.positive_int
+{
+    assert xs.len < n
+}

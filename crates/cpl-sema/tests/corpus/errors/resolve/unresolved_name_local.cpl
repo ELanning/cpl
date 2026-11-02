@@ -1,0 +1,9 @@
+module negative.unresolved_name_local
+
+// A bare LOWER_IDENT that no scope binds (semantics 2.2). The binding uses a
+// `_` prefix so that no `unused_binding` warning accompanies the error.
+
+fn compute(n: Int) -> Int {
+    let _y = undefined_name // expect-error: unresolved_name
+    n
+}

@@ -1,0 +1,13 @@
+module negative.duplicate_effect
+
+// The same `effect_ref` listed twice is a warning (semantics 4.4).
+
+pub capability PageRead {
+    fn get(key: Text) -> Int
+}
+
+fn a(key: Text, using db: PageRead) -> Int
+    effects { db.get, db.get } // expect-warning: duplicate_effect
+{
+    db.get(key)
+}

@@ -1,0 +1,88 @@
+module laws.others
+
+use std.text.{trim, trim_start, trim_end, starts_with, ends_with, contains, split, join, to_upper, to_lower, parse_int, from_int, chars}
+
+property "I1 and I2 the division identity"
+    for a in gen.int
+    for b in gen.int
+{
+    assert b == 0 or (a / b) * b + a % b == a
+    assert b == 0 or (a % b).abs() < b.abs()
+}
+
+property "I3 parse_int of to_text"
+    for n in gen.int
+{
+    assert parse_int(n.to_text()) == Ok(n)
+}
+
+property "I4 and I5 min, max, and abs"
+    for a in gen.int
+    for b in gen.int
+{
+    assert a.min(b) == b.min(a) and a.max(b) == b.max(a) and a.min(b) + a.max(b) == a + b
+    assert a.abs() == a.max(-a)
+}
+
+property "T1 to T4 text concatenation"
+    for a in gen.text
+    for b in gen.text
+    for c in gen.text
+{
+    assert (a ++ b).len == a.len + b.len
+    assert ("" ++ a) == a and (a ++ "") == a
+    assert (a ++ b) ++ c == a ++ (b ++ c)
+    assert a.is_empty() == (a == "")
+}
+
+property "B1 to B3 bytes round trips"
+    for vs in gen.list(gen.range(0, 255))
+    for t in gen.text
+{
+    assert std.bytes.to_list(std.bytes.from_list(vs)) == vs
+    let b = std.bytes.from_list(vs)
+    assert std.bytes.from_list(std.bytes.to_list(b)) == b
+    assert std.bytes.to_text(std.bytes.from_text(t)) == Ok(t)
+}
+
+property "O1 to O4 option and result members"
+    for v in gen.int
+    for d in gen.int
+    for e in gen.text
+{
+    let none: Option<Int> = None
+    let failed: Result<Int, Text> = Err(e)
+    let good: Result<Int, Text> = Ok(v)
+    assert Some(v).unwrap_or(d) == v
+    assert none.unwrap_or(d) == d
+    assert Some(v).ok_or(e) == Ok(v)
+    assert none.ok_or(e) == Err(e)
+    assert good.ok() == Some(v)
+    assert failed.ok() == None
+    assert good.err() == None
+    assert failed.err() == Some(e)
+    assert good.is_ok() == good.ok().is_some()
+    assert failed.is_ok() == failed.ok().is_some()
+}
+
+property "X1 to X7 std.text laws"
+    for t in gen.text
+    for a in gen.text
+    for b in gen.text
+    for sep in gen.text
+    for n in gen.int
+{
+    assert trim(trim(t)) == trim(t)
+    assert trim(t) == trim_start(trim_end(t))
+    assert starts_with(a ++ b, a) and ends_with(a ++ b, b) and contains(a ++ t ++ b, t)
+    assert sep.is_empty() or join(split(t, sep), sep) == t
+    assert sep.is_empty() or split(t, sep).len >= 1
+    let s = match chars(t).get(1) {
+        Some(c) => c
+        None => ","
+    }
+    assert join(split(t, s), s) == t
+    assert to_lower(to_upper(t)) == to_lower(t)
+    assert parse_int(from_int(n)) == Ok(n)
+    assert chars(a ++ b) == chars(a) ++ chars(b)
+}

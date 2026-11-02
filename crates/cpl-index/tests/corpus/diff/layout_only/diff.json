@@ -1,0 +1,17 @@
+{
+  "old": {
+    "commit": null,
+    "state": "worktree",
+    "digest": "e025bca67befaab9a8553510bbc882cfd13a8211800f0cfca36760a00a3e1853"
+  },
+  "new": {
+    "commit": null,
+    "state": "worktree",
+    "digest": "d90596c77f247696fb479bb4239199bff3f10cfe933f18d4554114e588a68e8a"
+  },
+  "statements": [],
+  "duplicates": {
+    "old": [],
+    "new": []
+  }
+}

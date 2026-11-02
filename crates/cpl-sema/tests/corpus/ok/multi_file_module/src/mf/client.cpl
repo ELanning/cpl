@@ -1,0 +1,8 @@
+module mf.client
+
+use mf.shared.{combined, shout, bounded, Positive}
+
+fn use_both_files(n: Int) -> Int {
+    let p: Positive = 3
+    combined(n) + shout("a").len + bounded(p) + mf.shared.tidy(" b ").len
+}

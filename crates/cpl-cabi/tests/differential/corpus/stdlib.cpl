@@ -1,0 +1,439 @@
+module stdlib.rows
+
+// Suite D2 (spec/toolchain.md 12.6): every row of spec/stdlib.md Section 12 as functions, whose cases are in
+// stdlib.diff.json, and the laws of stdlib 10.7 (I, T, B, L, O, X) transcribed as properties.
+
+pub type Positive = Int where self > 0
+pub type Small = Positive where self < 10
+pub type PageId(Text)
+
+// ---- Int ------------------------------------------------------------------------------------------------------
+
+pub fn div(a: Int, b: Int) -> Int {
+    a / b
+}
+
+pub fn rem(a: Int, b: Int) -> Int {
+    a % b
+}
+
+pub fn mul(a: Int, b: Int) -> Int {
+    a * b
+}
+
+pub fn add(a: Int, b: Int) -> Int {
+    a + b
+}
+
+pub fn sub(a: Int, b: Int) -> Int {
+    a - b
+}
+
+pub fn neg(a: Int) -> Int {
+    -a
+}
+
+pub fn abs(n: Int) -> Int {
+    n.abs()
+}
+
+pub fn min(a: Int, b: Int) -> Int {
+    a.min(b)
+}
+
+pub fn max(a: Int, b: Int) -> Int {
+    a.max(b)
+}
+
+pub fn int_text(n: Int) -> Text {
+    n.to_text()
+}
+
+pub fn compare(a: Int, b: Int) -> List<Bool> {
+    [a < b, a <= b, a > b, a >= b, a == b, a != b]
+}
+
+// ---- List -----------------------------------------------------------------------------------------------------
+
+pub fn take(xs: List<Int>, n: Int) -> List<Int> {
+    xs.take(n)
+}
+
+pub fn drop(xs: List<Int>, n: Int) -> List<Int> {
+    xs.drop(n)
+}
+
+pub fn drop_last(xs: List<Int>) -> List<Int> {
+    xs.drop_last()
+}
+
+pub fn push(xs: List<Int>, x: Int) -> List<Int> {
+    xs.push(x)
+}
+
+pub fn concat(xs: List<Int>, ys: List<Int>) -> List<Int> {
+    xs ++ ys
+}
+
+pub fn flat(xss: List<List<Int>>) -> List<Int> {
+    flatten(xss)
+}
+
+pub fn len(xs: List<Int>) -> Int {
+    xs.len
+}
+
+pub fn is_empty(xs: List<Int>) -> Bool {
+    xs.is_empty()
+}
+
+pub fn get(xs: List<Int>, i: Int) -> Option<Int> {
+    xs.get(i)
+}
+
+pub fn first(xs: List<Int>) -> Option<Int> {
+    xs.first()
+}
+
+pub fn last(xs: List<Int>) -> Option<Int> {
+    xs.last()
+}
+
+pub fn reverse(xs: List<Int>) -> List<Int> {
+    xs.reverse()
+}
+
+pub fn contains(xs: List<Int>, x: Int) -> Bool {
+    xs.contains(x)
+}
+
+pub fn lists_equal(a: List<List<Int>>, b: List<List<Int>>) -> Bool {
+    a == b
+}
+
+pub fn all_positive(xs: List<Int>) -> Bool {
+    forall x in xs: x > 0
+}
+
+pub fn none_hold(xs: List<Int>) -> Bool {
+    forall x in xs: false
+}
+
+// ---- Text -----------------------------------------------------------------------------------------------------
+
+pub fn text_len(t: Text) -> Int {
+    t.len
+}
+
+pub fn text_is_empty(t: Text) -> Bool {
+    t.is_empty()
+}
+
+pub fn text_concat(a: Text, b: Text) -> Text {
+    a ++ b
+}
+
+pub fn text_equal(a: Text, b: Text) -> Bool {
+    a == b
+}
+
+pub fn trim(t: Text) -> Text {
+    std.text.trim(t)
+}
+
+pub fn trim_start(t: Text) -> Text {
+    std.text.trim_start(t)
+}
+
+pub fn trim_end(t: Text) -> Text {
+    std.text.trim_end(t)
+}
+
+pub fn starts_with(t: Text, p: Text) -> Bool {
+    std.text.starts_with(t, p)
+}
+
+pub fn ends_with(t: Text, p: Text) -> Bool {
+    std.text.ends_with(t, p)
+}
+
+pub fn text_contains(t: Text, p: Text) -> Bool {
+    std.text.contains(t, p)
+}
+
+pub fn split(t: Text, sep: Text) -> List<Text> {
+    std.text.split(t, sep)
+}
+
+pub fn join(xs: List<Text>, sep: Text) -> Text {
+    std.text.join(xs, sep)
+}
+
+pub fn to_upper(t: Text) -> Text {
+    std.text.to_upper(t)
+}
+
+pub fn to_lower(t: Text) -> Text {
+    std.text.to_lower(t)
+}
+
+pub fn parse_int(t: Text) -> Result<Int, ConstraintError> {
+    std.text.parse_int(t)
+}
+
+pub fn parse_fails(t: Text) -> Bool {
+    std.text.parse_int(t).is_err()
+}
+
+pub fn from_int(n: Int) -> Text {
+    std.text.from_int(n)
+}
+
+pub fn chars(t: Text) -> List<Text> {
+    std.text.chars(t)
+}
+
+// ---- Bytes ----------------------------------------------------------------------------------------------------
+
+pub fn bytes_of(vs: List<Int>) -> Bytes {
+    std.bytes.from_list(vs)
+}
+
+pub fn bytes_len(vs: List<Int>) -> Int {
+    std.bytes.from_list(vs).len
+}
+
+pub fn bytes_round_trip(vs: List<Int>) -> List<Int> {
+    std.bytes.to_list(std.bytes.from_list(vs))
+}
+
+pub fn utf8_len(t: Text) -> Int {
+    std.bytes.from_text(t).len
+}
+
+pub fn utf8_round_trip(t: Text) -> Result<Text, ConstraintError> {
+    std.bytes.to_text(std.bytes.from_text(t))
+}
+
+// a parameter of a struct inside an enum, so the driver's type table holds it for D7's JSON reader
+pub fn parsed_identity(r: Result<Int, ConstraintError>) -> Result<Int, ConstraintError> {
+    r
+}
+
+pub fn decode(vs: List<Int>) -> Result<Text, ConstraintError> {
+    std.bytes.to_text(std.bytes.from_list(vs))
+}
+
+pub fn decode_fails(vs: List<Int>) -> Bool {
+    std.bytes.to_text(std.bytes.from_list(vs)).is_err()
+}
+
+pub fn bytes_concat(a: Bytes, b: Bytes) -> Bytes {
+    a ++ b
+}
+
+pub fn bytes_is_empty(vs: List<Int>) -> Bool {
+    std.bytes.from_list(vs).is_empty()
+}
+
+// ---- Option and Result ----------------------------------------------------------------------------------------
+
+pub fn unwrap_or(o: Option<Int>, d: Int) -> Int {
+    o.unwrap_or(d)
+}
+
+pub fn option_shape(o: Option<Int>) -> List<Bool> {
+    [o.is_some(), o.is_none()]
+}
+
+pub fn ok_or(o: Option<Int>, e: Text) -> Result<Int, Text> {
+    o.ok_or(e)
+}
+
+pub fn result_unwrap_or(r: Result<Int, Text>, d: Int) -> Int {
+    r.unwrap_or(d)
+}
+
+pub fn result_shape(r: Result<Int, Text>) -> List<Bool> {
+    [r.is_ok(), r.is_err()]
+}
+
+pub fn ok(r: Result<Int, Text>) -> Option<Int> {
+    r.ok()
+}
+
+pub fn err(r: Result<Int, Text>) -> Option<Text> {
+    r.err()
+}
+
+// ---- refinements, check, equality -----------------------------------------------------------------------------
+
+pub fn check_positive(n: Int) -> Result<Positive, ConstraintError> {
+    check<Positive>(n)
+}
+
+pub fn check_small(n: Int) -> Result<Small, ConstraintError> {
+    check<Small>(n)
+}
+
+pub fn check_gen_positive(n: Int) -> Result<gen.Positive, ConstraintError> {
+    check<gen.Positive>(n)
+}
+
+pub fn refused_type_name(n: Int) -> Text {
+    match check<Positive>(n) {
+        Err(e) => e.type_name
+        Ok(_) => ""
+    }
+}
+
+pub fn small_type_name(n: Int) -> Text {
+    match check<Small>(n) {
+        Err(e) => e.type_name
+        Ok(_) => ""
+    }
+}
+
+pub fn parse_type_name(t: Text) -> Text {
+    match std.text.parse_int(t) {
+        Err(e) => e.type_name
+        Ok(_) => ""
+    }
+}
+
+pub fn unit_equal() -> Bool {
+    Unit == Unit
+}
+
+pub fn page_ids_equal(a: Text, b: Text) -> Bool {
+    PageId(a) == PageId(b)
+}
+
+// ---- the laws of stdlib 10.7 ----------------------------------------------------------------------------------
+
+property "I1 division and remainder"
+    for a in gen.int
+    for b in gen.int
+{
+    assert b == 0 or (a / b) * b + a % b == a
+}
+
+property "I2 the remainder is smaller than the divisor"
+    for a in gen.int
+    for b in gen.int
+{
+    assert b == 0 or (a % b).abs() < b.abs()
+}
+
+property "I3 parse_int inverts to_text"
+    for n in gen.int
+{
+    assert std.text.parse_int(n.to_text()) == Ok(n)
+}
+
+property "I4 min and max"
+    for a in gen.int
+    for b in gen.int
+{
+    assert a.min(b) == b.min(a) and a.max(b) == b.max(a) and a.min(b) + a.max(b) == a + b
+}
+
+property "I5 abs"
+    for n in gen.int
+{
+    assert n.abs() == n.max(-n)
+}
+
+property "T1 text concatenation"
+    for a in gen.text
+    for b in gen.text
+{
+    assert (a ++ b).len == a.len + b.len
+    assert ("" ++ a) == a
+}
+
+property "X1 trim is idempotent"
+    for t in gen.text
+{
+    assert std.text.trim(std.text.trim(t)) == std.text.trim(t)
+}
+
+property "B1 bytes round trip"
+    for vs in gen.list(gen.range(0, 255))
+{
+    assert std.bytes.to_list(std.bytes.from_list(vs)) == vs
+}
+
+property "B2 utf-8 round trip"
+    for t in gen.text
+{
+    assert std.bytes.to_text(std.bytes.from_text(t)) == Ok(t)
+}
+
+property "L1 take and drop"
+    for xs in gen.list(gen.int)
+    for n in gen.range(0, 20)
+{
+    assert xs.take(n) ++ xs.drop(n) == xs
+}
+
+property "L4 concatenation length"
+    for xs in gen.list(gen.int)
+    for ys in gen.list(gen.int)
+{
+    assert (xs ++ ys).len == xs.len + ys.len
+}
+
+property "L5 L6 push"
+    for xs in gen.list(gen.int)
+    for y in gen.int
+{
+    assert xs.push(y) == xs ++ [y]
+    assert xs.push(y).drop_last() == xs
+}
+
+property "L7 flatten"
+    for xss in gen.list(gen.list(gen.int))
+    for xs in gen.list(gen.int)
+{
+    assert flatten(xss.push(xs)) == flatten(xss) ++ xs
+}
+
+property "L8 forall over a concatenation"
+    for xs in gen.list(gen.int)
+    for ys in gen.list(gen.int)
+{
+    assert (forall x in xs ++ ys: x > 0) == ((forall x in xs: x > 0) and (forall x in ys: x > 0))
+}
+
+property "L13 empty"
+    for xs in gen.list(gen.int)
+{
+    assert (xs.len == 0) == (xs == [])
+}
+
+property "L15 take and drop compose"
+    for xs in gen.list(gen.int)
+    for n in gen.range(0, 10)
+    for m in gen.range(0, 10)
+{
+    assert xs.take(n).take(m) == xs.take(n.min(m))
+    assert xs.drop(n).drop(m) == xs.drop(n + m)
+}
+
+property "O1 unwrap_or"
+    for v in gen.int
+    for d in gen.int
+    for o in gen.option(gen.int)
+{
+    assert Some(v).unwrap_or(d) == v
+    assert o.is_some() or o.unwrap_or(d) == d
+}
+
+test "the faults of the rows have their rows"
+{
+    let o: Option<Int> = None
+    assert o.unwrap_or(0) == 0
+    let e: Result<Int, Text> = Err("x")
+    assert e.ok() == None
+}

@@ -1,0 +1,17 @@
+module negative.duplicate_declaration
+
+// Two item-namespace declarations of one name in one module (semantics 1.4,
+// S3). The later declaration carries the primary span; the earlier one is in
+// `notes` (README: two-location convention).
+
+fn width(n: Int) -> Int {
+    n + 1
+}
+
+pub struct Shape {
+    side: Int
+}
+
+fn width(n: Int) -> Int { // expect-error: duplicate_declaration
+    n * 2
+}

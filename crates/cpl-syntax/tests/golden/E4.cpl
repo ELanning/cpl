@@ -1,0 +1,9 @@
+module reader.pages
+
+fn divide_exactly(a: Int, b: Int) -> Int
+    requires b != 0
+    requires a % b == 0
+    ensures result * b == a
+{
+    a / b
+}

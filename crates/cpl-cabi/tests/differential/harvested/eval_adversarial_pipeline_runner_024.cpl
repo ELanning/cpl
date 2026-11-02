@@ -1,0 +1,178 @@
+module tests.calls
+
+fn recip(n: Int) -> Int
+    requires n != 0
+{
+    1 / n
+}
+
+@id("fn_half_k9")
+fn half(n: Int) -> Int
+    ensures result * 2 == n
+{
+    n / 2
+}
+
+fn sum_to(n: Int) -> Int {
+    var i = 0
+    var total = 0
+    while i < n
+        invariant total <= 10
+    {
+        i = i + 1
+        total = total + i
+    }
+    total
+}
+
+fn step_down(n: Int) -> Int {
+    var k = n
+    while k != 0
+        decreases k
+    {
+        k = k - 2
+    }
+    k
+}
+
+fn stuck(n: Int) -> Int {
+    var k = n
+    while k > 0
+        decreases k
+    {
+        k = k * 1
+    }
+    k
+}
+
+fn again(n: Int) -> Int
+    decreases n
+{
+    if n <= 0 {
+        0
+    } else {
+        again(n)
+    }
+}
+
+fn zero_ok(n: Int) -> Int
+    ensures 10 / result > 0
+{
+    n
+}
+
+fn first_of(xs: List<Int>) -> List<Int> {
+    xs.take(-1)
+}
+
+fn never_ok(n: Int) -> Int {
+    var i = n
+    while i > 0
+        invariant i < 0
+    {
+        i = i - 1
+    }
+    i
+}
+
+fn exits_cleanly(n: Int) -> Int {
+    var k = n
+    while k > 0
+        decreases k - 1
+    {
+        k = k - 1
+    }
+    k
+}
+
+fn early(n: Int) -> Int
+    ensures result >= 0
+{
+    if n < 0 {
+        return n
+    }
+    n
+}
+
+fn parsed(t: Text) -> Result<Int, ConstraintError>
+    ensures result.is_ok()
+{
+    let n = std.text.parse_int(t)?
+    Ok(n)
+}
+
+fn positive_only(n: Int) -> Int
+    requires n > 0
+{
+    n
+}
+
+fn checks_result(n: Int) -> Int
+    ensures positive_only(result) > 0
+{
+    n
+}
+
+fn seven() -> Int
+    ensures result == 8
+{
+    7
+}
+
+@id("test_recip_z1")
+test "calls recip" {
+    let _ = recip(0)
+}
+
+@id("test_half_q3")
+test "calls half" {
+    let _ = half(3)
+}
+
+test "calls sum_to" {
+    assert sum_to(5) == 15
+}
+
+test "calls step_down" {
+    let _ = step_down(3)
+}
+
+test "calls stuck" {
+    let _ = stuck(2)
+}
+
+test "calls again" {
+    let _ = again(2)
+}
+
+test "calls zero_ok" {
+    let _ = zero_ok(0)
+}
+
+test "calls first_of" {
+    let _ = first_of([4, 5])
+}
+
+test "calls never_ok" {
+    let _ = never_ok(0)
+}
+
+test "calls exits_cleanly" {
+    assert exits_cleanly(3) == 0
+}
+
+test "calls early" {
+    let _ = early(-2)
+}
+
+test "calls parsed" {
+    let _ = parsed("x")
+}
+
+test "calls checks_result" {
+    let _ = checks_result(0)
+}
+
+test "calls seven" {
+    let _ = seven()
+}

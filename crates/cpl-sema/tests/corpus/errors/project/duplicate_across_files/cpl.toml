@@ -1,0 +1,3 @@
+[project]
+name = "duplicate_across_files"
+edition = "0.1"

@@ -1,0 +1,10 @@
+module cases.edition
+
+// Directory case: cpl.toml declares edition "0.2". The error is located in
+// cpl.toml, which carries no marker, so it is matched span-less (README,
+// project cases).
+// expect-error(global): unsupported_edition
+
+fn one() -> Int {
+    1
+}

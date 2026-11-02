@@ -1,0 +1,8 @@
+module negative.cyclic_type_definition_mutual
+
+// Ruling [D-233] (semantics S66, 1.8): a cycle of refinement bases is
+// `cyclic_type_definition` on every declaration of the cycle, with the
+// cycle in `notes`, exactly as S7 reports `infinite_type`.
+
+type Even = Odd where self % 2 == 0 // expect-error: cyclic_type_definition
+type Odd = Even where self % 2 == 1 // expect-error: cyclic_type_definition

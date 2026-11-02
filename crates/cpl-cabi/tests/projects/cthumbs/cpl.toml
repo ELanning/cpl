@@ -1,0 +1,21 @@
+[project]
+name = "cthumbs"
+edition = "0.1"
+
+[interop]
+targets = ["c"]
+
+[interop.c]
+prefix = "cthumbs"
+abi = 1
+artifacts = ["shared", "static", "executable"]
+
+[bindings.thumbs]
+capability = "cthumbs.thumbs.Thumbnails"
+backend = "c"
+adapter = "adapters/thumbs.cbind.toml"
+isolation = "in_process"
+
+[bindings.thumbs.c]
+sources = ["vendor/imgtest/imgtest.c"]
+include_dirs = ["vendor/imgtest"]

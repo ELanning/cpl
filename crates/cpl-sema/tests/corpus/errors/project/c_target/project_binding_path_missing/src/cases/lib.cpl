@@ -1,0 +1,9 @@
+module cases.lib
+
+// Directory case: a `[bindings.codec.c] sources` file that does not exist
+// (toolchain 11.1).
+// expect-error(global): project_binding_path_missing
+
+pub capability Codec {
+    fn size(image: Bytes) -> Int
+}

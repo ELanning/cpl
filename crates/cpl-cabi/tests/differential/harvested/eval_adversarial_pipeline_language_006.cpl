@@ -1,0 +1,134 @@
+module pl.enums
+
+pub type Tag(Text)
+pub type Positive = Int where self > 0
+
+pub enum Shape {
+    Circle(Int)
+    Rect(Int, Int)
+    Labeled(Tag, Option<Shape>)
+    Dot
+}
+
+pub enum Either<L, R> {
+    Left(L)
+    Right(R)
+}
+
+fn area(s: Shape) -> Int {
+    match s {
+        Circle(0) => 0
+        Circle(r) => 3 * r * r
+        Rect(w, h) => w * h
+        Labeled(Tag("none"), _) => -1
+        Labeled(_, Some(inner)) => area(inner)
+        Labeled(_, None) => -2
+        Dot => 1
+    }
+}
+
+fn first_match(o: Option<Option<Int>>) -> Text {
+    match o {
+        Some(Some(0)) => "zero"
+        Some(Some(-1)) => "minus one"
+        Some(Some(n)) => n.to_text()
+        Some(None) => "inner none"
+        None => "none"
+    }
+}
+
+fn bools(a: Bool, b: Bool) -> Int {
+    match a {
+        true => match b {
+            true => 3
+            false => 2
+        }
+        false => if b { 1 } else { 0 }
+    }
+}
+
+fn unit_match(u: Unit) -> Int {
+    match u {
+        Unit => 7
+    }
+}
+
+fn big_literal(n: Int) -> Int {
+    match n {
+        123456789012345678901234567890 => 1
+        -123456789012345678901234567890 => -1
+        -0 => 100
+        _ => 0
+    }
+}
+
+fn pos_match(p: Positive) -> Text {
+    match p {
+        1 => "one"
+        n => (n * 10).to_text()
+    }
+}
+
+fn opt_pos(o: Option<Positive>) -> Int {
+    match o {
+        Some(1) => 100
+        Some(p) => p
+        None => 0
+    }
+}
+
+fn early(o: Option<Int>) -> Int {
+    let v = match o {
+        Some(n) => n
+        None => {
+            return -1
+        }
+    }
+    v * 2
+}
+
+fn sides(xs: List<Either<Int, Text>>) -> List<Int> {
+    var out: List<Int> = []
+    var rest = xs
+    while not rest.is_empty()
+        decreases rest.len
+    {
+        let n = match rest.first() {
+            Some(Left(k)) => k
+            Some(Right(t)) => t.len
+            None => 0
+        }
+        out = out.push(n)
+        rest = rest.drop(1)
+    }
+    out
+}
+
+fn labeled() -> Shape {
+    Labeled(Tag("x"), Some(Rect(2, 3)))
+}
+
+fn dot() -> Shape {
+    Dot
+}
+
+fn qualified(s: Shape) -> Int {
+    match s {
+        Shape.Circle(r) => r
+        pl.enums.Shape.Rect(w, _) => w
+        Shape.Dot => 0
+        _ => -1
+    }
+}
+
+fn qualified_values() -> List<Int> {
+    [qualified(Shape.Circle(5)), qualified(pl.enums.Shape.Rect(3, 4)), qualified(Shape.Dot), qualified(Labeled(Tag("t"), None))]
+}
+
+fn explicit_generics() -> List<Bool> {
+    [Some<Int>(1) == Some(1), Either.Left<Int, Text>(2) == Left(2), Ok<Int, Text>(3).is_ok()]
+}
+
+fn equalities() -> List<Bool> {
+    [Circle(1) == Circle(1), Rect(1, 2) == Rect(2, 1), Dot == Dot, Circle(1) != Dot, Labeled(Tag("a"), None) == Labeled(Tag("a"), None)]
+}

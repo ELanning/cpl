@@ -1,0 +1,170 @@
+{
+  "command": "work check",
+  "toolchain": {
+    "version": "0.1.0",
+    "edition": "0.1",
+    "json_schema": 1
+  },
+  "revision": {
+    "commit": "<commit>",
+    "state": "clean",
+    "digest": "<digest>"
+  },
+  "status": "ok",
+  "diagnostics": [
+    {
+      "code": "work_provisional_identity",
+      "category": "work",
+      "severity": "warning",
+      "message": "`reader.pages.Positive` has no `@id`: the work file names it by its provisional identity, which does not survive a rename or move, and the integrator gives it a generated `@id` (T47); assign one with `cpl id assign`",
+      "span": {
+        "file": "work/pagination.work",
+        "line": 10,
+        "col": 37,
+        "end_line": 10,
+        "end_col": 56
+      },
+      "symbol": "reader.pages.Positive",
+      "qualified_name": "reader.pages.Positive"
+    }
+  ],
+  "file": "work/pagination.work",
+  "changes": [
+    {
+      "name": "pagination_update",
+      "base": "main",
+      "base_commit": "<commit>",
+      "target": "main",
+      "workers": 3,
+      "tasks": [
+        {
+          "name": "implementation",
+          "after": [],
+          "write": [
+            {
+              "selector": "paginate.body",
+              "targets": [
+                {
+                  "id": "pgn_7c2d",
+                  "facet": "body"
+                }
+              ]
+            }
+          ],
+          "add": [],
+          "depend": [
+            {
+              "selector": "paginate.contract",
+              "targets": [
+                {
+                  "id": "pgn_7c2d",
+                  "facet": "contract"
+                }
+              ]
+            },
+            {
+              "selector": "Positive.definition",
+              "targets": [
+                {
+                  "id": "reader.pages.Positive",
+                  "facet": "definition"
+                }
+              ]
+            }
+          ],
+          "preserve": [
+            {
+              "selector": "paginate.signature",
+              "targets": [
+                {
+                  "id": "pgn_7c2d",
+                  "facet": "signature"
+                }
+              ]
+            },
+            {
+              "selector": "paginate.contract",
+              "targets": [
+                {
+                  "id": "pgn_7c2d",
+                  "facet": "contract"
+                }
+              ]
+            },
+            {
+              "selector": "paginate.effects",
+              "targets": [
+                {
+                  "id": "pgn_7c2d",
+                  "facet": "effects"
+                }
+              ]
+            },
+            {
+              "selector": "paginate.verification_policy",
+              "targets": [
+                {
+                  "id": "pgn_7c2d",
+                  "facet": "verification_policy"
+                }
+              ]
+            }
+          ],
+          "goal": "Implement pagination and discharge its proof obligations."
+        },
+        {
+          "name": "examples",
+          "after": [],
+          "write": [],
+          "add": [
+            {
+              "selector": "tests.pagination.*",
+              "namespace": "tests.pagination"
+            }
+          ],
+          "depend": [],
+          "preserve": [],
+          "goal": "Add boundary cases for empty input and partial final pages."
+        },
+        {
+          "name": "audit",
+          "after": [
+            "implementation",
+            "examples"
+          ],
+          "write": [],
+          "add": [],
+          "depend": [],
+          "preserve": [],
+          "goal": "Review both patches against the frozen pagination contract."
+        }
+      ],
+      "integrate": [
+        {
+          "require": "typecheck"
+        },
+        {
+          "require": "prove",
+          "targets": [
+            {
+              "id": "pgn_7c2d",
+              "facet": "definition"
+            }
+          ]
+        },
+        {
+          "require": "test",
+          "namespace": "tests.pagination",
+          "matched": 3
+        },
+        {
+          "require": "review",
+          "task": "audit"
+        },
+        {
+          "require": "no_holes"
+        }
+      ]
+    }
+  ]
+}

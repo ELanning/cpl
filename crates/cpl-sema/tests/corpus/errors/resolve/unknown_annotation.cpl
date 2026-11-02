@@ -1,0 +1,27 @@
+module negative.unknown_annotation
+
+// The annotation vocabulary is closed (D17, semantics 1.8): an unknown name,
+// and the standard-library annotations `@builtin`, `@method`, and
+// `@property` in a project file. An annotation name may be any keyword token
+// (grammar D71, [D-227]), so `@property` lexes as an annotation although
+// `property` is a keyword.
+
+@deprecated // expect-error: unknown_annotation
+fn old(n: Int) -> Int {
+    n
+}
+
+@builtin("list_len") // expect-error: unknown_annotation
+fn length(xs: List<Int>) -> Int {
+    xs.len
+}
+
+@method // expect-error: unknown_annotation
+fn count(xs: List<Int>) -> Int {
+    xs.len
+}
+
+@property // expect-error: unknown_annotation
+fn size(xs: List<Int>) -> Int {
+    xs.len
+}

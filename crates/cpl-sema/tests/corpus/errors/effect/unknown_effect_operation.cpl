@@ -1,0 +1,14 @@
+module negative.unknown_effect_operation
+
+// The operation of an `effect_ref` must belong to the parameter's capability
+// (semantics 4.1).
+
+pub capability PageRead {
+    fn get(key: Text) -> Int
+}
+
+fn a(key: Text, using db: PageRead) -> Int
+    effects { db.get, db.put } // expect-error: unknown_effect_operation
+{
+    db.get(key)
+}

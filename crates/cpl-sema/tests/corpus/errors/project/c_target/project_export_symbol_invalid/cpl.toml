@@ -1,0 +1,10 @@
+[project]
+name = "project_export_symbol_invalid"
+edition = "0.1"
+
+[interop]
+targets = ["c"]
+
+[interop.c]
+prefix = "cases"
+exports = [{ function = "one", symbol = "cases_type_one" }]

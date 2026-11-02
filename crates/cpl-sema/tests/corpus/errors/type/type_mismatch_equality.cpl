@@ -1,0 +1,26 @@
+module negative.type_mismatch_equality
+
+// `==` requires erase-identical operand types (S17); a disagreement that is
+// not a capability is `type_mismatch` on the right operand.
+
+pub type PageId(Text)
+
+fn a(n: Int, t: Text) -> Bool {
+    n == t // expect-error: type_mismatch
+}
+
+fn b(id: PageId) -> Bool {
+    id == "page-1" // expect-error: type_mismatch
+}
+
+fn c(xs: List<Int>, ys: List<Text>) -> Bool {
+    xs != ys // expect-error: type_mismatch
+}
+
+fn d(o: Option<Int>, r: Result<Int, Text>) -> Bool {
+    o == r // expect-error: type_mismatch
+}
+
+fn e(flag: Bool) -> Bool {
+    flag == 1 // expect-error: type_mismatch
+}

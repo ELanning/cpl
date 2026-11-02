@@ -1,0 +1,95 @@
+{
+  "old": {
+    "commit": null,
+    "state": "worktree",
+    "digest": "cf1ec2a63272c8c30a025ade28e7336dab41b9367861d6b095f1521ff4f1b259"
+  },
+  "new": {
+    "commit": null,
+    "state": "worktree",
+    "digest": "e49c340c37e19378e8b9d431219963d7b37e5bd81af632d29b30df9660e6ca77"
+  },
+  "statements": [
+    {
+      "statement": "signature_changed",
+      "id": "calc.ops.Pair",
+      "path": "calc.ops.Pair",
+      "kind": "ty",
+      "facet": "signature",
+      "detail": {
+        "old": "815bbe6dbfeaffb0f03bb66aa712c562",
+        "new": "0a2722cf968226b6a2cc6d26482f29e6"
+      }
+    },
+    {
+      "statement": "contract_changed",
+      "id": "calc.ops.Small",
+      "path": "calc.ops.Small",
+      "kind": "ty",
+      "facet": "contract",
+      "detail": {
+        "old": "51c0fe6624522e77e83ea35da8e5c123",
+        "new": "8186d7af5eda97de7e13edc801d021c3"
+      }
+    },
+    {
+      "statement": "signature_changed",
+      "id": "calc.ops.Store",
+      "path": "calc.ops.Store",
+      "kind": "cap",
+      "facet": "signature",
+      "detail": {
+        "old": "fdc31e349a33988cbb979cfde088e2f5",
+        "new": "f36ae7e8f2cefeb3ad0bf8b3d6f5c640"
+      }
+    },
+    {
+      "statement": "contract_changed",
+      "id": "calc.ops.Store",
+      "path": "calc.ops.Store",
+      "kind": "cap",
+      "facet": "contract",
+      "detail": {
+        "old": "724a344ac9b3e5bcecb6dcaac1cd4495",
+        "new": "35c2e3994825099182e0f393e7eee779"
+      }
+    },
+    {
+      "statement": "contract_changed",
+      "id": "calc.ops.count",
+      "path": "calc.ops.count",
+      "kind": "fn",
+      "facet": "contract",
+      "detail": {
+        "old": "0c5b5cc06d2686a1da992d51dde95ec4",
+        "new": "f5d409e09ea1097a29f38c42ddde0061"
+      }
+    },
+    {
+      "statement": "signature_changed",
+      "id": "fn_dddddddddddddddd",
+      "path": "calc.ops.scale",
+      "kind": "fn",
+      "facet": "signature",
+      "detail": {
+        "old": "a956fa536f20374219b381132f0b6f50",
+        "new": "ca82d3c9ad73f6e34af5d1fba9cdfc12"
+      }
+    },
+    {
+      "statement": "contract_changed",
+      "id": "fn_dddddddddddddddd",
+      "path": "calc.ops.scale",
+      "kind": "fn",
+      "facet": "contract",
+      "detail": {
+        "old": "15d57f145351551e99e4a95d6104743c",
+        "new": "fdb9bb1dc5641a7760ed51785cd9ea3b"
+      }
+    }
+  ],
+  "duplicates": {
+    "old": [],
+    "new": []
+  }
+}

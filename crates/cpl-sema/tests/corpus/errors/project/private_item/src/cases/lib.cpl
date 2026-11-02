@@ -1,0 +1,14 @@
+module cases.lib
+
+// Directory case: `secret` and `Hidden` are private to cases.lib and are
+// reached from cases.by_use and cases.by_path.
+
+fn secret() -> Int {
+    42
+}
+
+type Hidden(Text)
+
+pub fn open() -> Int {
+    secret()
+}

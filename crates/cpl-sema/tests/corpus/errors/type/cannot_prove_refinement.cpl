@@ -1,0 +1,34 @@
+module negative.cannot_prove_refinement
+
+// Only a constant expression is proved against a refinement (S16); a name,
+// a call, an arithmetic expression over a name, or a `let`-bound literal is
+// `cannot_prove_refinement` with the note "use check<...>".
+
+pub type Positive = Int where self > 0
+
+fn paginate(items: List<Int>, size: Positive) -> List<List<Int>> {
+    [items]
+}
+
+fn a(items: List<Int>, n: Int) -> List<List<Int>> {
+    paginate(items, n) // expect-error: cannot_prove_refinement
+}
+
+fn b(items: List<Int>) -> List<List<Int>> {
+    let n = 3
+    paginate(items, n) // expect-error: cannot_prove_refinement
+}
+
+fn c(size: Positive) -> Positive {
+    size + 1 // expect-error: cannot_prove_refinement
+}
+
+fn d(xs: List<Int>) -> Positive {
+    xs.len // expect-error: cannot_prove_refinement
+}
+
+fn e(c: Bool) -> Positive {
+    let p: Positive = if c { 1 } else { 2 + 1 }
+    let q: Positive = (-1).abs() // expect-error: cannot_prove_refinement
+    p + q // expect-error: cannot_prove_refinement
+}

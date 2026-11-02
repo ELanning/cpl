@@ -1,0 +1,81 @@
+module positive.layout_edge_cases
+
+// Layout forms the grammar admits (grammar 2): multi-line calls, lists, and
+// struct literals; trailing commas; `{` on the line after a header without
+// clauses (D63); blank lines and comments between a header and its clauses;
+// empty blocks; `else` on the `}` line; parenthesized continuations.
+
+pub type PageId(Text)
+
+pub struct Page {
+    id: PageId
+    text: Text
+}
+
+pub fn multi_line_params(
+    items: List<Int>,
+    size: Int,
+) -> Result<List<List<Int>>, ConstraintError>
+{
+    Ok([items.take(size)])
+}
+
+fn header_then_brace_on_next_line(n: Int) -> Int
+{
+    n
+}
+
+fn comments_between_header_and_clauses(a: Int, b: Int) -> Int
+
+    // the clauses follow after a blank line and this comment
+    requires b != 0
+
+    ensures result * b == a or true
+{
+    a / b
+}
+
+fn multi_line_arguments(items: List<Int>) -> List<List<Int>> {
+    let pages = multi_line_params(
+        items,
+        2,
+    )
+    let labels = [
+        "a",
+        "b",
+    ]
+    let page = Page {
+        id: PageId(labels.first().unwrap_or("")),
+        text: "t",
+    }
+    let total = (items.len
+        + labels.len
+        + page.text.len)
+    if total > 0 { pages.unwrap_or([]) } else { [] }
+}
+
+fn empty_blocks(c: Bool) -> Unit {
+    if c {} else {}
+    while false {}
+    if c {
+    }
+}
+
+fn match_header_then_brace(o: Option<Int>) -> Int {
+    match o
+    {
+        Some(v) => v
+        None => 0
+    }
+}
+
+fn single_line_bodies(c: Bool) -> Int { if c { 1 } else { 2 } }
+
+fn nested_generics(xs: List<List<Option<Result<Int, Text>>>>) -> Int {
+    flatten(xs).len
+}
+
+test "test body on the next line"
+{
+    assert true
+}

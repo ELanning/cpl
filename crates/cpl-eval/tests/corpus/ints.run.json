@@ -1,0 +1,9 @@
+[
+  {"function": "corpus.ints.div", "args": [-7, 2], "expect": {"value": -3}},
+  {"function": "corpus.ints.div", "args": [7, -2], "expect": {"value": -3}},
+  {"function": "corpus.ints.rem", "args": [-7, 2], "expect": {"value": -1}},
+  {"function": "corpus.ints.rem", "args": [7, -2], "expect": {"value": 1}},
+  {"function": "corpus.ints.div", "args": [1, 0], "expect": {"fault": "division_by_zero"}},
+  {"function": "corpus.ints.mul", "args": [12345678901234567890, 10], "expect": {"value": 123456789012345678900}},
+  {"function": "corpus.ints.add", "args": [9223372036854775807, 1], "expect": {"value": 9223372036854775808}}
+]

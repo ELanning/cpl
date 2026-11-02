@@ -1,0 +1,35 @@
+module corpus.ints
+
+// Int arithmetic: semantics.md 6.3 / S37, stdlib.md 2.2 / S8, toolchain.md T9.
+// Every case here is an intrinsic operator, so a zero divisor is the fault
+// `division_by_zero` (category runtime, symbol the enclosing declaration,
+// input {"a": ..., "b": 0}) and never a `contract_violation`.
+
+// why: div(-7, 2) == -3 and div(7, -2) == -3: `/` truncates toward zero.
+// A floor-division implementation (Python `//`) returns -4 for both.
+fn div(a: Int, b: Int) -> Int {
+    a / b
+}
+
+// why: rem(-7, 2) == -1 (= -7 - (-3) * 2) and rem(7, -2) == 1 (= 7 - (-3) * -2):
+// the remainder takes the sign of the dividend `a`, so that
+// a == (a / b) * b + a % b holds with the truncating quotient. A floored
+// remainder (Python) gives 1 and -1 respectively; Euclidean gives 1 and 1.
+fn rem(a: Int, b: Int) -> Int {
+    a % b
+}
+
+// why: 12345678901234567890 * 10 == 123456789012345678900 (stdlib.md 12):
+// Int is arbitrary precision; the operands and the result exceed i64 and the
+// result exceeds u64. The expected value JSON is a plain number with every
+// digit (toolchain.md 7.3: never a string; readers must preserve precision).
+fn mul(a: Int, b: Int) -> Int {
+    a * b
+}
+
+// why: 9223372036854775807 + 1 == 9223372036854775808: both arguments fit i64
+// (the first is i64::MAX) but the sum does not. A machine-integer fast path
+// would wrap to -9223372036854775808 or panic.
+fn add(a: Int, b: Int) -> Int {
+    a + b
+}

@@ -1,0 +1,18 @@
+module tests.names
+
+fn n() -> Int {
+    3
+}
+
+property "binders named like prelude names"
+    for gen in gen.int
+    for flatten in gen.list(gen.int)
+{
+    assert gen < 10 or flatten.len < 2
+}
+
+property "a binder named like a function"
+    for n in gen.range(0, n())
+{
+    assert n < 2
+}

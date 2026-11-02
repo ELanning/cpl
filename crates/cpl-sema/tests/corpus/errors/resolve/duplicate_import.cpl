@@ -1,0 +1,11 @@
+module negative.duplicate_import
+
+// The same name may not be imported twice in one file, even from the same
+// module (semantics 1.6). The second `use` is the primary span.
+
+use std.text.{trim}
+use std.text.{trim} // expect-error: duplicate_import
+
+fn tidy(text: Text) -> Text {
+    trim(text)
+}

@@ -1,0 +1,13 @@
+[package]
+name = "cpl-rtspec"
+version.workspace = true
+edition.workspace = true
+description = "The one source of every specification-owned text and table that both CPL engines share (spec/toolchain.md 1.11, T70)"
+
+[lints]
+workspace = true
+
+# A leaf crate of data and pure functions (spec/toolchain.md 1.2): no internal dependency, normal or dev
+# (crates/cpl-cli/tests/workspace_dag.rs), and `num-bigint` its one external dependency (1.3, T71).
+[dependencies]
+num-bigint.workspace = true

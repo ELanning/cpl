@@ -1,0 +1,11 @@
+module negative.unresolved_module_use
+
+// `use` of a module no compilation unit or std module declares (semantics
+// 1.6; stdlib 12 lists `use std.time.{Clock}`).
+
+use std.time.{Clock} // expect-error: unresolved_module
+use negative.nowhere.{thing} // expect-error: unresolved_module
+
+fn one() -> Int {
+    1
+}

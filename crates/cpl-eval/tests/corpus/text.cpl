@@ -1,0 +1,25 @@
+module corpus.text
+
+// Text is a sequence of Unicode scalar values: semantics.md 6.4, stdlib.md 3.3.
+
+// why: concat_len("\u{e9}", "\u{1f600}") == 2: `++` concatenates scalar
+// sequences and `len` counts scalar values. U+00E9 is one scalar (2 UTF-8
+// bytes); U+1F600 is one scalar (4 UTF-8 bytes, 2 UTF-16 code units). Byte
+// counting gives 6, UTF-16 counting gives 3.
+fn concat_len(a: Text, b: Text) -> Int {
+    (a ++ b).len
+}
+
+// why: length("h\u{e9}llo") == 5 (6 UTF-8 bytes);
+// length("e\u{301}") == 2: a combining mark is its own scalar value; there is
+// no grapheme clustering and no normalization (stdlib.md 3.3 table).
+fn length(t: Text) -> Int {
+    t.len
+}
+
+// why: same("\u{e9}", "e\u{301}") == false: equality compares scalar
+// sequences as given, never after Unicode normalization (NFC would make the
+// two equal). semantics.md 6.5, stdlib.md 1.7.
+fn same(a: Text, b: Text) -> Bool {
+    a == b
+}

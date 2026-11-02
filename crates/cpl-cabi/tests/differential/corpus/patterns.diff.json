@@ -1,0 +1,12 @@
+[
+{"function": "patterns.cases.word", "args": ["one"], "expect": {"value": 1}},
+{"function": "patterns.cases.word", "args": ["two"], "expect": {"value": 2}},
+{"function": "patterns.cases.word", "args": ["three"], "expect": {"value": 0}},
+{"function": "patterns.cases.flag", "args": [true], "expect": {"value": 1}},
+{"function": "patterns.cases.flag", "args": [false], "expect": {"value": 0}},
+{"function": "patterns.cases.five", "args": [], "expect": {"value": 5}},
+{"function": "patterns.cases.pick", "args": [{"$type": "Option", "$variant": "Some", "$payload": [1]}], "expect": {"value": 100}},
+{"function": "patterns.cases.pick", "args": [{"$type": "Option", "$variant": "Some", "$payload": [7]}], "expect": {"value": 7}},
+{"function": "patterns.cases.pick", "args": [{"$type": "Option", "$variant": "Some", "$payload": [0]}], "expect": {"fault": "refinement_violation"}},
+{"function": "patterns.cases.pick", "args": [{"$type": "Option", "$variant": "None"}], "expect": {"value": 0}}
+]

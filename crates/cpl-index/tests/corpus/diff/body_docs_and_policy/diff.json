@@ -1,0 +1,84 @@
+{
+  "old": {
+    "commit": null,
+    "state": "worktree",
+    "digest": "b9788f3df46d7f656c1605c7e4803394da2ff1041a343496ff5833d8d60dea7b"
+  },
+  "new": {
+    "commit": null,
+    "state": "worktree",
+    "digest": "fc2c3fd34cc902b0a3e757859e832607e79af0df2f4d5f30ef7cf4730f9b03d6"
+  },
+  "statements": [
+    {
+      "statement": "body_changed",
+      "id": "doc.items.\"a test\"",
+      "path": "doc.items.\"a test\"",
+      "kind": "test",
+      "facet": "body",
+      "detail": {
+        "old": "38abdd9f2fa93b87f9a094918da668ca",
+        "new": "968bea9b3b0e8b47028b7fca619dfa8c"
+      }
+    },
+    {
+      "statement": "docs_changed",
+      "id": "doc.items.Rec",
+      "path": "doc.items.Rec",
+      "kind": "ty",
+      "facet": "docs",
+      "detail": {
+        "old": "03a522e36dddcd3c90ed81aae1d2275f",
+        "new": "dc23f43684e663bfc4ea59798e08a927"
+      }
+    },
+    {
+      "statement": "docs_changed",
+      "id": "doc.items.inc",
+      "path": "doc.items.inc",
+      "kind": "fn",
+      "facet": "docs",
+      "detail": {
+        "old": "e7cee4db28a7306edf1eeb2fe2779a49",
+        "new": "381d324d0d55a7ce0ea502e83b6bc747"
+      }
+    },
+    {
+      "statement": "verification_policy_changed",
+      "id": "doc.items.proved",
+      "path": "doc.items.proved",
+      "kind": "fn",
+      "facet": "verification_policy",
+      "detail": {
+        "old": "@prove",
+        "new": ""
+      }
+    },
+    {
+      "statement": "body_changed",
+      "id": "doc.items.twice",
+      "path": "doc.items.twice",
+      "kind": "fn",
+      "facet": "body",
+      "detail": {
+        "old": "47612b6e6eb51136cd5d56ec14bae22a",
+        "new": "bd7970b9318cfa9761c55cd2528ccab6"
+      }
+    },
+    {
+      "statement": "verification_policy_changed",
+      "id": "doc.items.unproved",
+      "path": "doc.items.unproved",
+      "kind": "fn",
+      "facet": "verification_policy",
+      "detail": {
+        "old": "",
+        "new": "@prove"
+      }
+    }
+  ],
+  "duplicates": {
+    "old": [],
+    "new": []
+  }
+}

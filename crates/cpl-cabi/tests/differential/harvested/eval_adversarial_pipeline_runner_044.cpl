@@ -1,0 +1,9 @@
+module tests.one
+
+fn a() -> Int {
+    1
+}
+
+test "a" {
+    assert a() == 1
+}

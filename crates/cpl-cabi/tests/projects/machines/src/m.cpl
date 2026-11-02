@@ -1,0 +1,29 @@
+module m
+
+struct Count { n: Int } where self.n >= 0 and self.n <= 100
+struct Bag<T> { xs: List<T> } where self.xs.len > 0
+program App { count: Count }
+enum Event {
+    Add(Int)
+    Divide(Int)
+    Reset
+}
+enum Command { Changed(Int) }
+struct Step<S, C> {
+    commands: List<C>
+    state: S
+}
+initial fn start() -> App { App { count: Count { n: 50 } } }
+machine reduce(state: App, event: Event) -> Step<App, Command> {
+    let n = match event {
+        Add(delta) => state.count.n + delta
+        Divide(divisor) => state.count.n / divisor
+        Reset => 50
+    }
+    Step { state: App { count: Count { n: n } }, commands: [Changed(n)] }
+}
+pure fn make(n: Int) -> Count { Count { n: n } }
+pure fn spread(old: Count, n: Int) -> Count { Count { ..old, n: n } }
+pure fn nested(xs: List<Count>) -> Int { xs.len }
+pure fn bag(xs: List<Int>) -> Bag<Int> { Bag { xs: xs } }
+pure fn bag_len(bag: Bag<Int>) -> Int { bag.xs.len }

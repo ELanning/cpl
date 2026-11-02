@@ -1,0 +1,24 @@
+use reader.pages.{paginate}
+
+change c {
+    base git("main")
+    target git("main")
+    workers 1
+    task t after a, b {
+        write { paginate.body }
+        preserve { paginate.contract }
+        goal "g"
+    }
+    task a {
+        goal "a"
+    }
+    task b {}
+    integrate {
+        require typecheck
+    }
+}
+
+change d {
+    base git("x")
+    target git("y")
+}

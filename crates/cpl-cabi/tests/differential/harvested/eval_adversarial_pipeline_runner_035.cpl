@@ -1,0 +1,8 @@
+module tests.bad
+
+property "twice"
+    for x in gen.int
+    for x in gen.bool
+{
+    assert true
+}

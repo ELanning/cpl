@@ -1,0 +1,38 @@
+module corpus.holes
+
+// A copy of examples/holes/src/holes/pages.cpl under the corpus module path,
+// so that the toolchain.md 12.3 row `holes.pages.summarize(...)` can be run
+// through this corpus. Only the module header is changed and the
+// `@id("pgn_7c2d")` annotation is dropped (a copied definition is a new
+// identity, design-doc "Functions and contracts"; and two corpus modules
+// linked into one program must not share an @id, semantics.md S2).
+// `paginate` is kept for fidelity but cannot be a corpus case: it is generic
+// (semantics.md S39 (b), cannot_run_generic, which is a usage error and not a
+// fault).
+
+// glue: the Page type that paginate's callers and summarize need,
+// copied from the design's reader.pages module.
+pub type PageId(Text)
+pub type Positive = Int where self > 0
+
+pub struct Page {
+    id: PageId
+    text: Text
+}
+
+@prove
+pub fn paginate<T>(items: List<T>, size: Positive) -> List<List<T>>
+    ensures flatten(result) == items
+    ensures forall page in result: page.len > 0 and page.len <= size
+    ensures forall page in result.drop_last(): page.len == size
+{
+    ?build_pages
+}
+
+// why: summarize(Page { id: PageId("p"), text: "t" }) is the fault
+// unresolved_hole (semantics.md 6.7, 8.1): evaluation reached the hole.
+// Expected fields: hole "summary", symbol "corpus.holes.summarize",
+// expected_type "Text", bindings [{"name": "page", "type": "Page", ...}].
+fn summarize(page: Page) -> Text {
+    ?summary
+}

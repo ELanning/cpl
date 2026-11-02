@@ -1,0 +1,7 @@
+module tests.bad
+
+property "own"
+    for n in gen.range(0, n)
+{
+    assert true
+}

@@ -1,0 +1,8 @@
+module cases.lib
+
+// Directory case (Milestone 3, spec/python.md, toolchain 11.1): a `[test.fixtures]` entry naming a binding that does not exist.
+// expect-error(global): project_fixture_binding_unknown
+
+pub capability Codec {
+    fn size(image: Bytes) -> Int
+}

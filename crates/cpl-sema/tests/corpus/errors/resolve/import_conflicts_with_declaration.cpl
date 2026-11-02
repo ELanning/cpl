@@ -1,0 +1,16 @@
+module negative.import_conflicts_with_declaration
+
+// An imported name may not equal the name of a declaration of the importing
+// module (semantics 1.6). The import is the primary span, the declaration is
+// in `notes`. `trim` is called so that the import is "used" under either
+// resolution and no `unused_import` cascade arises (README).
+
+use std.text.{trim} // expect-error: import_conflicts_with_declaration
+
+fn trim(text: Text) -> Text {
+    text
+}
+
+fn tidy(text: Text) -> Text {
+    trim(text)
+}

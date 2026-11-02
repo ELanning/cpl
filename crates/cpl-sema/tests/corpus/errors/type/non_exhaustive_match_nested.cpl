@@ -1,0 +1,32 @@
+module negative.non_exhaustive_match_nested
+
+// Nested constructors: the witness is the missing constructor applied to
+// wildcards, e.g. `Err(Unavailable)` (semantics 3.13); the design's `label`
+// without its last arm.
+
+pub type PageId(Text)
+
+pub struct Page {
+    id: PageId
+    text: Text
+}
+
+pub enum StoreError {
+    Missing(PageId)
+    Unavailable
+}
+
+fn label(result: Result<Page, StoreError>) -> Text {
+    match result { // expect-error: non_exhaustive_match
+        Ok(page) => page.text
+        Err(Missing(_)) => "Missing page"
+    }
+}
+
+fn nested_option(o: Option<Option<Bool>>) -> Int {
+    match o { // expect-error: non_exhaustive_match
+        Some(Some(true)) => 1
+        Some(None) => 2
+        None => 3
+    }
+}

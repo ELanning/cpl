@@ -1,0 +1,26 @@
+[package]
+name = "cpl-eval"
+version.workspace = true
+edition.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+cpl-hir.workspace = true
+cpl-syntax.workspace = true
+cpl-diag.workspace = true
+# The shared tables and texts of both engines (toolchain 1.11, T70).
+cpl-rtspec.workspace = true
+num-bigint.workspace = true
+num-traits.workspace = true
+rand.workspace = true
+rand_chacha.workspace = true
+blake3.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+# The tests check the programs they run (toolchain 1.2, T50); never a normal dependency.
+cpl-sema.workspace = true

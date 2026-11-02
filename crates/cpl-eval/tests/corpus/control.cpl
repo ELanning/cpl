@@ -1,0 +1,70 @@
+module corpus.control
+
+// while with invariant and decreases that hold, early return with ensures
+// still checked, var rebinding: semantics.md 5.2 step 5, 5.3, 6.1, 3.10 (S24).
+
+// why: sum_to(4) == 10: the invariants hold before the first test (0 == 0,
+// 0 <= 4) and after each of the four iteration bodies; the measure n - i is
+// 4, 3, 2, 1 before each body, nonnegative and strictly decreasing, and is not
+// evaluated after the loop exits (semantics.md 5.3). The ensures then holds
+// (10 == 4 * 5 / 2).
+fn sum_to(n: Int) -> Int
+    requires n >= 0
+    ensures result == n * (n + 1) / 2
+{
+    var i = 0
+    var total = 0
+    while i < n
+        invariant total == i * (i + 1) / 2
+        invariant i <= n
+        decreases n - i
+    {
+        i = i + 1
+        total = total + i
+    }
+    total
+}
+
+// why: find_index([5, 6, 7], 6) == 1: `return` inside a while inside the
+// function exits the function (grammar.md D26); the invariant is not
+// re-checked on that exit (5.3 checks it after a *completed* body) but the
+// ensures is (5.2 step 5: every exit), and 1 >= -1 holds.
+fn find_index(xs: List<Int>, v: Int) -> Int
+    ensures result >= -1
+{
+    var i = 0
+    while i < xs.len
+        invariant i >= 0
+        decreases xs.len - i
+    {
+        if xs.get(i) == Some(v) {
+            return i
+        }
+        i = i + 1
+    }
+    -1
+}
+
+// why: clamp_pos(5) == 5 (tail exit, ensures holds).
+// why: clamp_pos(-2) is the fault contract_violation: the early `return n`
+// is an exit of the body, so the ensures runs with result == -2 and fails
+// (semantics.md 5.2 step 5). Expected fields: clause_kind "ensures", symbol
+// "corpus.control.clamp_pos", facet "contract", attributed_to "body",
+// clause "result > 0", input {"n": -2}, actual -2, status "failed".
+fn clamp_pos(n: Int) -> Int
+    ensures result > 0
+{
+    if n <= 0 {
+        return n
+    }
+    n
+}
+
+// why: rebind([]) == [[], [1]]: `var ys = xs` then `ys = ys.push(1)` rebinds
+// the name ys to a new list; xs still names the old list (semantics.md 6.1:
+// "a var is a rebindable name, not a mutable cell").
+fn rebind(xs: List<Int>) -> List<List<Int>> {
+    var ys = xs
+    ys = ys.push(1)
+    [xs, ys]
+}

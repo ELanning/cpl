@@ -1,0 +1,6 @@
+module negative.cyclic_type_definition
+
+// A refinement whose base chain reaches itself (semantics 1.8). A two-type
+// cycle is in errors/ambiguous (which declarations are reported).
+
+type Loop = Loop where self > 0 // expect-error: cyclic_type_definition

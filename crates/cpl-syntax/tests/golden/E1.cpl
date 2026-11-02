@@ -1,0 +1,20 @@
+module reader.pages
+
+use std.text.{trim}
+
+pub type PageId(Text)
+pub type Positive = Int where self > 0
+
+pub struct Page {
+    id: PageId
+    text: Text
+}
+
+pub enum StoreError {
+    Missing(PageId)
+    Unavailable
+}
+
+fn clean(page: Page) -> Page {
+    Page { ..page, text: trim(page.text) }
+}

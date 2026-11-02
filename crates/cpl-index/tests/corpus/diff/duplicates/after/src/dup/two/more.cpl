@@ -1,0 +1,5 @@
+module dup.two
+
+fn helper() -> Int {
+    2
+}

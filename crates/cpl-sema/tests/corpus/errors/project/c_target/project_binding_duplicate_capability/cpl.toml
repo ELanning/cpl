@@ -1,0 +1,21 @@
+[project]
+name = "project_binding_duplicate_capability"
+edition = "0.1"
+
+[interop]
+targets = ["c"]
+
+[interop.c]
+prefix = "cases"
+
+[bindings.alpha]
+capability = "cases.lib.Codec"
+backend = "c"
+adapter = "adapters/alpha.c"
+isolation = "in_process"
+
+[bindings.beta]
+capability = "cases.lib.Codec"
+backend = "c"
+adapter = "adapters/beta.c"
+isolation = "in_process"

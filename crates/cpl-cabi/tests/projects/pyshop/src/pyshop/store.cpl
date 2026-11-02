@@ -1,0 +1,104 @@
+module pyshop.store
+
+use std.foreign.{ForeignError}
+
+/// A stock keeping unit.
+pub type Sku(Text)
+pub type Price = Int where self >= 0
+
+pub enum Category {
+    Book
+    Tool(Text)
+    Bundle(List<Sku>, Int)
+}
+
+pub struct Item {
+    sku: Sku
+    name: Text
+    price: Price
+    category: Category
+    tags: List<Text>
+    thumbnail: Bytes
+    discontinued: Bool
+    note: Option<Text>
+}
+
+pub capability Catalog {
+    fn lookup(sku: Sku) -> Result<Item, ForeignError>
+    fn count() -> Int
+    fn fail(kind: Text) -> Result<Unit, ForeignError>
+    fn crash(code: Int) -> Result<Int, ForeignError>
+    fn crash_plain(code: Int) -> Int
+    fn wrong() -> Result<Item, ForeignError>
+    fn wrong_plain() -> Item
+    fn negative() -> Result<Price, ForeignError>
+    fn echo(item: Item) -> Result<Item, ForeignError>
+    fn big(digits: Int) -> Result<Int, ForeignError>
+}
+
+pub fn item_name(sku: Sku, using catalog: Catalog) -> Result<Text, ForeignError>
+    effects { catalog.lookup }
+{
+    let item = catalog.lookup(sku)?
+    Ok(item.name)
+}
+
+pub fn lookup(sku: Sku, using catalog: Catalog) -> Result<Item, ForeignError>
+    effects { catalog.lookup }
+{
+    catalog.lookup(sku)
+}
+
+pub fn stock_count(using catalog: Catalog) -> Int
+    effects { catalog.count }
+{
+    catalog.count()
+}
+
+pub fn fail_with(kind: Text, using catalog: Catalog) -> Result<Unit, ForeignError>
+    effects { catalog.fail }
+{
+    catalog.fail(kind)
+}
+
+pub fn crash(code: Int, using catalog: Catalog) -> Result<Int, ForeignError>
+    effects { catalog.crash }
+{
+    catalog.crash(code)
+}
+
+pub fn crash_plain(code: Int, using catalog: Catalog) -> Int
+    effects { catalog.crash_plain }
+{
+    catalog.crash_plain(code)
+}
+
+pub fn wrong(using catalog: Catalog) -> Result<Item, ForeignError>
+    effects { catalog.wrong }
+{
+    catalog.wrong()
+}
+
+pub fn wrong_plain(using catalog: Catalog) -> Item
+    effects { catalog.wrong_plain }
+{
+    catalog.wrong_plain()
+}
+
+pub fn negative(using catalog: Catalog) -> Result<Price, ForeignError>
+    effects { catalog.negative }
+{
+    catalog.negative()
+}
+
+pub fn echo(item: Item, using catalog: Catalog) -> Result<Item, ForeignError>
+    effects { catalog.echo }
+{
+    catalog.echo(item)
+}
+
+pub fn big(digits: Int, using catalog: Catalog) -> Result<Int, ForeignError>
+    effects { catalog.big }
+{
+    catalog.big(digits)
+}

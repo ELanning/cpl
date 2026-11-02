@@ -1,0 +1,39 @@
+module positive.prelude_and_qualification
+
+// Prelude names need no import; `use std.prelude.{...}` is permitted and
+// redundant with no diagnostic (S6, stdlib S3); fully qualified paths to
+// std and to this project's own modules always resolve (S1); the prelude
+// enums resolve through their type names.
+
+use std.prelude.{flatten}
+use std.prelude.{ConstraintError}
+
+fn qualified_types(o: std.prelude.Option<Int>, r: std.prelude.Result<Int, Text>) -> Int {
+    o.unwrap_or(r.unwrap_or(0))
+}
+
+fn qualified_values() -> Bool {
+    let none: Option<Int> = std.prelude.Option.None
+    let some = std.prelude.Option.Some(1)
+    let ok: Result<Int, Text> = std.prelude.Result.Ok(2)
+    let unit = std.prelude.Unit.Unit
+    let flat = std.prelude.flatten([[1], [2]])
+    let own = positive.prelude_and_qualification.qualified_types(none, ok)
+    none.is_none() and some.is_some() and unit == Unit and flat.len == 2 and own == 2
+}
+
+fn redundant_import_is_fine(xss: List<List<Int>>) -> Result<List<Int>, ConstraintError> {
+    Ok(flatten(xss))
+}
+
+fn std_functions_without_use(t: Text) -> Text {
+    std.text.trim(t) ++ std.text.from_int(std.bytes.from_text(t).len)
+}
+
+property "std.gen spelling"
+    for n in std.gen.int
+    for xs in std.gen.list(gen.bool)
+{
+    assert n == n
+    assert xs.len >= 0
+}

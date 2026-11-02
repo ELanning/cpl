@@ -1,0 +1,13 @@
+module negative.missing_body
+
+// A bodiless `fn` and a definition-less `type` parse (stdlib 10.2 G1/G2) but
+// are the check error `missing_body` outside the standard library
+// (semantics 1.8); the rest of the file is checked normally.
+
+fn compute(n: Int) -> Int // expect-error: missing_body
+
+type Opaque // expect-error: missing_body
+
+fn fine(n: Int) -> Int {
+    n + 1
+}

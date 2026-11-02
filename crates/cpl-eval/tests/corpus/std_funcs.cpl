@@ -1,0 +1,45 @@
+module corpus.std_funcs
+
+// std.text and std.bytes reached both through a `use` list and through the
+// always-in-scope `std` root (stdlib.md S1). Builtins check their own
+// `requires` clauses and trust their `ensures` (stdlib.md S39, semantics.md S58).
+
+use std.text.{trim, split, parse_int}
+
+// why: trimmed("\u{a0}x\u{a0}") == "x": the trim whitespace set is the
+// enumerated Unicode White_Space list of stdlib.md S22, which includes U+00A0
+// NO-BREAK SPACE. An ASCII-only trim returns the input unchanged.
+fn trimmed(t: Text) -> Text {
+    trim(t)
+}
+
+// why: pieces("aaa", "aa") == ["", "a"]: occurrences are found leftmost first
+// and do not overlap (stdlib.md S24 worked value), so the single occurrence is
+// at offset 0 and the remaining "a" is the second piece.
+fn pieces(t: Text, sep: Text) -> List<Text> {
+    split(t, sep)
+}
+
+// why: parsed("007") == Ok(7): parse_int accepts ("+" | "-")? ASCII_DIGIT+
+// with leading zeros (stdlib.md S25), even though the source literal 007 is a
+// lexical error (grammar.md 1.5). Data rules are not source-literal rules.
+fn parsed(t: Text) -> Result<Int, ConstraintError> {
+    parse_int(t)
+}
+
+// why: parse_failure_type("-") == "Int": a lone sign is not a decimal integer;
+// the ConstraintError names the prelude type by its bare name (stdlib.md S44),
+// not "std.prelude.Int". Only type_name is compared because the message of a
+// parse failure is informative, not stable (stdlib.md 1.5).
+fn parse_failure_type(t: Text) -> Text {
+    match parse_int(t) {
+        Err(e) => e.type_name
+        Ok(_) => ""
+    }
+}
+
+// why: pack([104, 105]) == Bytes("6869"): value JSON of Bytes is
+// {"$type": "Bytes", "hex": "<lowercase hex>"} (toolchain.md 7.3, semantics.md S40).
+fn pack(values: List<Int>) -> Bytes {
+    std.bytes.from_list(values)
+}

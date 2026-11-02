@@ -1,0 +1,41 @@
+module tests.depth
+
+fn leaf() -> Int {
+    [1, 2].take(1).len
+}
+
+fn branch() -> Int {
+    leaf()
+}
+
+fn down(n: Int) -> Int {
+    if n <= 0 {
+        0
+    } else {
+        down(n - 1)
+    }
+}
+
+test "no call" {
+    assert [1, 2].take(1).len == 1
+}
+
+test "one call" {
+    assert leaf() == 1
+}
+
+test "two calls" {
+    assert branch() == 1
+}
+
+property "deep"
+    for n in gen.range(0, 120)
+{
+    assert down(n) == 0
+}
+
+property "bound calls a function"
+    for x in gen.range(0, leaf())
+{
+    assert x >= 0
+}

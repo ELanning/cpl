@@ -1,0 +1,16 @@
+/// Shared module, second file.
+module mf.shared
+
+use std.text.{trim, to_upper}
+
+fn extra_helper(n: Int) -> Int {
+    helper(n) * 2
+}
+
+pub fn shout(text: Text) -> Text {
+    to_upper(trim(text))
+}
+
+pub fn bounded(p: Positive) -> Int {
+    helper(p)
+}

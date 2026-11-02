@@ -1,0 +1,72 @@
+module positive.divergence_and_recursion
+
+// Syntactic divergence (S24): `return` in every branch (nested blocks; the
+// `else if` chain form is in ok/ambiguous), diverging match arms, and a
+// `match` with no arms on an enum with no variants. Declaration
+// order is irrelevant and mutual recursion is permitted (S1).
+
+pub enum Never {
+}
+
+fn absurd(n: Never) -> Int {
+    match n {
+    }
+}
+
+fn absurd_text(n: Never) -> Text {
+    match n {
+    }
+}
+
+fn sign(n: Int) -> Int {
+    if n < 0 {
+        return -1
+    } else {
+        if n == 0 {
+            return 0
+        } else {
+            return 1
+        }
+    }
+}
+
+fn from_option(o: Option<Int>) -> Int {
+    match o {
+        Some(v) => { return v }
+        None => {
+            let fallback = 0
+            return fallback
+        }
+    }
+}
+
+fn is_even(n: Int) -> Bool {
+    if n == 0 { true } else { is_odd(n - 1) }
+}
+
+fn is_odd(n: Int) -> Bool {
+    if n == 0 { false } else { is_even(n - 1) }
+}
+
+fn uses_later_declaration(n: Int) -> Int {
+    declared_later(n) + later_type_user(Later(n))
+}
+
+fn declared_later(n: Int) -> Int {
+    n
+}
+
+pub type Later(Int)
+
+fn later_type_user(l: Later) -> Int {
+    match l {
+        Later(n) => n
+    }
+}
+
+fn fact(n: Int) -> Int
+    requires n >= 0
+    decreases n
+{
+    if n <= 1 { 1 } else { n * fact(n - 1) }
+}

@@ -1,0 +1,53 @@
+module positive.option_result_members
+
+// Option and Result members (stdlib 5) and the `ok_or(e)?` bridge that
+// stands in for `?` on Option (stdlib S20). Annotated lets give `None`,
+// `Ok`, and `Err` literals their missing type arguments.
+
+pub enum StoreError {
+    Missing(Text)
+    Unavailable
+}
+
+fn option_members(o: Option<Int>) -> Int {
+    let present = o.is_some()
+    let absent = o.is_none()
+    let value = o.unwrap_or(0)
+    let as_result: Result<Int, Text> = o.ok_or("missing")
+    if present and not absent and as_result.is_ok() { value } else { 0 }
+}
+
+fn result_members(r: Result<Int, StoreError>) -> Int {
+    let ok = r.is_ok()
+    let err = r.is_err()
+    let value = r.unwrap_or(0)
+    let maybe = r.ok()
+    let failure = r.err()
+    if ok and not err and maybe.is_some() and failure.is_none() { value } else { 0 }
+}
+
+fn first_or_error(xs: List<Int>) -> Result<Int, StoreError> {
+    let head = xs.first().ok_or(Unavailable)?
+    let second = xs.get(1).ok_or(Missing("second"))?
+    Ok(head + second)
+}
+
+fn literals_need_types() -> Bool {
+    let o: Option<Int> = None
+    let r: Result<Int, Text> = Err("x")
+    let s: Result<Int, Text> = Ok(1)
+    o.unwrap_or(0) == 0 and r.ok() == None and s.err() == None
+}
+
+test "option and result values" {
+    assert Some(1).unwrap_or(0) == 1
+    assert Some(2).ok_or("e") == Ok(2)
+    let none: Option<Int> = None
+    assert none.unwrap_or(0) == 0
+    assert none.ok_or("e") == Err("e")
+    let failed: Result<Int, Text> = Err("x")
+    assert failed.unwrap_or(0) == 0
+    assert failed.err() == Some("x")
+    let succeeded: Result<Int, Text> = Ok(1)
+    assert succeeded.ok() == Some(1)
+}

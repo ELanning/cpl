@@ -1,0 +1,34 @@
+/// Typed errors for the foreign boundary (design: Foreign boundary semantics).
+module std.foreign
+
+/// Classification of a failure at a foreign boundary.
+pub enum ForeignErrorKind {
+    /// The foreign code raised an exception or returned an error status.
+    Exception
+    /// An argument could not be converted to the foreign representation.
+    InvalidArgument
+    /// A foreign return value could not be converted to, or failed
+    /// validation against, the declared CPL type.
+    InvalidResult
+    /// The worker or transport failed: crash, disconnect, protocol error.
+    Transport
+    /// The call exceeded the host-imposed time limit.
+    Timeout
+    /// The call was cancelled by the host before it completed.
+    Cancelled
+    /// No adapter is bound to the capability, or host policy refused it.
+    Unavailable
+}
+
+/// One structured diagnostic detail; keys are adapter-defined.
+pub struct ForeignDetail {
+    key: Text
+    value: Text
+}
+
+/// A foreign exception or boundary failure mapped to a typed CPL error.
+pub struct ForeignError {
+    kind: ForeignErrorKind
+    message: Text
+    details: List<ForeignDetail>
+}

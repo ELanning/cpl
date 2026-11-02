@@ -1,0 +1,56 @@
+module corpus.refine
+
+// check<R>, refinement chains, ConstraintError, refinement values flowing
+// through functions: stdlib.md 1.4, 1.5, S44; semantics.md 3.3-3.5, 6.10, S34, S39.
+
+pub type Positive = Int where self > 0
+pub type Small = Positive where self < 10
+pub type Nz = Int where 10 / self > 0
+
+// why: to_positive(3) == Ok(3): the Ok payload is the same Int value;
+// refinements are erased at runtime (semantics.md 6.1), so value JSON is [3].
+// why: to_positive(0) == Err(ConstraintError { type_name: "corpus.refine.Positive",
+// message: "0 does not satisfy self > 0" }): an ordinary value, not a fault
+// (semantics.md 6.6). type_name is the qualified name of the refinement
+// declaration named at the call site (stdlib.md S44); message is
+// "<value text> does not satisfy <predicate text>" (semantics.md 6.10). Value
+// JSON of the struct: {"$type": "ConstraintError", "type_name": ..., "message": ...}
+// with the bare prelude name (toolchain.md T30).
+fn to_positive(n: Int) -> Result<Positive, ConstraintError> {
+    check<Positive>(n)
+}
+
+// why: to_small(0) names "corpus.refine.Positive" with message
+// "0 does not satisfy self > 0": the chain is evaluated from the root base
+// upward (semantics.md 6.10) and the root predicate fails first (S44's
+// worked example check<Small>(0)).
+// why: to_small(20) names "corpus.refine.Small" with message
+// "20 does not satisfy self < 10": self > 0 holds, then self < 10 fails.
+fn to_small(n: Int) -> Result<Small, ConstraintError> {
+    check<Small>(n)
+}
+
+// why: to_nz(0) is the fault division_by_zero: a fault inside a predicate
+// propagates as that fault (semantics.md 6.10, S34) rather than becoming an
+// Err; expected symbol "corpus.refine.Nz", facet "contract",
+// clause "10 / self > 0", input {"a": 10, "b": 0}.
+fn to_nz(n: Int) -> Result<Nz, ConstraintError> {
+    check<Nz>(n)
+}
+
+// why: double(0) is the fault refinement_violation: the harness decodes the
+// argument against the parameter type Positive (toolchain.md 7.3: "decoding
+// evaluates the predicate and rejects values that fail it"), and a run
+// argument that fails its predicate is this fault (semantics.md S39 (a)).
+// Expected fields: expected_type "Positive", actual 0, clause "self > 0".
+fn double(p: Positive) -> Int {
+    p * 2
+}
+
+// why: doubled(4) == Ok(8): the Positive produced by check flows into a
+// Positive parameter with no further check; the arithmetic result is base-typed
+// Int (stdlib.md 0.3) and the Ok payload is 8.
+fn doubled(n: Int) -> Result<Int, ConstraintError> {
+    let p = check<Positive>(n)?
+    Ok(double(p))
+}

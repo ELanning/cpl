@@ -1,0 +1,22 @@
+(patch-file
+  (patch paginate.body
+    (expect paginate.body)
+    (block
+      (var pages (ty List (ty List (ty T))) (list))
+      (var rest (name items))
+      (while
+        (> (member (name rest) len) (name size))
+        (invariant (== (++ (call (name flatten) (name pages)) (name rest)) (name items)))
+        (invariant (forall page (name pages) (== (member (name page) len) (name size))))
+        (decreases (member (name rest) len))
+        (block
+          (assign pages
+            (call (member (name pages) push) (call (member (name rest) take) (name size))))
+          (assign rest (call (member (name rest) drop) (name size))))
+        (trivia blank))
+      (expr
+        (if
+          (not (call (member (name rest) is_empty)))
+          (block (assign pages (call (member (name pages) push) (name rest)))))
+        (trivia blank))
+      (tail (name pages) (trivia blank)))))

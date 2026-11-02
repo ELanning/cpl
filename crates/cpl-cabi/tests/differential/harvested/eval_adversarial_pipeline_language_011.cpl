@@ -1,0 +1,111 @@
+module pl.recursion
+
+fn count(n: Int) -> Int
+    requires n >= 0
+    decreases n
+{
+    if n == 0 { 0 } else { 1 + count(n - 1) }
+}
+
+fn stays(n: Int) -> Int
+    decreases n
+{
+    if n <= 0 { 0 } else { stays(n) }
+}
+
+fn grows(n: Int) -> Int
+    decreases n
+{
+    if n > 3 { n } else { grows(n + 1) }
+}
+
+fn negative(n: Int) -> Int
+    decreases n
+{
+    if n < -5 { 0 } else { negative(n - 1) }
+}
+
+fn ping(n: Int) -> Int
+    decreases n
+{
+    if n == 0 { 0 } else { pong(n) }
+}
+
+fn pong(n: Int) -> Int {
+    ping(n)
+}
+
+fn ping_ok(n: Int) -> Int
+    decreases n
+{
+    if n == 0 { 0 } else { pong_ok(n) }
+}
+
+fn pong_ok(n: Int) -> Int {
+    ping_ok(n - 1) + 1
+}
+
+fn guarded(a: Int, b: Int) -> Int
+    requires b != 0
+    decreases a / b
+{
+    if a / b <= 0 { 0 } else { 1 + guarded(a - b, b) }
+}
+
+fn measure_faults(n: Int) -> Int
+    decreases 10 / n
+{
+    if n == 0 { 0 } else { measure_faults(n - 1) }
+}
+
+// Not recursive (the warning unused_decreases), yet its measure is still
+// evaluated on entry (S35 (a)).
+fn once(n: Int) -> Int
+    decreases n
+{
+    n
+}
+
+// The requires clause re-enters `deep` through `helper` (S33 detects only
+// direct self-calls): the nearest activation has no measure yet, so no
+// comparison is made (S35).
+fn deep(n: Int) -> Int
+    requires n == 0 or helper(n - 1) >= 0
+    decreases n
+{
+    n
+}
+
+fn helper(m: Int) -> Int {
+    deep(m)
+}
+
+fn iffy(n: Int) -> Int
+    decreases if n > 5 { n } else { n - 10 }
+{
+    if n == 0 { 0 } else { iffy(n - 1) }
+}
+
+// The ensures of an activation calls back into the function: the activation
+// is still on the stack with its measure recorded (S35).
+fn settles(n: Int) -> Int
+    ensures n == 0 or relay_down(n) >= 0
+    decreases n
+{
+    n
+}
+
+fn relay_down(n: Int) -> Int {
+    settles(n - 1)
+}
+
+fn loops_back(n: Int) -> Int
+    ensures n == 0 or relay_same(n) >= 0
+    decreases n
+{
+    n
+}
+
+fn relay_same(n: Int) -> Int {
+    loops_back(n)
+}

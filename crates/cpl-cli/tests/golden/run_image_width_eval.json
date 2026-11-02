@@ -1,0 +1,54 @@
+{
+  "command": "run",
+  "toolchain": {
+    "version": "0.1.0",
+    "edition": "0.1",
+    "json_schema": 1
+  },
+  "revision": {
+    "commit": null,
+    "state": "worktree",
+    "digest": "<digest>"
+  },
+  "status": "ok",
+  "diagnostics": [],
+  "function": {
+    "id": "reader.images.image_width",
+    "path": "reader.images.image_width",
+    "provisional": true,
+    "facets": {
+      "identity": "a5da7ab8857e3c1f94b9af53b494b6b5",
+      "name": "01e1bdb6cb3a9080a347772fd4ba67f6",
+      "signature": "05a055097c470420a1024545f1c358f0",
+      "contract": "af1349b9f5f9a1a6a0404dea36dcc949",
+      "effects": "c721501b0e66ba175648d7ed3e6d1284",
+      "body": "ff40f00a9bd7c5c2f5de5cc42b01c022",
+      "docs": "af1349b9f5f9a1a6a0404dea36dcc949",
+      "verification_policy": "af1349b9f5f9a1a6a0404dea36dcc949"
+    },
+    "definition": "e42a87b853384285d6fbeb3a9a246888"
+  },
+  "arguments": [
+    {
+      "$type": "Bytes",
+      "hex": "494d475480020000e0010000"
+    }
+  ],
+  "result": {
+    "$payload": [
+      640
+    ],
+    "$type": "Result",
+    "$variant": "Ok"
+  },
+  "result_text": "Ok(640)",
+  "fault": null,
+  "bindings": [
+    {
+      "parameter": "codec",
+      "binding": "image_codec",
+      "handle": 0,
+      "inputs": "1536a7a5f1597b0911b1f8a784b119f99c3481a5926c72311995f0a9a0ee73ff"
+    }
+  ]
+}

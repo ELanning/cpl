@@ -1,0 +1,8 @@
+module cases.lib
+
+// Directory case: the test namespace is per module across all of its files
+// (S3); the later file's test carries the primary span.
+
+test "empty input" {
+    assert true
+}

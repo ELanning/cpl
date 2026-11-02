@@ -1,0 +1,32 @@
+module negative.generator_outside_for
+
+// A Gen<T> expression anywhere but a `for` range or a `std.gen` argument is
+// `generator_outside_for` (S14, stdlib S28; stdlib 12: `let g = gen.int`).
+// (`gen.int == gen.int` is in errors/ambiguous: one or two diagnostics.)
+
+fn a() -> Int {
+    let _ = gen.int // expect-error: generator_outside_for
+    1
+}
+
+fn b() -> Int {
+    let _ = gen.list(gen.int) // expect-error: generator_outside_for
+    1
+}
+
+fn c() -> Int {
+    let _ = [gen.bool] // expect-error: generator_outside_for
+    1
+}
+
+fn takes(n: Int) -> Int {
+    n
+}
+
+fn e() -> Int {
+    takes(gen.int) // expect-error: generator_outside_for
+}
+
+fn f() -> List<Int> {
+    [gen.range(0, 1).len] // expect-error: generator_outside_for
+}

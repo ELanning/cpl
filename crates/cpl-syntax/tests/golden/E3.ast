@@ -1,0 +1,18 @@
+(module holes.pages
+  (fn paginate pub
+    (annotation id (text "pgn_7c2d"))
+    (annotation prove)
+    (generics T)
+    (params (param items (ty List (ty T))) (param size (ty Positive)))
+    (ret (ty List (ty List (ty T))))
+    (ensures (== (call (name flatten) (name result)) (name items)))
+    (ensures
+      (forall page
+        (name result)
+        (and (> (member (name page) len) (int 0)) (<= (member (name page) len) (name size)))))
+    (ensures
+      (forall page
+        (call (member (name result) drop_last))
+        (== (member (name page) len) (name size))))
+    (block (tail (hole build_pages)))
+    (trivia blank)))

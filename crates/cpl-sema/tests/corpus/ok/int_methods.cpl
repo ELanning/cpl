@@ -1,0 +1,22 @@
+module positive.int_methods
+
+// The Int member table (stdlib 2.3): to_text, abs, min, max; member lookup
+// through a refinement uses the root base's table (stdlib S38).
+
+pub type Positive = Int where self > 0
+
+fn describe(n: Int, p: Positive) -> Text {
+    let magnitude = n.abs()
+    let smaller = n.min(p)
+    let larger = p.max(n)
+    let through_refinement = p.to_text()
+    magnitude.to_text() ++ smaller.to_text() ++ larger.to_text() ++ through_refinement
+}
+
+test "int member values" {
+    assert (-5).abs() == 5
+    assert 3.min(5) == 3
+    assert (-3).max(0) == 0
+    assert (-5).to_text() == "-5"
+    assert 1_000.to_text() == "1000"
+}

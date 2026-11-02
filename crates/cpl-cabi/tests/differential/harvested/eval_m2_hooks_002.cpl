@@ -1,0 +1,5 @@
+module rq.main
+
+pub fn f(xs: List<Int>) -> List<Int> {
+    xs.take(-1)
+}

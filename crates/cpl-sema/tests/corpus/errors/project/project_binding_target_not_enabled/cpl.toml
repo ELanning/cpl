@@ -1,0 +1,11 @@
+[project]
+name = "project_binding_target_not_enabled"
+edition = "0.1"
+
+[interop]
+targets = ["node"]
+
+[bindings.codec]
+capability = "cases.lib.Codec"
+backend = "python"
+adapter = "adapters.codec"

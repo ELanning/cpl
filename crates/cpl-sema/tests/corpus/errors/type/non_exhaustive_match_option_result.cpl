@@ -1,0 +1,21 @@
+module negative.non_exhaustive_match_option_result
+
+// Option and Result are ordinary enums for exhaustiveness (S25).
+
+fn a(o: Option<Int>) -> Int {
+    match o { // expect-error: non_exhaustive_match
+        Some(v) => v
+    }
+}
+
+fn b(r: Result<Int, Text>) -> Int {
+    match r { // expect-error: non_exhaustive_match
+        Err(_) => 0
+    }
+}
+
+fn c(o: Option<Int>) -> Int {
+    match o { // expect-error: non_exhaustive_match
+        None => 0
+    }
+}

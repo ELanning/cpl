@@ -1,0 +1,41 @@
+/// Property generators; in scope as gen in every module (S1).
+module std.gen
+
+/// The type of generators; not nameable outside std (S28).
+@builtin("gen")
+pub type Gen<T>
+
+/// Structurally the same type as any user refinement Int where self > 0 (S29).
+pub type Positive = Int where self > 0
+
+/// Integers, scaled by the case size; see stdlib.md 8.3.
+@property
+@builtin("gen_int")
+pub fn int() -> Gen<Int>
+
+/// Integers >= 1.
+@property
+@builtin("gen_positive_int")
+pub fn positive_int() -> Gen<Positive>
+
+@property
+@builtin("gen_bool")
+pub fn bool() -> Gen<Bool>
+
+/// Texts of length <= size over a fixed alphabet (8.3).
+@property
+@builtin("gen_text")
+pub fn text() -> Gen<Text>
+
+/// Lists of length <= size with elements from element.
+@builtin("gen_list")
+pub fn list<T>(element: Gen<T>) -> Gen<List<T>>
+
+/// None one time in four, else Some of a draw from element.
+@builtin("gen_option")
+pub fn option<T>(element: Gen<T>) -> Gen<Option<T>>
+
+/// Uniform integers in lo..hi inclusive; the size is ignored.
+@builtin("gen_range")
+pub fn range(lo: Int, hi: Int) -> Gen<Int>
+    requires lo <= hi

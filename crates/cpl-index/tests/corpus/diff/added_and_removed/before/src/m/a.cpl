@@ -1,0 +1,13 @@
+module m.a
+
+pub fn keep() -> Int {
+    1
+}
+
+fn gone() -> Int {
+    2
+}
+
+test "old test" {
+    assert keep() == 1
+}

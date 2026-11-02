@@ -1,0 +1,28 @@
+module negative.cannot_prove_refinement_propagate
+
+// Ruling [D-251] (semantics S73, 3.8): `e?` in a function whose declared
+// return type is a refinement is `cannot_prove_refinement` at the `?`. The
+// propagated `Err` is an implicit `return Err(x)`, and a propagated value is
+// never a constant expression, so it would leave the function at the
+// refinement without a proof. The success path is checked against the
+// refinement as always: a constant tail is proved (`a`), a tail that is not
+// a constant is a second `cannot_prove_refinement` (`b`). A `?` in a
+// function that returns the refinement's base is accepted (`c`).
+
+pub type OkOnly = Result<Int, Text> where match self {
+    Ok(_) => true
+    Err(_) => false
+}
+
+fn a(r: Result<Int, Text>) -> OkOnly {
+    let _n = r? // expect-error: cannot_prove_refinement
+    Ok(1)
+}
+
+fn b(r: Result<Int, Text>) -> OkOnly {
+    Ok(r?) // expect-error: cannot_prove_refinement, cannot_prove_refinement
+}
+
+fn c(r: Result<Int, Text>) -> Result<Int, Text> {
+    Ok(r? + 1)
+}

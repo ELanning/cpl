@@ -1,0 +1,11 @@
+module ids.a
+
+@id("fn_gggggggggggggggg")
+pub fn retagged() -> Int {
+    1
+}
+
+@id("fn_hhhhhhhhhhhhhhhh")
+pub fn tagged_later() -> Int {
+    2
+}

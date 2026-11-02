@@ -1,0 +1,10 @@
+module negative.duplicate_annotation
+
+// Each annotation at most once per declaration (semantics 1.8). The second
+// occurrence is the primary span.
+
+@id("fn_one2mb9ptx4vek7w3")
+@id("fn_two2mb9ptx4vek7w3") // expect-error: duplicate_annotation
+fn twice(n: Int) -> Int {
+    n
+}

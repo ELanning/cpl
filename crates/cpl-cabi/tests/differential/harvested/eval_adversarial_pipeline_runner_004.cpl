@@ -1,0 +1,26 @@
+module tests.seeds
+
+property "p"
+    for x in gen.int
+{
+    assert x == x
+}
+
+@id("prop_seed_a1")
+property "q"
+    for x in gen.int
+{
+    assert x == x
+}
+
+property "nl\nq\"b\\t\tu\u{1}e\u{e9}"
+    for x in gen.int
+{
+    assert x == x
+}
+
+property "cr\rnul\u{0}"
+    for x in gen.int
+{
+    assert x == x
+}

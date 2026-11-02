@@ -1,0 +1,46 @@
+module positive.equality_erasure
+
+// `==` requires erase-identical operand types (S17): refinements compare
+// with their bases at any depth, wrappers by payload, structs field by
+// field, enums by variant; `[]`, `None`, and `Err(...)` on the right take
+// their type from the left operand (3.6).
+
+pub type Positive = Int where self > 0
+pub type PageId(Text)
+
+pub struct Page {
+    id: PageId
+    text: Text
+}
+
+pub enum StoreError {
+    Missing(PageId)
+    Unavailable
+}
+
+fn erased(ps: List<Positive>, ns: List<Int>, p: Positive, n: Int) -> Bool {
+    let lists = ps == ns and ns == ps
+    let scalars = p == n and n == p and p == 3 and 3 == p
+    let options: Option<Positive> = Some(p)
+    let base_option: Option<Int> = Some(n)
+    let nested = options == base_option
+    let results: Result<Positive, Text> = Ok(p)
+    let base_results: Result<Int, Text> = Ok(n)
+    lists and scalars and nested and results == base_results
+}
+
+fn nominal(a: Page, b: Page, e: StoreError) -> Bool {
+    let pages = a == b
+    let ids = a.id == PageId("x")
+    let errors = e == Unavailable or e == Missing(PageId("y"))
+    let constraint = ConstraintError { type_name: "Int", message: "m" } == ConstraintError { type_name: "Int", message: "m" }
+    pages and ids and errors and constraint
+}
+
+fn literal_on_the_right(xs: List<Int>, o: Option<Int>, r: Result<Int, Text>) -> Bool {
+    xs == [] and o == None and r == Err("e") and r != Ok(1) and xs != [1]
+}
+
+fn generic_equality<T>(a: T, b: T, xs: List<T>) -> Bool {
+    a == b and xs == [a] and xs != []
+}

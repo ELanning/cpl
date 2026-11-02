@@ -1,0 +1,11 @@
+[project]
+name = "project_binding_unknown_capability"
+edition = "0.1"
+
+[interop]
+targets = ["python"]
+
+[bindings.codec]
+capability = "cases.lib.Nope"
+backend = "python"
+adapter = "adapters.codec"

@@ -1,0 +1,18 @@
+module negative.duplicate_test_name
+
+// Test and property names share one test namespace per module (S3, S42).
+// The later declaration carries the primary span.
+
+test "pagination handles empty input" {
+    assert true
+}
+
+test "pagination handles empty input" { // expect-error: duplicate_test_name
+    assert true
+}
+
+property "pagination handles empty input" // expect-error: duplicate_test_name
+    for n in gen.int
+{
+    assert n == n
+}

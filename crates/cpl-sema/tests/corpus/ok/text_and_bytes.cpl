@@ -1,0 +1,58 @@
+module positive.text_and_bytes
+
+// Text and Bytes members (`len` property, `is_empty()` method, `++`, `==`),
+// the std.text and std.bytes functions by import and by fully qualified
+// path (no `use` needed for a qualified chain, S1), and the ConstraintError
+// results of the parsers.
+
+use std.text.{trim, parse_int, split}
+
+fn text_members(t: Text) -> Int {
+    let n = t.len
+    let e = t.is_empty()
+    let joined = t ++ " " ++ t
+    if e { 0 } else { n + joined.len }
+}
+
+fn text_functions(t: Text) -> Text {
+    let tidy = trim(t)
+    let parts = split(tidy, ",")
+    let joined = std.text.join(parts, ";")
+    let upper = std.text.to_upper(joined)
+    let lower = std.text.to_lower(upper)
+    let starts = std.text.starts_with(lower, "a")
+    let ends = std.text.ends_with(lower, "z")
+    let has = std.text.contains(lower, "m")
+    let chars = std.text.chars(lower)
+    let trimmed = std.text.trim_start(std.text.trim_end(lower))
+    if starts or ends or has { trimmed } else { std.text.from_int(chars.len) }
+}
+
+fn parsing(t: Text) -> Result<Int, ConstraintError> {
+    let n = parse_int(trim(t))?
+    Ok(n + std.text.parse_int("42")?)
+}
+
+fn rendering(n: Int) -> Text {
+    n.to_text() ++ std.text.from_int(n)
+}
+
+fn bytes(values: List<Int>) -> Result<Text, ConstraintError> {
+    let b = std.bytes.from_list(values)
+    let back = std.bytes.to_list(b)
+    let encoded = std.bytes.from_text("héllo")
+    let both = b ++ encoded
+    let same = both == b or both.is_empty()
+    let n = both.len + back.len
+    if same or n > 0 { std.bytes.to_text(encoded) } else { Ok("") }
+}
+
+test "text values" {
+    assert "héllo".len == 5
+    assert "".is_empty()
+    assert trim("  5 ") == "5"
+    assert split("a,b", ",") == ["a", "b"]
+    assert parse_int("42") == Ok(42)
+    assert parse_int("x").is_err()
+    assert std.text.join([], ",") == ""
+}

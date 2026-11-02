@@ -1,0 +1,14 @@
+module tests.codes
+
+fn guard(n: Int) -> Int
+    requires n != 3
+    ensures result < 5
+{
+    n
+}
+
+property "guarded"
+    for n in gen.range(0, 40)
+{
+    let _ = guard(n)
+}

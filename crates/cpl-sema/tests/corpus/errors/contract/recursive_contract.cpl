@@ -1,0 +1,21 @@
+module negative.recursive_contract
+
+// A contract clause may not call the declaration it belongs to (S33).
+
+fn a(n: Int) -> Int
+    requires a(n) > 0 // expect-error: recursive_contract
+{
+    n
+}
+
+fn b(n: Int) -> Int
+    ensures result == b(n) // expect-error: recursive_contract
+{
+    n
+}
+
+fn c(n: Int) -> Int
+    decreases c(n) // expect-error: recursive_contract
+{
+    if n > 0 { c(n - 1) } else { 0 }
+}

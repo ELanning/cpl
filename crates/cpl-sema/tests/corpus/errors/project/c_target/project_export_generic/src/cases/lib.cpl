@@ -1,0 +1,13 @@
+module cases.lib
+
+// Directory case: a generic export target; its note names the monomorphic
+// caller `cases.lib.first_flag` (toolchain 11.1, spec/cabi.md 5.6).
+// expect-error(global): project_export_generic
+
+pub fn first<T>(items: List<T>) -> Option<T> {
+    None
+}
+
+pub fn first_flag(flags: List<Bool>) -> Option<Bool> {
+    first(flags)
+}

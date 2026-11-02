@@ -1,0 +1,64 @@
+module app.shapes
+
+use std.foreign.{ForeignError}
+
+pub type Positive = Int where self > 0
+
+pub struct Size {
+    w: Int
+    h: Int
+    flag: Bool
+}
+
+pub capability Shapes {
+    fn scale(size: Size, label: Text, twice: Bool) -> Result<Size, ForeignError>
+    fn upper(text: Text) -> Result<Text, ForeignError>
+    fn is_even(n: Int) -> Bool
+    fn touch() -> Unit
+    fn count() -> Int
+    fn check(v: Int) -> Result<Unit, ForeignError>
+    fn parity(n: Int) -> Positive
+}
+
+pub fn scale_of(size: Size, label: Text, twice: Bool, using shapes: Shapes) -> Result<Size, ForeignError>
+    effects { shapes.scale }
+{
+    shapes.scale(size, label, twice)
+}
+
+pub fn upper_of(text: Text, using shapes: Shapes) -> Result<Text, ForeignError>
+    effects { shapes.upper }
+{
+    shapes.upper(text)
+}
+
+pub fn is_even_of(n: Int, using shapes: Shapes) -> Bool
+    effects { shapes.is_even }
+{
+    shapes.is_even(n)
+}
+
+pub fn touched(times: Int, using shapes: Shapes) -> Int
+    effects { shapes.touch, shapes.count }
+{
+    if times > 0 {
+        shapes.touch()
+    }
+    if times > 1 {
+        shapes.touch()
+    }
+    shapes.count()
+}
+
+pub fn check_of(v: Int, using shapes: Shapes) -> Result<Unit, ForeignError>
+    effects { shapes.check }
+{
+    shapes.check(v)
+}
+
+// a refined result without a ForeignError arm: 0 (an odd n) is the refinement_violation of semantics S77
+pub fn parity_of(n: Int, using shapes: Shapes) -> Positive
+    effects { shapes.parity }
+{
+    shapes.parity(n)
+}

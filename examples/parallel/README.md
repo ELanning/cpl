@@ -31,5 +31,9 @@ samples and their median for each workload, separates compiler/startup
 cost, and checks that the native runtime releases every object and handle.
 Run it without other CPU-heavy jobs. The native timings include its driver
 protocol and result transfer, so large returned lists have a transfer cost.
+`contains_scan` searches a 10,000-element list 100 times for a missing
+integer. `equality_scan` compares two 10,000-element lists that differ at
+their first element 1,000 times; `equality_equal` compares equal, separately
+allocated lists 100 times. These also expose interpreter equality costs.
 See the [language amendment](../../spec/parallelism.md) for purity,
 cancellation, and bounded application mailboxes.

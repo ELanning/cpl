@@ -67,6 +67,30 @@ pure fn text_scan(text: Text, n: Int) -> Int {
     total
 }
 
+pure fn contains_scan(items: List<Int>, needle: Int, n: Int) -> Int {
+    var i = 0
+    var total = 0
+    while i < n {
+        if items.contains(needle) {
+            total = total + 1
+        }
+        i = i + 1
+    }
+    total
+}
+
+pure fn equality_scan(a: List<Int>, b: List<Int>, n: Int) -> Int {
+    var i = 0
+    var total = 0
+    while i < n {
+        if a == b {
+            total = total + 1
+        }
+        i = i + 1
+    }
+    total
+}
+
 test "parallel maps retain input order" {
     assert captured([3, 0, 2], 7) == [13, 7, 11]
     assert nested([10, 20]) == [[11, 12, 13], [21, 22, 23]]

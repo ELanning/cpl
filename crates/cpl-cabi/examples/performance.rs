@@ -35,20 +35,49 @@ fn main() {
         let startup_ms = start.elapsed().as_secs_f64() * 1000.0;
         let mut eval = Interpreter::new(p, cfg);
         let mut rows = Vec::new();
-        for (name, args) in [
-            ("work", vec![Value::int(100_000)]),
-            ("build", vec![Value::int(10_000)]),
+        for (name, function, args) in [
+            ("work", "work", vec![Value::int(100_000)]),
+            ("build", "build", vec![Value::int(10_000)]),
             (
+                "text_scan",
                 "text_scan",
                 vec![Value::text(&"abcλ🙂".repeat(4000)), Value::int(10_000)],
             ),
             (
                 "batches",
+                "batches",
                 vec![Value::list((0..8).map(|_| Value::int(100_000)).collect())],
+            ),
+            (
+                "contains_scan",
+                "contains_scan",
+                vec![
+                    Value::list((0..10_000).map(Value::int).collect()),
+                    Value::int(-1),
+                    Value::int(100),
+                ],
+            ),
+            (
+                "equality_scan",
+                "equality_scan",
+                vec![
+                    Value::list((0..10_000).map(Value::int).collect()),
+                    Value::list((-1..9_999).map(Value::int).collect()),
+                    Value::int(1_000),
+                ],
+            ),
+            (
+                "equality_equal",
+                "equality_scan",
+                vec![
+                    Value::list((0..10_000).map(Value::int).collect()),
+                    Value::list((0..10_000).map(Value::int).collect()),
+                    Value::int(100),
+                ],
             ),
         ] {
             let id = p
-                .lookup(&cpl_diag::SymbolPath::parse(&format!("compute.{name}")).unwrap())
+                .lookup(&cpl_diag::SymbolPath::parse(&format!("compute.{function}")).unwrap())
                 .unwrap();
             let expected = eval.call_checked(id, args.clone(), vec![]).unwrap();
             assert_eq!(

@@ -190,6 +190,27 @@ fn equality_of_deep_values_does_not_recurse() {
     assert!(!a.structurally_equal(&c));
 }
 
+#[test]
+fn equality_checks_remaining_siblings_after_nested_and_shared_values() {
+    let r = reader();
+    let shared = ints(&[1, 2, 3]);
+    let tree = |last| {
+        list(vec![
+            nat(r.store_error, 2_000, 7),
+            shared.clone(),
+            Value::empty_list(),
+            Value::wrap(r.page_id, text("same")),
+            ints(&[last]),
+        ])
+    };
+    let a = tree(5);
+    assert!(a.structurally_equal(&tree(5)));
+    assert!(!a.structurally_equal(&tree(6)));
+    let wide = list((0..10_000).map(int).collect());
+    assert!(wide.structurally_equal(&list((0..10_000).map(int).collect())));
+    assert!(!wide.structurally_equal(&list((-1..9_999).map(int).collect())));
+}
+
 /// Run `f` on a thread with a 256 KiB stack, far less than a recursion over
 /// the 200 000 levels of the values below would need.
 fn on_small_stack(f: impl FnOnce() + Send) {

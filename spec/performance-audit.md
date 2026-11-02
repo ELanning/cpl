@@ -204,3 +204,38 @@ Native/reference comparisons pass with one and four workers, including
 cancellation of infinite tasks without a deadline. Direct checkpoint
 regressions cover host cancellation, parallel failure ordering, and time
 exhaustion. Strict Clippy, formatting, and whitespace checks pass.
+
+## Follow-up: lazy structural equality
+
+The evaluator now compares the first value directly and queues slices of
+remaining children only when needed. Scalar comparisons and shared
+buffers allocate no traversal stack. Flat lists no longer enqueue every
+element before checking the first one; traversal memory follows nesting
+depth rather than list width. Comparison and destruction remain iterative.
+
+The benchmark now includes a missing-element search over 10,000 integers
+repeated 100 times, first-element mismatches between two 10,000-element
+lists repeated 1,000 times, and full equal-list comparisons repeated 100
+times. Both sides use the same expanded benchmark and the preceding two
+optimizations. Five warmed samples with four workers give:
+
+| Workload | Eval before, ms | Eval after, ms | Before / after |
+| - | -: | -: | -: |
+| `contains_scan` | 9.723 | 2.690 | 3.61× |
+| `equality_scan` | 3.226 | 0.400 | 8.07× |
+| `equality_equal` | 3.355 | 3.453 | 0.97× |
+
+Full equal-list traversal shows no speedup. These changes affect reference
+evaluation; native equality code is unchanged. Raw samples:
+[before](benchmarks/2026-11-01-equality-before-4.json),
+[after](benchmarks/2026-11-01-equality-after-4.json).
+
+Validation: **3,303 workspace tests pass across the main run and targeted
+reruns**, including C, Python, ASan/UBSan, TSan, deep-value protocol round
+trips, and the 200,000-level equality regressions. Three long differential
+and fuzz campaigns were filtered from this follow-up run. Cached syntax
+and runtime-specification test binaries still named the repository's old
+path; rebuilding those packages resolved the missing-file failures. The
+syntax golden now includes the two added benchmark functions. The example
+passes its locked release check, and strict workspace Clippy, Rust/CPL
+formatting, and whitespace checks pass.

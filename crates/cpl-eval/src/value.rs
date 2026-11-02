@@ -292,12 +292,14 @@ impl Value {
     /// called on capabilities, which have no `==` (rejected statically);
     /// two handles compare by identity.
     ///
-    /// The comparison runs on an explicit work list, so deeply nested
-    /// values (a long chain of a recursive enum) cannot exhaust the host
-    /// stack; shared buffers compare equal without being walked.
+    /// The comparison runs on an explicit stack of remaining slices, so
+    /// deeply nested values cannot exhaust the host stack and a wide list
+    /// is visited only as far as its first difference. Scalars and shared
+    /// buffers need no work allocation.
     pub fn structurally_equal(&self, other: &Value) -> bool {
-        let mut work: Vec<(&Value, &Value)> = vec![(self, other)];
-        while let Some((a, b)) = work.pop() {
+        let mut work: Vec<(&[Value], &[Value])> = Vec::new();
+        let (mut a, mut b) = (self, other);
+        loop {
             let same = match (a, b) {
                 (Value::Int(x), Value::Int(y)) => x == y,
                 (Value::Bool(x), Value::Bool(y)) => x == y,
@@ -328,7 +330,7 @@ impl Value {
                 ) => d1 == d2 && v1 == v2 && pairwise(p1, p2, &mut work),
                 (Value::Wrapper { def: d1, inner: i1 }, Value::Wrapper { def: d2, inner: i2 }) => {
                     if d1 == d2 && !Rc::ptr_eq(i1, i2) {
-                        work.push((i1, i2));
+                        work.push((std::slice::from_ref(&**i1), std::slice::from_ref(&**i2)));
                     }
                     d1 == d2
                 }
@@ -338,8 +340,17 @@ impl Value {
             if !same {
                 return false;
             }
+            let Some((xs, ys)) = work.pop() else {
+                return true;
+            };
+            // Only nonempty, equal-length slices enter the stack. Defer
+            // their remaining siblings while visiting the next pair.
+            a = &xs[0];
+            b = &ys[0];
+            if xs.len() > 1 {
+                work.push((&xs[1..], &ys[1..]));
+            }
         }
-        true
     }
 
     /// `a ++ b` on `List`, `Text`, and `Bytes` (stdlib 3.3, 3.4, 4.2; S12):
@@ -380,25 +391,18 @@ impl Value {
     }
 }
 
-/// Queue the element pairs of two equal-length sequences; false when the
+/// Queue two nonempty, equal-length sequences; false when the
 /// lengths differ. A buffer shared by both sides is equal to itself.
 fn pairwise<'a, T: AsRef<[Value]> + ?Sized>(
     xs: &'a Rc<T>,
     ys: &'a Rc<T>,
-    work: &mut Vec<(&'a Value, &'a Value)>,
+    work: &mut Vec<(&'a [Value], &'a [Value])>,
 ) -> bool {
     if xs.as_ref().as_ref().len() != ys.as_ref().as_ref().len() {
         return false;
     }
-    if !Rc::ptr_eq(xs, ys) {
-        // Reversed so that the pairs are popped (compared) left to right.
-        work.extend(
-            xs.as_ref()
-                .as_ref()
-                .iter()
-                .zip(ys.as_ref().as_ref().iter())
-                .rev(),
-        );
+    if !Rc::ptr_eq(xs, ys) && !xs.as_ref().as_ref().is_empty() {
+        work.push((xs.as_ref().as_ref(), ys.as_ref().as_ref()));
     }
     true
 }

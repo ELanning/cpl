@@ -325,9 +325,9 @@ impl<'p> Interpreter<'p> {
     fn eval_unary(&mut self, op: UnaryOp, operand: &'p Expr, span: Span) -> Eval<Value> {
         match op {
             UnaryOp::Not => Ok(Value::Bool(!self.eval_bool(operand)?)),
-            UnaryOp::Neg => match &self.eval_expr(operand)? {
-                Value::Int(n) => Ok(Value::Int(arith::negate(n))),
-                other => self.confusion("an Int", other, span),
+            UnaryOp::Neg => match self.eval_expr(operand)?.into_int() {
+                Ok(n) => Ok(Value::Int(-n)),
+                Err(other) => self.confusion("an Int", &other, span),
             },
         }
     }
@@ -348,8 +348,30 @@ impl<'p> Interpreter<'p> {
             BinaryOp::Or => return Ok(Value::Bool(self.eval_bool(lhs)? || self.eval_bool(rhs)?)),
             _ => {}
         }
-        let a = self.eval_expr(lhs)?;
+        // Reading two integer leaves cannot run code or change bindings, so
+        // their limb buffers can be borrowed directly. Any other expression
+        // follows the ordinary left-to-right path below.
+        if op != BinaryOp::Concat {
+            if let (Some(a), Some(b)) = (self.int_leaf(lhs), self.int_leaf(rhs)) {
+                return self.eval_int_binary(op, a, b, span);
+            }
+        }
+        let mut a = self.eval_expr(lhs)?;
         let b = self.eval_expr(rhs)?;
+        // These temporaries are owned: updating the left integer reuses its
+        // limb buffer without changing a local or any immutable snapshot.
+        // Evaluate both operands first, preserving mutations and fault order.
+        if op != BinaryOp::Concat {
+            if let (Value::Int(x), Value::Int(y)) = (&mut a, &b) {
+                match op {
+                    BinaryOp::Add => *x += y,
+                    BinaryOp::Sub => *x -= y,
+                    BinaryOp::Mul => *x *= y,
+                    _ => return self.eval_int_binary(op, x, y, span),
+                }
+                return Ok(a);
+            }
+        }
         match op {
             BinaryOp::Eq => Ok(Value::Bool(a.structurally_equal(&b))),
             BinaryOp::Ne => Ok(Value::Bool(!a.structurally_equal(&b))),
@@ -364,24 +386,34 @@ impl<'p> Interpreter<'p> {
                     span,
                 ),
             },
-            _ => match (&a, &b) {
-                (Value::Int(x), Value::Int(y)) => match arith::binary(op, x, y) {
-                    Ok(v) => Ok(v),
-                    Err(fault) => self.raise(fault, Some(span)),
-                },
-                _ => self.internal(
-                    "type_confusion",
-                    render(
-                        &messages::DETAIL_TYPE_CONFUSION_OPERATOR,
-                        &[
-                            ("operator", op.symbol()),
-                            ("lhs", a.kind_name()),
-                            ("rhs", b.kind_name()),
-                        ],
-                    ),
-                    span,
+            _ => self.internal(
+                "type_confusion",
+                render(
+                    &messages::DETAIL_TYPE_CONFUSION_OPERATOR,
+                    &[
+                        ("operator", op.symbol()),
+                        ("lhs", a.kind_name()),
+                        ("rhs", b.kind_name()),
+                    ],
                 ),
-            },
+                span,
+            ),
+        }
+    }
+
+    fn int_leaf<'a>(&'a self, e: &'a Expr) -> Option<&'a BigInt> {
+        match &e.kind {
+            ExprKind::Lit(Lit::Int(n)) => Some(n),
+            ExprKind::Local(id) => self.env().values.get(id.0 as usize)?.as_ref()?.as_int(),
+            ExprKind::Widen { expr, .. } => self.int_leaf(expr),
+            _ => None,
+        }
+    }
+
+    fn eval_int_binary(&self, op: BinaryOp, a: &BigInt, b: &BigInt, span: Span) -> Eval<Value> {
+        match arith::binary(op, a, b) {
+            Ok(value) => Ok(value),
+            Err(fault) => self.raise(fault, Some(span)),
         }
     }
 

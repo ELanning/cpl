@@ -147,3 +147,33 @@ The public C API layout is unchanged; Rust embedders using the previous
 `Value::List(Rc<[Value]>)` payload should use `Value::list`/`as_list` instead.
 These finite tests are evidence for this implementation on Linux x86_64,
 not proof of universal speed, cross-platform behavior, or absence of bugs.
+
+## Follow-up: evaluator integer allocation
+
+Integer operators now borrow literal/local operands when both reads cannot
+execute code, including erased widening. Other arithmetic evaluates both
+operands left to right, then reuses the owned left temporary's limb buffer
+for addition, subtraction, and multiplication. Negation consumes its
+temporary. Locals and shared snapshots remain immutable; division faults
+retain their operands, location, and evaluation order.
+
+On the same machine, with four workers and five warmed release samples:
+
+| Workload | Eval before, ms | Eval after, ms | Before / after |
+| - | -: | -: | -: |
+| `work` | 37.042 | 24.357 | 1.52× |
+| `build` | 1.389 | 0.954 | 1.46× |
+| `text_scan` | 2.364 | 1.837 | 1.29× |
+| `batches` | 76.509 | 60.676 | 1.26× |
+
+These measurements compare the initial repository commit with the integer
+allocation change, using the same benchmark sources and configuration.
+Native code is unchanged. Raw samples:
+[before](benchmarks/2026-11-01-integer-before-4.json),
+[after](benchmarks/2026-11-01-integer-after-4.json).
+
+Validation: the complete `cpl-eval` suite, focused native/reference
+comparisons under ASan/UBSan (including 2,000 seeded arbitrary-precision
+arithmetic cases), strict Clippy for all evaluator targets, formatting,
+and whitespace checks pass. New regressions cover immutable operands,
+256-bit integers, right-operand mutation, and division fault locations.

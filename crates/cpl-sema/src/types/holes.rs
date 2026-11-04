@@ -231,7 +231,7 @@ pub(crate) fn report(cx: &mut Checker<'_>, mut holes: Vec<(HoleReport, HoleSite,
             .with_data("expected_type", expected);
             e = blame(e, cx, report.def, Some(Facet::Body));
             cx.emit(Stage::ReleasePolicy, e);
-            cx.fail(report.def);
+            cx.release_failed.push(report.def);
         } else {
             let mut d = d;
             if release {

@@ -6,17 +6,16 @@
 //! established (`cpl_index::Index::prove`): the `ProveOutput` with its
 //! verification receipt (Section 8.1), and one `verification_result`
 //! diagnostic (info, semantics S36) whose `receipt` is the receipt's
-//! `core`. Milestone 1 has no verifier: every function's result is
-//! `unknown`, every obligation `unknown` with `reason:
-//! "verifier_unavailable"` (except the refinements the type checker
-//! established, `proved` with `{"by": "literal"}`), and the receipt names
-//! the verifier `{ "name": "none", "version": null }`. The receipt's
-//! `duration_ms` is the time the obligations and the receipt took.
+//! `core`. The verifier (`cpl_prove`, `spec/verification.md`) decides every
+//! obligation (the refinements the type checker established stay `proved`
+//! with `{"by": "literal"}`), and the receipt names it with its version.
+//! The receipt's `duration_ms` is the time the obligations and the receipt
+//! took.
 //!
 //! | Outcome | Code | Exit |
 //! | - | - | - |
-//! | every obligation proved (`proved`, `conditional`; from Milestone 5) | `verification_result` | 0 |
-//! | `unknown` or `failed` (always `unknown` in Milestone 1) | `verification_result`; envelope `status: unsuccessful`, `result` tells them apart (T44) | 1 |
+//! | every obligation proved, termination known, no typed hole (`proved`; `conditional` from Milestone 5) | `verification_result` | 0 |
+//! | `unknown` or `failed` | `verification_result`; envelope `status: unsuccessful`, `result` tells them apart (T44) | 1 |
 //! | the project does not check | its errors and warnings; nothing is proved | 1 |
 //! | the target is not a function | `usage_not_provable` | 2 |
 //! | it names nothing, or a bare name names several declarations | `index_unknown_symbol`, `index_ambiguous_symbol` | 2 |
@@ -25,7 +24,7 @@
 //!
 //! ```text
 //! prove reader.pages.paginate (pgn_7c2d): unknown
-//!   10 obligations: 0 proved, 0 failed, 10 unknown (verifier unavailable in cpl 0.1.0)
+//!   10 obligations: 4 proved, 0 failed, 6 unknown
 //!   receipt: 7e1c…  (blake3 of the receipt)
 //! ```
 //!

@@ -11,6 +11,10 @@ open is recorded as a numbered decision.
 
 ## The documents
 
+The 2026-11-04 [verification amendment](verification.md) adds the
+automatic verifier behind `cpl prove`, `@prove`, and receipts, and
+behavioral equivalence of two versions of a function.
+
 The 2026-11-03 [concurrency amendment](concurrency.md) adds `concurrent`
 task blocks whose effect footprints are checked to commute, and
 `@read_only` capability operations.
@@ -27,6 +31,7 @@ legacy source compatible. The later [parallelism and performance amendment](para
 
 | File | Covers | Owns |
 | - | - | - |
+| `verification.md` | the verifier: obligation verdicts, function statuses, equivalence of versions | verification amendment |
 | `concurrency.md` | `concurrent { }` task blocks, effect footprints, `@read_only` operations, execution and replay | effectful structured concurrency amendment |
 | `evolution.md` | checked transformations, semantic merge, grants, evidence, differential testing, queries, exploration, protocol types, migrations, effectful task scopes | program evolution amendment and `cpl-evolve` APIs |
 | `parallelism.md` | structured parallel expressions, task cancellation, bounded machine mailboxes, optimization passes | application concurrency and performance amendment |

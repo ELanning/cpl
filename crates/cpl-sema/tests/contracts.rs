@@ -313,9 +313,10 @@ fn checks_itself(n: Int) -> Int
     assert_eq!(m[1]["span"]["col"], json!(9), "the loop, from `while`");
 }
 
-/// S36: one `verification_result` (info, `unknown`, `verifier_unavailable`)
-/// per `@prove` declaration at its name, mirrored by
-/// `CheckResult::verification`; a missing measure adds a termination note.
+/// S36: one `verification_result` (info) per `@prove` declaration at its
+/// name, with the verifier's status, mirrored by `CheckResult::verification`;
+/// a missing measure leaves termination unknown (`no_measure`) and adds a
+/// termination note.
 #[test]
 fn verification_statuses() {
     let src = "module m.v
@@ -345,16 +346,15 @@ fn plain(n: Int) -> Int {
         .iter()
         .map(|v| (p.display_path(v.def), v.status, v.reason.clone()))
         .collect();
-    let unknown = Some("verifier_unavailable".to_string());
     assert_eq!(
         statuses,
         [
             (
                 "m.v.fact".to_string(),
                 ProofStatus::Unknown,
-                unknown.clone()
+                Some("no_measure".to_string())
             ),
-            ("m.v.id".to_string(), ProofStatus::Unknown, unknown),
+            ("m.v.id".to_string(), ProofStatus::Proved, None),
         ]
     );
     let v = with_code(&result, "verification_result");
@@ -365,11 +365,11 @@ fn plain(n: Int) -> Int {
     assert_eq!(v[0]["qualified_name"], json!("m.v.fact"));
     assert_eq!(v[0]["facet"], json!("verification_policy"));
     assert_eq!(v[0]["status"], json!("unknown"));
-    assert_eq!(v[0]["reason"], json!("verifier_unavailable"));
-    assert_eq!(
-        v[0]["message"],
-        json!("fact: unknown (verifier unavailable)")
-    );
+    assert_eq!(v[0]["reason"], json!("no_measure"));
+    assert_eq!(v[0]["message"], json!("fact: unknown (no measure)"));
+    assert_eq!(v[1]["status"], json!("proved"));
+    assert_eq!(v[1]["reason"], json!(null));
+    assert_eq!(v[1]["message"], json!("id: proved"));
     assert_eq!(v[0]["span"]["line"], json!(line_of(src, "pub fn fact")));
     assert_eq!(v[0]["span"]["col"], json!(8), "the name");
     assert!(
@@ -383,13 +383,20 @@ fn plain(n: Int) -> Int {
 
 /// S36 (c), S47 (b): under `--release` every `@prove` declaration with
 /// status `unknown` is the error `verification_unsatisfied` at its name;
-/// development mode reports none.
+/// development mode reports none. A proved one satisfies the policy.
 #[test]
 fn release_rejects_unproved_declarations() {
     let src = "module m.p
 
 @prove
-pub fn absolute(n: Int) -> Int
+pub fn absolute(t: Text) -> Text
+    ensures result.len >= t.len
+{
+    t ++ \"!\"
+}
+
+@prove
+pub fn proved(n: Int) -> Int
     ensures result >= 0
 {
     n.abs()
@@ -419,6 +426,11 @@ pub fn unproved_is_fine(n: Int) -> Int
         [
             t(line, Severity::Error, "verification_unsatisfied"),
             t(line, Severity::Info, "verification_result"),
+            t(
+                line_of(src, "pub fn proved"),
+                Severity::Info,
+                "verification_result"
+            ),
             t(0, Severity::Warning, "project_lock_missing"),
         ],
         "{}",
@@ -438,6 +450,7 @@ pub fn unproved_is_fine(n: Int) -> Int
         status(&release.program, "m.p.unproved_is_fine"),
         DefStatus::Ok
     );
+    assert_eq!(status(&release.program, "m.p.proved"), DefStatus::Ok);
 }
 
 /// S31: a capability operation's clauses are contract expressions (5.1);

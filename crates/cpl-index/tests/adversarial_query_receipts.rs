@@ -2615,12 +2615,14 @@ fn receipt_digests_distinguish_clean_dirty_and_unversioned_revisions() {
 
 /// Appendix C: `Obligation::reason` and `evidence` are always written,
 /// `null` when absent: a refinement the checker proved has `reason: null`
-/// and `{"by": "literal"}` evidence, an open division `evidence: null`.
+/// and `{"by": "literal"}` evidence, a division the verifier proved
+/// `{"by": "linear_arithmetic"}`, and one that fails the inputs that make
+/// its divisor zero.
 #[test]
 fn obligation_json_always_writes_reason_and_evidence() {
     let checked = Checked::clean(&[(
         "src/m/l.cpl",
-        "module m.l\n\npub type Small = Int where self < 10\n\npub fn three() -> Int {\n    let n: Small = 3\n    n\n}\n\npub fn half(n: Int) -> Int {\n    n / 2\n}\n",
+        "module m.l\n\npub type Small = Int where self < 10\n\npub fn three() -> Int {\n    let n: Small = 3\n    n\n}\n\npub fn half(n: Int) -> Int {\n    n / 2\n}\n\npub fn ratio(n: Int, d: Int) -> Int {\n    n / d\n}\n",
     )]);
     let index = checked.index();
     let three = to_json(&inspect(&index, "three", &inc("obligations")));
@@ -2635,9 +2637,18 @@ fn obligation_json_always_writes_reason_and_evidence() {
     assert_eq!(division["id"], json!("m.l.half#div/1"));
     assert_eq!(division["kind"], json!("division"));
     assert_eq!(division["clause"], json!("2 != 0"));
-    assert_eq!(division["status"], json!("unknown"));
-    assert_eq!(division["reason"], json!("verifier_unavailable"));
-    assert_eq!(division.get("evidence"), Some(&Value::Null));
+    assert_eq!(division["status"], json!("proved"));
+    assert_eq!(division.get("reason"), Some(&Value::Null));
+    assert_eq!(
+        division["evidence"],
+        json!({ "by": "linear_arithmetic", "paths": 1 })
+    );
+    let ratio = to_json(&inspect(&index, "ratio", &inc("obligations")));
+    let open = &ratio["obligations"][0];
+    assert_eq!(open["status"], json!("failed"));
+    assert_eq!(open.get("reason"), Some(&Value::Null));
+    assert_eq!(open["evidence"]["concrete"], json!(true));
+    assert_eq!(open["evidence"]["model"]["d"], json!(0));
     let text = serde_json::to_string(&inspect(&index, "half", &inc("obligations")).obligations)
         .expect("serializes");
     assert_eq!(
@@ -2657,7 +2668,7 @@ fn obligation_json_always_writes_reason_and_evidence() {
         .obligations
         .expect("included")[0]
         .status;
-    assert_eq!(status, ObligationStatus::Unknown);
+    assert_eq!(status, ObligationStatus::Proved);
 }
 
 /// 8.1 numbers `call/<n>` "in body order" and `div/<n>` "in body order,
@@ -3293,8 +3304,8 @@ fn each_verification_result_gets_the_receipt_of_its_own_function() {
     assert_eq!(
         to_json(&output.verification),
         json!([
-            { "symbol": "p.a.fa", "qualified_name": "p.a.fa", "status": "unknown", "reason": "verifier_unavailable" },
-            { "symbol": "p.b.fb", "qualified_name": "p.b.fb", "status": "unknown", "reason": "verifier_unavailable" },
+            { "symbol": "p.a.fa", "qualified_name": "p.a.fa", "status": "proved" },
+            { "symbol": "p.b.fb", "qualified_name": "p.b.fb", "status": "proved" },
         ])
     );
 }
@@ -3315,7 +3326,8 @@ fn prove_output_symbol_is_a_version_not_a_block() {
         keys_of(&proof.output.symbol),
         ["id", "path", "provisional", "facets", "definition"]
     );
-    assert_eq!(to_json(&proof.output)["result"], json!("unknown"));
+    // `helper(999)` is 1000: the verifier inlines the helpers and refutes `bound(result)`.
+    assert_eq!(to_json(&proof.output)["result"], json!("failed"));
     let ensures: Vec<&str> = proof
         .output
         .obligations
@@ -3540,13 +3552,11 @@ fn malformed_and_mismatched_ids_as_targets() {
     assert_eq!(index.partial(), None, "a warning leaves the index complete");
 }
 
-/// Semantics S36 (b), which owns the status vocabulary and takes
-/// precedence over toolchain 8.1's status table (spec/README.md): in
-/// Milestone 1 `cpl prove` reports `unknown` (`verifier_unavailable`), also
-/// for a function with no obligations and for one whose only obligation
-/// the type checker proved, and so exits 1 (T29).
+/// Semantics S36 (b), which owns the status vocabulary: a function with no
+/// obligations, and one whose only obligation the type checker proved, is
+/// `proved` (toolchain 8.1's status table), so `cpl prove` succeeds (T29).
 #[test]
-fn milestone_one_proofs_are_unknown_even_with_nothing_open() {
+fn proofs_with_nothing_open_are_proved() {
     let checked = Checked::clean(&[(
         "src/m/l.cpl",
         "module m.l\n\npub type Small = Int where self < 10\n\npub fn one() -> Int {\n    1\n}\n\npub fn three() -> Int {\n    let n: Small = 3\n    n\n}\n",
@@ -3556,19 +3566,16 @@ fn milestone_one_proofs_are_unknown_even_with_nothing_open() {
         let proof = index.prove(&Target::parse(arg)).expect("a function");
         assert_eq!(
             proof.output.result,
-            cpl_diag::json::ProofStatus::Unknown,
+            cpl_diag::json::ProofStatus::Proved,
             "{arg}"
         );
         assert_eq!(
             proof.output.receipt.status,
-            cpl_diag::json::ProofStatus::Unknown
+            cpl_diag::json::ProofStatus::Proved
         );
-        assert_eq!(proof.status(), cpl_diag::json::Status::Unsuccessful);
-        assert_eq!(proof.diagnostic.data["status"], json!("unknown"));
-        assert_eq!(
-            proof.diagnostic.data["reason"],
-            json!("verifier_unavailable")
-        );
+        assert_eq!(proof.status(), cpl_diag::json::Status::Ok);
+        assert_eq!(proof.diagnostic.data["status"], json!("proved"));
+        assert_eq!(proof.diagnostic.data["reason"], json!(null));
         assert_eq!(
             proof.diagnostic.facet,
             Some(Facet::VerificationPolicy),
@@ -3757,7 +3764,7 @@ fn the_holes_of_a_body_come_in_source_order() {
 
 /// Std functions are provable targets like any function (6.1, 7.2): their
 /// contracts are trusted-runtime axioms (stdlib S41), so there is no
-/// obligation to discharge, the status is still `unknown` in Milestone 1,
+/// obligation to discharge and the status is `proved`,
 /// no project module is in the closure, and the std declarations the
 /// specification uses are `dependencies` with their versions (S41).
 #[test]
@@ -3767,7 +3774,7 @@ fn a_std_function_is_provable_with_axioms_only() {
     let proof = index
         .prove(&Target::parse("std.text.trim"))
         .expect("a function");
-    assert_eq!(proof.output.result, cpl_diag::json::ProofStatus::Unknown);
+    assert_eq!(proof.output.result, cpl_diag::json::ProofStatus::Proved);
     assert!(proof.output.obligations.is_empty());
     let receipt = &proof.output.receipt;
     assert_eq!(receipt.target.id.as_str(), "std.text.trim");

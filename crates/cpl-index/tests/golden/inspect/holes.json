@@ -1003,8 +1003,13 @@
             "end_col": 37
           },
           "status": "unknown",
-          "reason": "verifier_unavailable",
-          "evidence": null,
+          "reason": "unsupported_expression",
+          "evidence": {
+            "candidate": {
+              "items": [],
+              "size": 1
+            }
+          },
           "assumptions": []
         },
         {
@@ -1019,8 +1024,13 @@
             "end_col": 69
           },
           "status": "unknown",
-          "reason": "verifier_unavailable",
-          "evidence": null,
+          "reason": "unsupported_expression",
+          "evidence": {
+            "candidate": {
+              "items": [],
+              "size": 1
+            }
+          },
           "assumptions": []
         },
         {
@@ -1035,8 +1045,13 @@
             "end_col": 64
           },
           "status": "unknown",
-          "reason": "verifier_unavailable",
-          "evidence": null,
+          "reason": "unsupported_expression",
+          "evidence": {
+            "candidate": {
+              "items": [],
+              "size": 1
+            }
+          },
           "assumptions": []
         }
       ],

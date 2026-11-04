@@ -247,9 +247,10 @@ cpl-cabi    ──► cpl-emit-c, cpl-eval, cpl-hir, cpl-project, cpl-rtspec, cp
 | `cpl-syntax` | `cpl-diag` | `cpl-project`, `cpl-hir` and up |
 | `cpl-project` | `cpl-syntax`, `cpl-diag` (T52) | `cpl-hir`, `cpl-sema`, `cpl-eval`, `cpl-index`, `cpl-work`, `cpl-rt`, `cpl-emit-c`, `cpl-cabi` |
 | `cpl-hir` | `cpl-syntax`, `cpl-diag` | `cpl-project`, `cpl-sema`, `cpl-eval`, `cpl-index`, `cpl-work`, `cpl-rt`, `cpl-emit-c`, `cpl-cabi` |
-| `cpl-sema` | `cpl-hir`, `cpl-project`, `cpl-syntax`, `cpl-diag`; from Milestone 2 `cpl-rtspec` (the builtin ids and the one division, T70) | `cpl-eval`, `cpl-index`, `cpl-work`, `cpl-rt`, `cpl-emit-c`, `cpl-cabi` |
+| `cpl-sema` | `cpl-hir`, `cpl-project`, `cpl-syntax`, `cpl-diag`; from Milestone 2 `cpl-rtspec` (the builtin ids and the one division, T70); `cpl-prove` (the verification status of every `@prove` function, `spec/verification.md`) | `cpl-eval`, `cpl-index`, `cpl-work`, `cpl-rt`, `cpl-emit-c`, `cpl-cabi` |
+| `cpl-prove` | `cpl-hir`, `cpl-syntax`, `cpl-diag` (the verifier reads the typed HIR alone); `cpl-sema` and `cpl-project` only as dev-dependencies (its tests check the programs they verify) | `cpl-project`, `cpl-sema`, `cpl-eval`, `cpl-index`, `cpl-work`, `cpl-evolve`, `cpl-rt`, `cpl-emit-c`, `cpl-cabi` |
 | `cpl-eval` | `cpl-hir`, `cpl-syntax`, `cpl-diag`; from Milestone 2 `cpl-rtspec` (templates, White_Space, builtin specifications, limits, the one division, T70); `cpl-sema` only as a dev-dependency (its tests check the programs they run) | `cpl-sema` as a normal dependency, `cpl-index`, `cpl-work`, `cpl-rt`, `cpl-emit-c`, `cpl-cabi` |
-| `cpl-index` | `cpl-project`, `cpl-syntax`, `cpl-diag`; `cpl-sema` (the HIR through `cpl_sema::hir`) for the `Index` of Section 6, the one part that needs a checked `Program` (identities, facets, revisions, semantic diff, and receipts are syntactic and use `cpl-project` alone) | `cpl-eval`, `cpl-work`, `cpl-rt`, `cpl-emit-c`, `cpl-cabi` |
+| `cpl-index` | `cpl-project`, `cpl-syntax`, `cpl-diag`; `cpl-sema` (the HIR through `cpl_sema::hir`) for the `Index` of Section 6, the one part that needs a checked `Program` (identities, facets, revisions, semantic diff, and receipts are syntactic and use `cpl-project` alone); `cpl-prove` for obligation statuses (Section 8.1) | `cpl-eval`, `cpl-work`, `cpl-rt`, `cpl-emit-c`, `cpl-cabi` |
 | `cpl-work` | `cpl-index`, `cpl-project`, `cpl-syntax`, `cpl-diag`; `cpl-sema` for `validate_work_file` and `resolve_patches`, which need a checked `Program` (the model, patch validation and application, enforcement, the scheduler, and the git wrappers do not) | `cpl-eval`, `cpl-rt`, `cpl-emit-c`, `cpl-cabi` |
 | `cpl-rtspec` | nothing (Milestone 2) | any other crate |
 | `cpl-rt` | `cpl-rtspec`, `cpl-diag` | every other crate |
@@ -257,7 +258,7 @@ cpl-cabi    ──► cpl-emit-c, cpl-eval, cpl-hir, cpl-project, cpl-rtspec, cp
 | `cpl-cabi` | `cpl-emit-c`, `cpl-eval`, `cpl-hir`, `cpl-project`, `cpl-rtspec`, `cpl-diag`; `cpl-sema`, `cpl-syntax`, and `cpl-rt` only as dev-dependencies (its tests check the programs they compare, name the operators of the coverage gate, and find the C compiler and the embedded runtime through `cpl_rt::testing`) | nothing |
 | `cpl-cli` | every other crate (twelve) | nothing |
 
-In one line: `cpl-diag <- cpl-syntax <- {cpl-project, cpl-hir}; cpl-hir <- {cpl-sema, cpl-eval}; cpl-project <- {cpl-sema, cpl-index, cpl-work}; cpl-sema <- cpl-index <- cpl-work; cpl-cli <- all` (`cpl-sema` is a dev-dependency of `cpl-eval`), and from Milestone 2 `cpl-rtspec <- {cpl-sema, cpl-eval, cpl-rt, cpl-emit-c, cpl-cabi}; {cpl-rt, cpl-eval, cpl-sema} <- cpl-emit-c <- cpl-cabi`. An edge to `cpl-sema` from `cpl-index` or `cpl-work` is added with the first item of that crate that needs a checked `Program`; until then they build without the checker.
+In one line: `cpl-diag <- cpl-syntax <- {cpl-project, cpl-hir}; cpl-hir <- {cpl-sema, cpl-eval, cpl-prove}; cpl-prove <- {cpl-sema, cpl-index, cpl-evolve}; cpl-project <- {cpl-sema, cpl-index, cpl-work}; cpl-sema <- cpl-index <- cpl-work; cpl-cli <- all` (`cpl-sema` is a dev-dependency of `cpl-eval`), and from Milestone 2 `cpl-rtspec <- {cpl-sema, cpl-eval, cpl-rt, cpl-emit-c, cpl-cabi}; {cpl-rt, cpl-eval, cpl-sema} <- cpl-emit-c <- cpl-cabi`. An edge to `cpl-sema` from `cpl-index` or `cpl-work` is added with the first item of that crate that needs a checked `Program`; until then they build without the checker.
 
 The forbidden edges of the table are enforced by
 `crates/cpl-cli/tests/workspace_dag.rs`, which reads every
@@ -1128,7 +1129,7 @@ pub struct CheckResult {
 /// True when some diagnostic is an error or, with `warnings_as_errors` (`--deny-warnings`), a warning; severities are unchanged.
 impl CheckResult { pub fn has_errors(&self) -> bool; }
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct VerificationStatus { pub def: DefId, pub status: ProofStatus, pub reason: Option<String> }   // Milestone 1: Unknown, "verifier_unavailable"
+pub struct VerificationStatus { pub def: DefId, pub status: ProofStatus, pub reason: Option<String> }   // the verifier's status (spec/verification.md)
 /// Defined in cpl_diag::json (Section 1.4.2) and re-exported here; `as_str`. Conditional is never produced in Milestone 1.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)] #[serde(rename_all = "snake_case")]
 pub enum ProofStatus { Proved, Failed, Unknown, Conditional }
@@ -2119,7 +2120,7 @@ pub fn receipt_digest(receipt: &serde_json::Value) -> Digest;
 
 // ---- cpl_index::evidence (Sections 7.2, 8; semantics S48, S59) --------------
 pub struct Proof { pub output: ProveOutput, pub diagnostic: Diagnostic }   // `cpl prove`: the result and its one verification_result
-impl Proof { pub fn status(&self) -> Status; }                             // ok only for proved or conditional (T29): unsuccessful in Milestone 1
+impl Proof { pub fn status(&self) -> Status; }                             // ok only for proved or conditional (T29)
 pub fn test_check_configuration(config: &TestRunConfig, max_call_depth: u32) -> serde_json::Value;   // { cases, max_shrinks, max_call_depth, seed }
 pub fn test_environment() -> BTreeMap<String, String>;                     // { arch, os }
 impl<'p> Index<'p> {
@@ -4616,8 +4617,8 @@ syntax only and take no part in checking, semantics S53), runs
 
 In development mode every hole is the diagnostic `hole` (severity `info`,
 payload per semantics S48 plus `dependencies.symbols`), and every `@prove`
-declaration yields `verification_result` (`info`, `status: "unknown"`,
-`reason: "verifier_unavailable"` in Milestone 1). `cpl-sema` emits both
+declaration yields `verification_result` (`info`, the verifier's `status`
+and `reason`, `spec/verification.md`). `cpl-sema` emits both
 without the parts that need Git and the semantic index: `cpl-cli` adds the
 hole's `dependencies` object and the `receipt` of `verification_result`,
 built from the same values, through `cpl-index`
@@ -4650,15 +4651,15 @@ JSON (`CheckOutput`, flattened into the envelope):
       "dependencies": { "source_revision": "3f2e…", "toolchain": { "cpl": "0.1.0", "edition": "0.1", "std": "…" },
                         "modules": [ { "module": "holes.pages", "content_hash": "…" } ],
                         "symbols": [ { "id": "holes.pages.Positive", "path": "holes.pages.Positive", "provisional": true, "facets": { "…": "…" }, "definition": "…" } ] } },
-    { "code": "verification_result", "category": "contract", "severity": "info", "message": "paginate: unknown (verifier unavailable)",
+    { "code": "verification_result", "category": "contract", "severity": "info", "message": "paginate: unknown (unresolved hole)",
       "span": { "file": "src/holes/pages.cpl", "line": 15, "col": 8, "end_line": 15, "end_col": 16 },
-      "symbol": "pgn_7c2d", "qualified_name": "holes.pages.paginate", "facet": "verification_policy", "status": "unknown", "reason": "verifier_unavailable",
+      "symbol": "pgn_7c2d", "qualified_name": "holes.pages.paginate", "facet": "verification_policy", "status": "unknown", "reason": "unresolved_hole",
       "receipt": { "source_revision": "3f2e…", "toolchain": { "cpl": "0.1.0", "edition": "0.1", "std": "…" }, "modules": [ "…" ],
                    "check_configuration": { "release": false }, "assumptions": [] } } ],
   "release": false,
   "summary": { "errors": 0, "warnings": 0, "holes": 2, "definitions": 5, "modules": 1, "files": 1 },
   "holes": [ "…the same hole payloads, without the envelope fields…" ],
-  "verification": [ { "symbol": "pgn_7c2d", "qualified_name": "holes.pages.paginate", "status": "unknown", "reason": "verifier_unavailable" } ]
+  "verification": [ { "symbol": "pgn_7c2d", "qualified_name": "holes.pages.paginate", "status": "unknown", "reason": "unresolved_hole" } ]
 }
 ```
 
@@ -5027,22 +5028,24 @@ that is no `fn` is `usage_not_provable`, exit 2), enumerates its proof
 obligations (Section 8.1), asks the verifier, and emits a verification
 receipt and one `verification_result` diagnostic (info; semantics S36)
 for the symbol, whose `receipt` is the receipt's `core`
-(`Index::prove`). Milestone 1 has no verifier: every obligation is
-`unknown` with `reason: "verifier_unavailable"` except the refinements the
-type checker established (`proved`, `{"by": "literal"}`) and a
-`termination` obligation (`no_measure`, 8.1), every function's `result`
-is `unknown`, also one without obligations (semantics S36), so the command
-exits 1 (T29) for every function, `@prove` or not, and the receipt says so
-honestly (`"verifier": { "name": "none", "version": null }`). The
-`verification_result` carries the note that termination is unknown as
-well whenever semantics 5.4's conditions hold (5.5), for any function.
+(`Index::prove`). The verifier (`cpl-prove`, `spec/verification.md`)
+decides each obligation: `proved`, `failed` with the inputs that break it,
+or `unknown` with a reason; the refinements the type checker established
+stay `proved` (`{"by": "literal"}`) and a `termination` obligation
+`unknown` (`no_measure`, 8.1). The function's `result` is `proved` when
+every obligation is proved, termination is known, and no typed hole is
+left (a function without obligations included), so the command exits 0;
+otherwise it exits 1 (T29), for every function, `@prove` or not. A failed
+`verification_result` carries `obligation` (the first failed id) and
+`model`. It carries the note that termination is unknown as well whenever
+semantics 5.4's conditions hold (5.5), for any function.
 
 Human output (stdout; the `verification_result` on stderr), for
 `examples/reader`'s `paginate`, whose ten obligations are listed in 8.1:
 
 ```text
 prove reader.pages.paginate (pgn_7c2d): unknown
-  10 obligations: 0 proved, 0 failed, 10 unknown (verifier unavailable in cpl 0.1.0)
+  10 obligations: 4 proved, 0 failed, 6 unknown
   receipt: 7e1c…  (blake3 of the receipt)
 ```
 
@@ -5055,7 +5058,7 @@ JSON (`ProveOutput`):
 { "command": "prove", "…": "…", "status": "unsuccessful",
   "symbol": { "id": "pgn_7c2d", "path": "reader.pages.paginate", "…": "…" },
   "result": "unknown",
-  "obligations": [ { "id": "pgn_7c2d#ensures/1", "kind": "ensures", "clause": "flatten(result) == items", "status": "unknown", "reason": "verifier_unavailable" } ],
+  "obligations": [ { "id": "pgn_7c2d#ensures/1", "kind": "ensures", "clause": "flatten(result) == items", "status": "unknown", "reason": "unsupported_expression" } ],
   "receipt": { "…": "Section 8.1" } }
 ```
 
@@ -5519,7 +5522,7 @@ T62:
 | - | - | - |
 | `<id>#ensures/<i>` | `ensures` | the i-th `ensures` clause (1-based, canonical order) holds on return |
 | `<id>#decreases` | `decreases` | the function's measure is nonnegative and strictly decreases on recursive calls |
-| `<id>#termination` | `termination` | present instead of `decreases` for a recursive function (`Index::is_recursive`) without a measure: clause `""`, located at the function's name, status `unknown` with reason `no_measure`, in Milestone 1 too |
+| `<id>#termination` | `termination` | present instead of `decreases` for a recursive function (`Index::is_recursive`) without a measure: clause `""`, located at the function's name, status `unknown` with reason `no_measure` |
 | `<id>#loop/<n>/invariant/<i>/init` | `invariant_init` | invariant i of the n-th loop (body order) holds on entry |
 | `<id>#loop/<n>/invariant/<i>/preserve` | `invariant_preserve` | invariant i holds after each iteration |
 | `<id>#loop/<n>/decreases` | `loop_decreases` | loop measure nonnegative and decreasing |
@@ -5533,7 +5536,7 @@ T62:
   "receipt": "verification",
   "schema": 1,
   "toolchain": { "version": "0.1.0", "edition": "0.1", "json_schema": 1 },
-  "verifier": { "name": "none", "version": null, "configuration": {} },
+  "verifier": { "name": "cpl-prove", "version": "0.1.0", "configuration": { "theory": "linear_integer_arithmetic" } },
   "revision": { "commit": "3f2e…", "state": "clean", "digest": "9a0b…" },
   "core": { "source_revision": "3f2e…", "toolchain": { "cpl": "0.1.0", "edition": "0.1", "std": "…" },
             "modules": [ { "module": "reader.pages", "content_hash": "…" } ],
@@ -5548,7 +5551,7 @@ T62:
   "obligations": [
     { "id": "pgn_7c2d#ensures/1", "kind": "ensures", "clause": "flatten(result) == items",
       "location": { "file": "src/reader/pages.cpl", "line": 46, "col": 5, "end_line": 46, "end_col": 37 },
-      "status": "unknown", "reason": "verifier_unavailable", "evidence": null, "assumptions": [] } ],
+      "status": "unknown", "reason": "unsupported_expression", "evidence": { "candidate": { "items": [], "size": 1 } }, "assumptions": [] } ],
   "assumptions": [],
   "produced_at": "2026-10-27T21:00:00Z",
   "duration_ms": 4
@@ -5557,10 +5560,10 @@ T62:
 
 | Field | Values |
 | - | - |
-| `status` | a verifier's result: `proved` (every obligation proved and no assumptions), `conditional` (every obligation proved, at least one named assumption), `failed` (some obligation failed), `unknown` (otherwise); in Milestone 1, which has no verifier, always `unknown` (semantics S36), also for a function with no obligation or with only the refinements the checker proved |
+| `status` | the verifier's result (`spec/verification.md`): `proved` (every obligation proved, termination known, no typed hole, and no assumptions), `conditional` (every obligation proved, at least one named assumption), `failed` (some obligation failed), `unknown` (otherwise, with the reason of the first unknown obligation, `no_measure`, or `unresolved_hole`); a function with no obligation is `proved` |
 | `obligations[].status` | `proved \| failed \| unknown` |
-| `obligations[].reason` | for `unknown`: `verifier_unavailable`, `unsupported_expression`, `timeout`, `no_measure`; null otherwise. A proof that relies on a holed callee's contract is not `unknown`: it is `proved` with an assumption of kind `hole`, making the receipt `conditional` (design line 225) |
-| `obligations[].evidence` | for `failed`: `{ "model": {...}, "concrete": bool }` (a concrete executable counterexample is `concrete: true` and also reported as `contract_counterexample`; an abstract solver model is `concrete: false` and is reported as `verification_result` with `status: "failed"` and a `model` key, semantics S46 and Section 1.7.3; there is no separate code); for `proved`: solver-specific, or `{"by": ...}` |
+| `obligations[].reason` | for `unknown`: `unsupported_expression`, `invariant_too_weak`, `nonlinear_arithmetic`, `integer_reasoning`, `limit`, `indirect_recursion`, `has_errors`, `no_measure` (`spec/verification.md`); null otherwise. A proof that relies on a holed callee's contract is not `unknown`: it is `proved` with an assumption of kind `hole`, making the receipt `conditional` (design line 225) |
+| `obligations[].evidence` | for `failed`: `{ "model": {...}, "concrete": true }`, the inputs (value JSON by parameter name) on which the obligation fails, reported on the `verification_result` as `obligation` and `model`; for `proved`: `{"by": "linear_arithmetic", "paths": n}`, `{"by": "unreachable", "paths": 0}`, `{"by": "literal"}`, or `{"by": "bounded_constant_evaluation"}`; for `unknown`: `null` or `{"candidate": {...}}`, inputs the verifier could not confirm as a counterexample |
 | `assumptions[]` | `{ "id": "asm_<n>", "kind": "unchecked_callee" \| "unproved_dependency" \| "hole" \| "foreign_adapter", "symbol": id, "facet": facet or null, "description": string, "admitted": bool }`; obligations reference assumptions by id. The first three kinds are assumptions about CPL implementations; `foreign_adapter` is a capability operation's contract, always named and never grounds for rejection (design line 136). `admitted` is true when `symbol` is listed in `[verification] admit`, the design's "explicitly admitted by project policy" |
 | `dependencies` | the target's dependencies (interface and body) plus, from Milestone 5, every implementation the proof inlined and every external specification used, each with its facet versions |
 | `configuration.admitted` | `[verification] admit` ids that were in effect |
@@ -5574,16 +5577,16 @@ assumption about a CPL implementation that is not admitted (Section 10.6,
 grammar D36). `conditional` is never a weakening of `@prove`: its
 obligations are all proved.
 
-Milestone 1 emits exactly the shape above with `verifier.name = "none"`
-and every obligation `unknown`/`verifier_unavailable`, except
-`refinement` obligations proved by the type checker (Section 3.3), which
-are `proved` with `evidence: {"by": "literal"}`, and a `termination`
-obligation, whose reason is `no_measure`; the receipt's `status` is
-`unknown` whatever its obligations. `examples/reader`'s `paginate` has ten:
-`ensures/1` to `ensures/3`, `loop/1/invariant/1/init` and `/preserve`,
-`loop/1/invariant/2/init` and `/preserve`, `loop/1/decreases`, and
-`call/11/requires/1` and `call/12/requires/1` (the `n >= 0` of `take` and
-`drop`, the eleventh and twelfth call sites of its clauses and body).
+The verifier decides every obligation except `refinement` (the type
+checker's) and `termination` (no measure to state). `examples/reader`'s
+`paginate` has ten: `ensures/1` to `ensures/3`, `loop/1/invariant/1/init`
+and `/preserve`, `loop/1/invariant/2/init` and `/preserve`,
+`loop/1/decreases`, and `call/11/requires/1` and `call/12/requires/1` (the
+`n >= 0` of `take` and `drop`, the eleventh and twelfth call sites of its
+clauses and body). The two call preconditions, the loop measure, and the
+second invariant's initialization are proved; the others compare lists or
+quantify over them and are `unknown` (`unsupported_expression`), so the
+status is `unknown`.
 
 Decision: [D-258] T62. obligations are numbered over one walk of the
 function: its `requires`, `ensures`, and `decreases` clauses in canonical

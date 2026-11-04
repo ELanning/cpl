@@ -264,7 +264,14 @@ pub struct IndexData {
     pub(crate) admitted: Vec<StableId>,
     /// The number of `.cpl` files of the source set.
     pub(crate) source_files: u32,
+    /// The verifier's report of each function, computed on first use and shared by clones.
+    pub(crate) proofs: Proofs,
 }
+
+/// Verifier reports by definition (see [`IndexData::proof`]).
+pub(crate) type Proofs = std::sync::Arc<
+    std::sync::Mutex<std::collections::HashMap<DefId, Option<std::sync::Arc<cpl_prove::Report>>>>,
+>;
 
 impl IndexData {
     /// The owned part of [`Index::build`].
@@ -329,7 +336,25 @@ impl IndexData {
             admitted,
             source_files,
             revision,
+            proofs: Proofs::default(),
         }
+    }
+
+    /// The verifier's report on function `def` of `program` (the program this data was built
+    /// from): computed once.
+    pub(crate) fn proof(
+        &self,
+        program: &Program,
+        def: DefId,
+    ) -> Option<std::sync::Arc<cpl_prove::Report>> {
+        if let Some(r) = self.proofs.lock().ok().and_then(|m| m.get(&def).cloned()) {
+            return r;
+        }
+        let report = cpl_prove::verify(program, def).map(std::sync::Arc::new);
+        if let Ok(mut m) = self.proofs.lock() {
+            m.insert(def, report.clone());
+        }
+        report
     }
 
     /// The owned part of [`Index::from_check`]: partial when the check reported an error.
@@ -708,8 +733,8 @@ impl<'p> Index<'p> {
     /// callee has a precondition, so that `<n>` depends on the function's
     /// own text alone.
     ///
-    /// Milestone 1 has no verifier: every obligation is `unknown` with
-    /// reason `verifier_unavailable`, except `termination` (`unknown`,
+    /// Statuses are the verifier's (`cpl_prove::verify`, cached per
+    /// function, `spec/verification.md`), except `termination` (`unknown`,
     /// reason `no_measure`) and `refinement`, which the type checker
     /// established by the constant proof of semantics S16 (T39): `proved`,
     /// with evidence `{"by": "literal"}`. Only functions with a body have

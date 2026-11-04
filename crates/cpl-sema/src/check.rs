@@ -97,9 +97,13 @@ pub fn check_with(project: &Project, config: &CheckConfig) -> CheckResult {
     // need an expected type, and the imports they go through are used (1.6).
     imports::report_unused(&mut cx);
     effects::check_effects(&mut cx);
+    // Every reference is known now; the later stages read the call graph through
+    // `Program::references_from`, which needs the (from, span) order.
+    cx.program.sort_references();
     crate::machines::check(&mut cx);
     crate::concurrency::check(&mut cx);
     crate::evolution::check(&mut cx);
+    crate::linear::check(&mut cx);
     contracts::check_contracts(&mut cx);
     policy::apply_policy(&mut cx);
     let interop = c_target(&mut cx);
@@ -346,8 +350,8 @@ impl CheckResult {
     }
 }
 
-/// The verification status of one `@prove` declaration. Milestone 1:
-/// `Unknown`, `"verifier_unavailable"`.
+/// The verification status of one `@prove` declaration: the verifier's
+/// (`spec/verification.md`), with its reason when `Unknown`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct VerificationStatus {
     pub def: DefId,

@@ -1426,6 +1426,46 @@ fn read(using store: Store) -> Int
 }
 ";
 
+/// The verifier numbers the sites it decides exactly as `Index::obligations`
+/// numbers obligations (8.1, T62), so a `verification_result` from the
+/// checker names the same obligation id as `cpl prove`.
+#[test]
+fn the_verifier_and_the_index_number_obligations_alike() {
+    for checked in [
+        Checked::files(&[("src/ob/math.cpl", OBLIGATIONS)]),
+        Checked::example("reader"),
+    ] {
+        let index = checked.index();
+        let program = index.program();
+        for d in program
+            .defs()
+            .filter(|d| program.module(d.module).origin != FileOrigin::Std)
+        {
+            let Some(report) = cpl_prove::verify(program, d.id) else {
+                continue;
+            };
+            let mut ours: Vec<String> = report
+                .ids
+                .values()
+                .map(|suffix| format!("{}#{suffix}", index.version(d.id).id.as_str()))
+                .collect();
+            ours.sort();
+            // The index also lists what the type checker settled and missing measures.
+            let mut theirs: Vec<String> = index
+                .obligations(d.id)
+                .into_iter()
+                .filter(|o| {
+                    !matches!(o.kind.as_str(), "refinement" | "termination")
+                        && o.evidence != Some(json!({"by": "bounded_constant_evaluation"}))
+                })
+                .map(|o| o.id)
+                .collect();
+            theirs.sort();
+            assert_eq!(ours, theirs, "{}", program.display_path(d.id));
+        }
+    }
+}
+
 #[test]
 fn obligations_are_numbered_in_body_order() {
     let checked = Checked::files(&[("src/ob/math.cpl", OBLIGATIONS)]);
@@ -1439,29 +1479,33 @@ fn obligations_are_numbered_in_body_order() {
             .map(|o| (o.id, o.kind, o.clause, o.status, o.reason))
             .collect()
     };
-    let unknown = |id: &str, kind: &str, clause: &str| {
+    // Every obligation below is in the verifier's fragment (spec/verification.md).
+    let proved = |id: &str, kind: &str, clause: &str| {
         (
             id.to_string(),
             kind.to_string(),
             clause.to_string(),
-            ObligationStatus::Unknown,
-            Some("verifier_unavailable".to_string()),
+            ObligationStatus::Proved,
+            None,
         )
     };
     // Divisions in clauses count before the body's (8.1: "clauses included").
     assert_eq!(
         summary("ob.math.half"),
         [
-            unknown("ob.math.half#ensures/1", "ensures", "result * 2 == n"),
-            unknown("ob.math.half#div/1", "division", "2 != 0"),
-            unknown("ob.math.half#div/2", "division", "2 != 0"),
+            proved("ob.math.half#ensures/1", "ensures", "result * 2 == n"),
+            proved("ob.math.half#div/1", "division", "2 != 0"),
+            proved("ob.math.half#div/2", "division", "2 != 0"),
         ]
     );
     let half = index.obligations(def(&index, "ob.math.half"));
     assert_eq!(half[0].location, loc(file, 12, 5, 12, 28));
     assert_eq!(half[1].location, loc(file, 11, 14, 11, 19));
     assert_eq!(half[2].location, loc(file, 14, 5, 14, 10));
-    assert_eq!(half[0].evidence, None);
+    assert_eq!(
+        half[0].evidence,
+        Some(json!({ "by": "linear_arithmetic", "paths": 1 }))
+    );
     assert!(half[0].assumptions.is_empty());
 
     // A recursive function without a measure: termination, unknown (no_measure).
@@ -1477,7 +1521,7 @@ fn obligations_are_numbered_in_body_order() {
                 ObligationStatus::Unknown,
                 Some("no_measure".to_string()),
             ),
-            unknown("ob.math.count#call/1/requires/1", "call_requires", "n >= 0"),
+            proved("ob.math.count#call/1/requires/1", "call_requires", "n >= 0"),
         ]
     );
     let count = index.obligations(def(&index, "ob.math.count"));
@@ -1488,8 +1532,8 @@ fn obligations_are_numbered_in_body_order() {
     assert_eq!(
         summary("ob.math.measured"),
         [
-            unknown("ob.math.measured#decreases", "decreases", "n"),
-            unknown(
+            proved("ob.math.measured#decreases", "decreases", "n"),
+            proved(
                 "ob.math.measured#call/1/requires/1",
                 "call_requires",
                 "n >= 0"
@@ -1512,18 +1556,18 @@ fn obligations_are_numbered_in_body_order() {
     assert_eq!(
         summary("ob.math.loops"),
         [
-            unknown(
+            proved(
                 "ob.math.loops#loop/1/invariant/1/init",
                 "invariant_init",
                 "i >= 0"
             ),
-            unknown(
+            proved(
                 "ob.math.loops#loop/1/invariant/1/preserve",
                 "invariant_preserve",
                 "i >= 0"
             ),
-            unknown("ob.math.loops#call/3/requires/1", "call_requires", "n >= 0"),
-            unknown("ob.math.loops#assert/1", "assert", "i < xs.len"),
+            proved("ob.math.loops#call/3/requires/1", "call_requires", "n >= 0"),
+            proved("ob.math.loops#assert/1", "assert", "i < xs.len"),
         ]
     );
     let loops = index.obligations(def(&index, "ob.math.loops"));
@@ -1534,7 +1578,8 @@ fn obligations_are_numbered_in_body_order() {
     // A capability operation's precondition is a call precondition.
     assert_eq!(
         summary("ob.math.read"),
-        [unknown(
+        // `"k".len` is 1.
+        [proved(
             "ob.math.read#call/1/requires/1",
             "call_requires",
             "key.len > 0"
@@ -1726,7 +1771,7 @@ fn check_diagnostics_gain_hole_dependencies_and_receipts() {
     );
     assert_eq!(
         to_json(&output.verification),
-        json!([{ "symbol": "pgn_7c2d", "qualified_name": "holes.pages.paginate", "status": "unknown", "reason": "verifier_unavailable" }])
+        json!([{ "symbol": "pgn_7c2d", "qualified_name": "holes.pages.paginate", "status": "unknown", "reason": "unresolved_hole" }])
     );
     assert_eq!(output.holes.len(), 2);
     assert!(!output.release);
@@ -1850,6 +1895,9 @@ fn show(item: Item, using shelf: Shelf) -> Text
 // 7.2 cpl prove, 8.1 verification receipts
 // ---------------------------------------------------------------------------
 
+/// `paginate` is `unknown`: its list postconditions are outside the
+/// verifier's fragment, while its call preconditions and loop measure are
+/// proved; the receipt names the verifier.
 #[test]
 fn prove_reports_unknown_with_an_honest_receipt() {
     let checked = Checked::example("reader");
@@ -1862,18 +1910,34 @@ fn prove_reports_unknown_with_an_honest_receipt() {
     // T29: unknown exits 1, as `unsuccessful`.
     assert_eq!(proof.status(), Status::Unsuccessful);
     assert_eq!(out.obligations, index.obligations(paginate));
+    let proved: Vec<&str> = out
+        .obligations
+        .iter()
+        .filter(|o| o.status == ObligationStatus::Proved)
+        .map(|o| o.id.as_str())
+        .collect();
+    assert_eq!(
+        proved,
+        [
+            "pgn_7c2d#loop/1/invariant/2/init",
+            "pgn_7c2d#loop/1/decreases",
+            "pgn_7c2d#call/11/requires/1",
+            "pgn_7c2d#call/12/requires/1",
+        ]
+    );
     assert!(out
         .obligations
         .iter()
+        .filter(|o| o.status != ObligationStatus::Proved)
         .all(|o| o.status == ObligationStatus::Unknown
-            && o.reason.as_deref() == Some("verifier_unavailable")));
+            && o.reason.as_deref() == Some("unsupported_expression")));
 
     let receipt = &out.receipt;
     assert_eq!(receipt.receipt, ReceiptKind::Verification);
     assert_eq!(receipt.schema, 1);
     assert_eq!(
         to_json(&receipt.verifier),
-        json!({ "name": "none", "version": null, "configuration": {} })
+        json!({ "name": "cpl-prove", "version": "0.1.0", "configuration": { "theory": "linear_integer_arithmetic" } })
     );
     assert_eq!(receipt.revision, *index.revision());
     assert_eq!(receipt.target, out.symbol);
@@ -1932,7 +1996,7 @@ fn prove_reports_unknown_with_an_honest_receipt() {
     assert_eq!(d.code, "verification_result");
     assert_eq!(d.category, Category::Contract);
     assert_eq!(d.severity, Severity::Info);
-    assert_eq!(d.message, "paginate: unknown (verifier unavailable)");
+    assert_eq!(d.message, "paginate: unknown (unsupported expression)");
     assert_eq!(
         d.span.map(|s| checked.project.source_map.location(s)),
         Some(loc("src/reader/pages.cpl", 45, 8, 45, 16))
@@ -1941,7 +2005,7 @@ fn prove_reports_unknown_with_an_honest_receipt() {
     assert_eq!(d.qualified_name.as_deref(), Some("reader.pages.paginate"));
     assert_eq!(d.facet, Some(Facet::VerificationPolicy));
     assert_eq!(d.data["status"], json!("unknown"));
-    assert_eq!(d.data["reason"], json!("verifier_unavailable"));
+    assert_eq!(d.data["reason"], json!("unsupported_expression"));
     assert_eq!(d.data["receipt"], to_json(&receipt.core));
     // The check's own verification_result for paginate says the same.
     let mut ours = d.clone();
@@ -1950,11 +2014,13 @@ fn prove_reports_unknown_with_an_honest_receipt() {
     theirs.data.remove("receipt");
     assert_eq!(ours, theirs);
 
-    // A function without @prove still has its status reported.
+    // A function without @prove still has its status reported: its
+    // postcondition `result * b == a` follows from `a % b == 0`.
     let proof = index
         .prove(&Target::parse("divide_exactly"))
         .expect("a function");
-    assert_eq!(proof.output.result, ProofStatus::Unknown);
+    assert_eq!(proof.output.result, ProofStatus::Proved);
+    assert_eq!(proof.status(), Status::Ok);
     assert_eq!(
         to_json(&proof.output.receipt.configuration.policy),
         json!({ "prove": false })

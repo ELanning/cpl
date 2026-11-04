@@ -192,6 +192,7 @@ dependencies = [
  "cpl-hir",
  "cpl-index",
  "cpl-project",
+ "cpl-prove",
  "cpl-rt",
  "cpl-rtspec",
  "cpl-sema",
@@ -258,6 +259,7 @@ dependencies = [
  "cpl-hir",
  "cpl-index",
  "cpl-project",
+ "cpl-prove",
  "cpl-sema",
  "cpl-syntax",
  "cpl-work",
@@ -283,6 +285,7 @@ dependencies = [
  "blake3",
  "cpl-diag",
  "cpl-project",
+ "cpl-prove",
  "cpl-sema",
  "cpl-syntax",
  "rand",
@@ -303,6 +306,20 @@ dependencies = [
  "serde_json",
  "thiserror",
  "toml",
+]
+
+[[package]]
+name = "cpl-prove"
+version = "0.1.0"
+dependencies = [
+ "cpl-diag",
+ "cpl-hir",
+ "cpl-project",
+ "cpl-sema",
+ "cpl-syntax",
+ "num-bigint",
+ "num-traits",
+ "serde_json",
 ]
 
 [[package]]
@@ -328,6 +345,7 @@ dependencies = [
  "cpl-diag",
  "cpl-hir",
  "cpl-project",
+ "cpl-prove",
  "cpl-rtspec",
  "cpl-syntax",
  "num-bigint",

@@ -17,7 +17,7 @@
         },
         "definition": "e42a87b853384285d6fbeb3a9a246888"
       },
-      "result": "unknown",
+      "result": "proved",
       "obligations": [],
       "receipt": {
         "receipt": "verification",
@@ -28,9 +28,11 @@
           "json_schema": 1
         },
         "verifier": {
-          "name": "none",
-          "version": null,
-          "configuration": {}
+          "name": "cpl-prove",
+          "version": "0.1.0",
+          "configuration": {
+            "theory": "linear_integer_arithmetic"
+          }
         },
         "revision": {
           "commit": null,
@@ -168,7 +170,7 @@
           "proof_timeout_ms": 10000,
           "admitted": []
         },
-        "status": "unknown",
+        "status": "proved",
         "obligations": [],
         "assumptions": [],
         "produced_at": "<produced_at>",
@@ -179,7 +181,7 @@
       "code": "verification_result",
       "category": "contract",
       "severity": "info",
-      "message": "image_width: unknown (verifier unavailable)",
+      "message": "image_width: proved",
       "span": {
         "file": "src/reader/images.cpl",
         "line": 15,
@@ -190,7 +192,7 @@
       "symbol": "reader.images.image_width",
       "qualified_name": "reader.images.image_width",
       "facet": "verification_policy",
-      "reason": "verifier_unavailable",
+      "reason": null,
       "receipt": {
         "assumptions": [],
         "check_configuration": {
@@ -209,7 +211,7 @@
           "std": "42236a5efaffeb1110f986d858c30c7dabeb7efa54a3d80ec548b77135351388"
         }
       },
-      "status": "unknown"
+      "status": "proved"
     }
   },
   "reader.pages.clean": {
@@ -230,7 +232,7 @@
         },
         "definition": "5dbbd975393e87fc775ff9bb10bb4336"
       },
-      "result": "unknown",
+      "result": "proved",
       "obligations": [],
       "receipt": {
         "receipt": "verification",
@@ -241,9 +243,11 @@
           "json_schema": 1
         },
         "verifier": {
-          "name": "none",
-          "version": null,
-          "configuration": {}
+          "name": "cpl-prove",
+          "version": "0.1.0",
+          "configuration": {
+            "theory": "linear_integer_arithmetic"
+          }
         },
         "revision": {
           "commit": null,
@@ -335,7 +339,7 @@
           "proof_timeout_ms": 10000,
           "admitted": []
         },
-        "status": "unknown",
+        "status": "proved",
         "obligations": [],
         "assumptions": [],
         "produced_at": "<produced_at>",
@@ -346,7 +350,7 @@
       "code": "verification_result",
       "category": "contract",
       "severity": "info",
-      "message": "clean: unknown (verifier unavailable)",
+      "message": "clean: proved",
       "span": {
         "file": "src/reader/pages.cpl",
         "line": 21,
@@ -357,7 +361,7 @@
       "symbol": "reader.pages.clean",
       "qualified_name": "reader.pages.clean",
       "facet": "verification_policy",
-      "reason": "verifier_unavailable",
+      "reason": null,
       "receipt": {
         "assumptions": [],
         "check_configuration": {
@@ -376,7 +380,7 @@
           "std": "42236a5efaffeb1110f986d858c30c7dabeb7efa54a3d80ec548b77135351388"
         }
       },
-      "status": "unknown"
+      "status": "proved"
     }
   },
   "reader.pages.divide_exactly": {
@@ -397,7 +401,7 @@
         },
         "definition": "c2279c1a5c51cd31b4f1e2a2d1b00630"
       },
-      "result": "unknown",
+      "result": "proved",
       "obligations": [
         {
           "id": "reader.pages.divide_exactly#ensures/1",
@@ -410,9 +414,12 @@
             "end_line": 108,
             "end_col": 28
           },
-          "status": "unknown",
-          "reason": "verifier_unavailable",
-          "evidence": null,
+          "status": "proved",
+          "reason": null,
+          "evidence": {
+            "by": "linear_arithmetic",
+            "paths": 1
+          },
           "assumptions": []
         },
         {
@@ -426,9 +433,12 @@
             "end_line": 107,
             "end_col": 19
           },
-          "status": "unknown",
-          "reason": "verifier_unavailable",
-          "evidence": null,
+          "status": "proved",
+          "reason": null,
+          "evidence": {
+            "by": "linear_arithmetic",
+            "paths": 1
+          },
           "assumptions": []
         },
         {
@@ -442,9 +452,12 @@
             "end_line": 110,
             "end_col": 10
           },
-          "status": "unknown",
-          "reason": "verifier_unavailable",
-          "evidence": null,
+          "status": "proved",
+          "reason": null,
+          "evidence": {
+            "by": "linear_arithmetic",
+            "paths": 1
+          },
           "assumptions": []
         }
       ],
@@ -457,9 +470,11 @@
           "json_schema": 1
         },
         "verifier": {
-          "name": "none",
-          "version": null,
-          "configuration": {}
+          "name": "cpl-prove",
+          "version": "0.1.0",
+          "configuration": {
+            "theory": "linear_integer_arithmetic"
+          }
         },
         "revision": {
           "commit": null,
@@ -535,7 +550,7 @@
           "proof_timeout_ms": 10000,
           "admitted": []
         },
-        "status": "unknown",
+        "status": "proved",
         "obligations": [
           {
             "id": "reader.pages.divide_exactly#ensures/1",
@@ -548,9 +563,12 @@
               "end_line": 108,
               "end_col": 28
             },
-            "status": "unknown",
-            "reason": "verifier_unavailable",
-            "evidence": null,
+            "status": "proved",
+            "reason": null,
+            "evidence": {
+              "by": "linear_arithmetic",
+              "paths": 1
+            },
             "assumptions": []
           },
           {
@@ -564,9 +582,12 @@
               "end_line": 107,
               "end_col": 19
             },
-            "status": "unknown",
-            "reason": "verifier_unavailable",
-            "evidence": null,
+            "status": "proved",
+            "reason": null,
+            "evidence": {
+              "by": "linear_arithmetic",
+              "paths": 1
+            },
             "assumptions": []
           },
           {
@@ -580,9 +601,12 @@
               "end_line": 110,
               "end_col": 10
             },
-            "status": "unknown",
-            "reason": "verifier_unavailable",
-            "evidence": null,
+            "status": "proved",
+            "reason": null,
+            "evidence": {
+              "by": "linear_arithmetic",
+              "paths": 1
+            },
             "assumptions": []
           }
         ],
@@ -595,7 +619,7 @@
       "code": "verification_result",
       "category": "contract",
       "severity": "info",
-      "message": "divide_exactly: unknown (verifier unavailable)",
+      "message": "divide_exactly: proved",
       "span": {
         "file": "src/reader/pages.cpl",
         "line": 105,
@@ -606,7 +630,7 @@
       "symbol": "reader.pages.divide_exactly",
       "qualified_name": "reader.pages.divide_exactly",
       "facet": "verification_policy",
-      "reason": "verifier_unavailable",
+      "reason": null,
       "receipt": {
         "assumptions": [],
         "check_configuration": {
@@ -625,7 +649,7 @@
           "std": "42236a5efaffeb1110f986d858c30c7dabeb7efa54a3d80ec548b77135351388"
         }
       },
-      "status": "unknown"
+      "status": "proved"
     }
   },
   "reader.pages.label": {
@@ -646,7 +670,7 @@
         },
         "definition": "28b40b659ff2d2f19905ab6048561b8f"
       },
-      "result": "unknown",
+      "result": "proved",
       "obligations": [],
       "receipt": {
         "receipt": "verification",
@@ -657,9 +681,11 @@
           "json_schema": 1
         },
         "verifier": {
-          "name": "none",
-          "version": null,
-          "configuration": {}
+          "name": "cpl-prove",
+          "version": "0.1.0",
+          "configuration": {
+            "theory": "linear_integer_arithmetic"
+          }
         },
         "revision": {
           "commit": null,
@@ -771,7 +797,7 @@
           "proof_timeout_ms": 10000,
           "admitted": []
         },
-        "status": "unknown",
+        "status": "proved",
         "obligations": [],
         "assumptions": [],
         "produced_at": "<produced_at>",
@@ -782,7 +808,7 @@
       "code": "verification_result",
       "category": "contract",
       "severity": "info",
-      "message": "label: unknown (verifier unavailable)",
+      "message": "label: proved",
       "span": {
         "file": "src/reader/pages.cpl",
         "line": 25,
@@ -793,7 +819,7 @@
       "symbol": "reader.pages.label",
       "qualified_name": "reader.pages.label",
       "facet": "verification_policy",
-      "reason": "verifier_unavailable",
+      "reason": null,
       "receipt": {
         "assumptions": [],
         "check_configuration": {
@@ -812,7 +838,7 @@
           "std": "42236a5efaffeb1110f986d858c30c7dabeb7efa54a3d80ec548b77135351388"
         }
       },
-      "status": "unknown"
+      "status": "proved"
     }
   },
   "reader.pages.load_page": {
@@ -833,7 +859,7 @@
         },
         "definition": "4b5a7e2afe918309171a2d889bbef5b9"
       },
-      "result": "unknown",
+      "result": "proved",
       "obligations": [],
       "receipt": {
         "receipt": "verification",
@@ -844,9 +870,11 @@
           "json_schema": 1
         },
         "verifier": {
-          "name": "none",
-          "version": null,
-          "configuration": {}
+          "name": "cpl-prove",
+          "version": "0.1.0",
+          "configuration": {
+            "theory": "linear_integer_arithmetic"
+          }
         },
         "revision": {
           "commit": null,
@@ -971,7 +999,7 @@
           "proof_timeout_ms": 10000,
           "admitted": []
         },
-        "status": "unknown",
+        "status": "proved",
         "obligations": [],
         "assumptions": [],
         "produced_at": "<produced_at>",
@@ -982,7 +1010,7 @@
       "code": "verification_result",
       "category": "contract",
       "severity": "info",
-      "message": "load_page: unknown (verifier unavailable)",
+      "message": "load_page: proved",
       "span": {
         "file": "src/reader/pages.cpl",
         "line": 86,
@@ -993,7 +1021,7 @@
       "symbol": "reader.pages.load_page",
       "qualified_name": "reader.pages.load_page",
       "facet": "verification_policy",
-      "reason": "verifier_unavailable",
+      "reason": null,
       "receipt": {
         "assumptions": [],
         "check_configuration": {
@@ -1012,7 +1040,7 @@
           "std": "42236a5efaffeb1110f986d858c30c7dabeb7efa54a3d80ec548b77135351388"
         }
       },
-      "status": "unknown"
+      "status": "proved"
     }
   },
   "reader.pages.load_text": {
@@ -1033,7 +1061,7 @@
         },
         "definition": "48f67a4a61b2a28588d9a0799f383168"
       },
-      "result": "unknown",
+      "result": "proved",
       "obligations": [],
       "receipt": {
         "receipt": "verification",
@@ -1044,9 +1072,11 @@
           "json_schema": 1
         },
         "verifier": {
-          "name": "none",
-          "version": null,
-          "configuration": {}
+          "name": "cpl-prove",
+          "version": "0.1.0",
+          "configuration": {
+            "theory": "linear_integer_arithmetic"
+          }
         },
         "revision": {
           "commit": null,
@@ -1199,7 +1229,7 @@
           "proof_timeout_ms": 10000,
           "admitted": []
         },
-        "status": "unknown",
+        "status": "proved",
         "obligations": [],
         "assumptions": [],
         "produced_at": "<produced_at>",
@@ -1210,7 +1240,7 @@
       "code": "verification_result",
       "category": "contract",
       "severity": "info",
-      "message": "load_text: unknown (verifier unavailable)",
+      "message": "load_text: proved",
       "span": {
         "file": "src/reader/pages.cpl",
         "line": 95,
@@ -1221,7 +1251,7 @@
       "symbol": "reader.pages.load_text",
       "qualified_name": "reader.pages.load_text",
       "facet": "verification_policy",
-      "reason": "verifier_unavailable",
+      "reason": null,
       "receipt": {
         "assumptions": [],
         "check_configuration": {
@@ -1240,7 +1270,7 @@
           "std": "42236a5efaffeb1110f986d858c30c7dabeb7efa54a3d80ec548b77135351388"
         }
       },
-      "status": "unknown"
+      "status": "proved"
     }
   },
   "reader.pages.paginate": {
@@ -1275,8 +1305,13 @@
             "end_col": 37
           },
           "status": "unknown",
-          "reason": "verifier_unavailable",
-          "evidence": null,
+          "reason": "unsupported_expression",
+          "evidence": {
+            "candidate": {
+              "items": [],
+              "size": 1
+            }
+          },
           "assumptions": []
         },
         {
@@ -1291,8 +1326,13 @@
             "end_col": 69
           },
           "status": "unknown",
-          "reason": "verifier_unavailable",
-          "evidence": null,
+          "reason": "unsupported_expression",
+          "evidence": {
+            "candidate": {
+              "items": [],
+              "size": 1
+            }
+          },
           "assumptions": []
         },
         {
@@ -1307,8 +1347,13 @@
             "end_col": 64
           },
           "status": "unknown",
-          "reason": "verifier_unavailable",
-          "evidence": null,
+          "reason": "unsupported_expression",
+          "evidence": {
+            "candidate": {
+              "items": [],
+              "size": 1
+            }
+          },
           "assumptions": []
         },
         {
@@ -1323,8 +1368,13 @@
             "end_col": 50
           },
           "status": "unknown",
-          "reason": "verifier_unavailable",
-          "evidence": null,
+          "reason": "unsupported_expression",
+          "evidence": {
+            "candidate": {
+              "items": [],
+              "size": 1
+            }
+          },
           "assumptions": []
         },
         {
@@ -1339,8 +1389,13 @@
             "end_col": 50
           },
           "status": "unknown",
-          "reason": "verifier_unavailable",
-          "evidence": null,
+          "reason": "unsupported_expression",
+          "evidence": {
+            "candidate": {
+              "items": [],
+              "size": 1
+            }
+          },
           "assumptions": []
         },
         {
@@ -1354,9 +1409,12 @@
             "end_line": 55,
             "end_col": 57
           },
-          "status": "unknown",
-          "reason": "verifier_unavailable",
-          "evidence": null,
+          "status": "proved",
+          "reason": null,
+          "evidence": {
+            "by": "linear_arithmetic",
+            "paths": 1
+          },
           "assumptions": []
         },
         {
@@ -1371,8 +1429,13 @@
             "end_col": 57
           },
           "status": "unknown",
-          "reason": "verifier_unavailable",
-          "evidence": null,
+          "reason": "unsupported_expression",
+          "evidence": {
+            "candidate": {
+              "items": [],
+              "size": 1
+            }
+          },
           "assumptions": []
         },
         {
@@ -1386,9 +1449,12 @@
             "end_line": 56,
             "end_col": 27
           },
-          "status": "unknown",
-          "reason": "verifier_unavailable",
-          "evidence": null,
+          "status": "proved",
+          "reason": null,
+          "evidence": {
+            "by": "linear_arithmetic",
+            "paths": 2
+          },
           "assumptions": []
         },
         {
@@ -1402,9 +1468,12 @@
             "end_line": 58,
             "end_col": 43
           },
-          "status": "unknown",
-          "reason": "verifier_unavailable",
-          "evidence": null,
+          "status": "proved",
+          "reason": null,
+          "evidence": {
+            "by": "linear_arithmetic",
+            "paths": 1
+          },
           "assumptions": []
         },
         {
@@ -1418,9 +1487,12 @@
             "end_line": 59,
             "end_col": 31
           },
-          "status": "unknown",
-          "reason": "verifier_unavailable",
-          "evidence": null,
+          "status": "proved",
+          "reason": null,
+          "evidence": {
+            "by": "linear_arithmetic",
+            "paths": 1
+          },
           "assumptions": []
         }
       ],
@@ -1433,9 +1505,11 @@
           "json_schema": 1
         },
         "verifier": {
-          "name": "none",
-          "version": null,
-          "configuration": {}
+          "name": "cpl-prove",
+          "version": "0.1.0",
+          "configuration": {
+            "theory": "linear_integer_arithmetic"
+          }
         },
         "revision": {
           "commit": null,
@@ -1650,8 +1724,13 @@
               "end_col": 37
             },
             "status": "unknown",
-            "reason": "verifier_unavailable",
-            "evidence": null,
+            "reason": "unsupported_expression",
+            "evidence": {
+              "candidate": {
+                "items": [],
+                "size": 1
+              }
+            },
             "assumptions": []
           },
           {
@@ -1666,8 +1745,13 @@
               "end_col": 69
             },
             "status": "unknown",
-            "reason": "verifier_unavailable",
-            "evidence": null,
+            "reason": "unsupported_expression",
+            "evidence": {
+              "candidate": {
+                "items": [],
+                "size": 1
+              }
+            },
             "assumptions": []
           },
           {
@@ -1682,8 +1766,13 @@
               "end_col": 64
             },
             "status": "unknown",
-            "reason": "verifier_unavailable",
-            "evidence": null,
+            "reason": "unsupported_expression",
+            "evidence": {
+              "candidate": {
+                "items": [],
+                "size": 1
+              }
+            },
             "assumptions": []
           },
           {
@@ -1698,8 +1787,13 @@
               "end_col": 50
             },
             "status": "unknown",
-            "reason": "verifier_unavailable",
-            "evidence": null,
+            "reason": "unsupported_expression",
+            "evidence": {
+              "candidate": {
+                "items": [],
+                "size": 1
+              }
+            },
             "assumptions": []
           },
           {
@@ -1714,8 +1808,13 @@
               "end_col": 50
             },
             "status": "unknown",
-            "reason": "verifier_unavailable",
-            "evidence": null,
+            "reason": "unsupported_expression",
+            "evidence": {
+              "candidate": {
+                "items": [],
+                "size": 1
+              }
+            },
             "assumptions": []
           },
           {
@@ -1729,9 +1828,12 @@
               "end_line": 55,
               "end_col": 57
             },
-            "status": "unknown",
-            "reason": "verifier_unavailable",
-            "evidence": null,
+            "status": "proved",
+            "reason": null,
+            "evidence": {
+              "by": "linear_arithmetic",
+              "paths": 1
+            },
             "assumptions": []
           },
           {
@@ -1746,8 +1848,13 @@
               "end_col": 57
             },
             "status": "unknown",
-            "reason": "verifier_unavailable",
-            "evidence": null,
+            "reason": "unsupported_expression",
+            "evidence": {
+              "candidate": {
+                "items": [],
+                "size": 1
+              }
+            },
             "assumptions": []
           },
           {
@@ -1761,9 +1868,12 @@
               "end_line": 56,
               "end_col": 27
             },
-            "status": "unknown",
-            "reason": "verifier_unavailable",
-            "evidence": null,
+            "status": "proved",
+            "reason": null,
+            "evidence": {
+              "by": "linear_arithmetic",
+              "paths": 2
+            },
             "assumptions": []
           },
           {
@@ -1777,9 +1887,12 @@
               "end_line": 58,
               "end_col": 43
             },
-            "status": "unknown",
-            "reason": "verifier_unavailable",
-            "evidence": null,
+            "status": "proved",
+            "reason": null,
+            "evidence": {
+              "by": "linear_arithmetic",
+              "paths": 1
+            },
             "assumptions": []
           },
           {
@@ -1793,9 +1906,12 @@
               "end_line": 59,
               "end_col": 31
             },
-            "status": "unknown",
-            "reason": "verifier_unavailable",
-            "evidence": null,
+            "status": "proved",
+            "reason": null,
+            "evidence": {
+              "by": "linear_arithmetic",
+              "paths": 1
+            },
             "assumptions": []
           }
         ],
@@ -1808,7 +1924,7 @@
       "code": "verification_result",
       "category": "contract",
       "severity": "info",
-      "message": "paginate: unknown (verifier unavailable)",
+      "message": "paginate: unknown (unsupported expression)",
       "span": {
         "file": "src/reader/pages.cpl",
         "line": 45,
@@ -1819,7 +1935,7 @@
       "symbol": "pgn_7c2d",
       "qualified_name": "reader.pages.paginate",
       "facet": "verification_policy",
-      "reason": "verifier_unavailable",
+      "reason": "unsupported_expression",
       "receipt": {
         "assumptions": [],
         "check_configuration": {
@@ -1859,7 +1975,7 @@
         },
         "definition": "8c07cc027eff53ecf092a2fb627ada8a"
       },
-      "result": "unknown",
+      "result": "proved",
       "obligations": [],
       "receipt": {
         "receipt": "verification",
@@ -1870,9 +1986,11 @@
           "json_schema": 1
         },
         "verifier": {
-          "name": "none",
-          "version": null,
-          "configuration": {}
+          "name": "cpl-prove",
+          "version": "0.1.0",
+          "configuration": {
+            "theory": "linear_integer_arithmetic"
+          }
         },
         "revision": {
           "commit": null,
@@ -2013,7 +2131,7 @@
           "proof_timeout_ms": 10000,
           "admitted": []
         },
-        "status": "unknown",
+        "status": "proved",
         "obligations": [],
         "assumptions": [],
         "produced_at": "<produced_at>",
@@ -2024,7 +2142,7 @@
       "code": "verification_result",
       "category": "contract",
       "severity": "info",
-      "message": "paginate_ints: unknown (verifier unavailable)",
+      "message": "paginate_ints: proved",
       "span": {
         "file": "src/reader/pages.cpl",
         "line": 69,
@@ -2035,7 +2153,7 @@
       "symbol": "reader.pages.paginate_ints",
       "qualified_name": "reader.pages.paginate_ints",
       "facet": "verification_policy",
-      "reason": "verifier_unavailable",
+      "reason": null,
       "receipt": {
         "assumptions": [],
         "check_configuration": {
@@ -2054,7 +2172,7 @@
           "std": "42236a5efaffeb1110f986d858c30c7dabeb7efa54a3d80ec548b77135351388"
         }
       },
-      "status": "unknown"
+      "status": "proved"
     }
   },
   "reader.pages.parse_size": {
@@ -2075,7 +2193,7 @@
         },
         "definition": "741394a365286b2d85fa5b92c3ce711e"
       },
-      "result": "unknown",
+      "result": "proved",
       "obligations": [],
       "receipt": {
         "receipt": "verification",
@@ -2086,9 +2204,11 @@
           "json_schema": 1
         },
         "verifier": {
-          "name": "none",
-          "version": null,
-          "configuration": {}
+          "name": "cpl-prove",
+          "version": "0.1.0",
+          "configuration": {
+            "theory": "linear_integer_arithmetic"
+          }
         },
         "revision": {
           "commit": null,
@@ -2232,7 +2352,7 @@
           "proof_timeout_ms": 10000,
           "admitted": []
         },
-        "status": "unknown",
+        "status": "proved",
         "obligations": [],
         "assumptions": [],
         "produced_at": "<produced_at>",
@@ -2243,7 +2363,7 @@
       "code": "verification_result",
       "category": "contract",
       "severity": "info",
-      "message": "parse_size: unknown (verifier unavailable)",
+      "message": "parse_size: proved",
       "span": {
         "file": "src/reader/pages.cpl",
         "line": 34,
@@ -2254,7 +2374,7 @@
       "symbol": "reader.pages.parse_size",
       "qualified_name": "reader.pages.parse_size",
       "facet": "verification_policy",
-      "reason": "verifier_unavailable",
+      "reason": null,
       "receipt": {
         "assumptions": [],
         "check_configuration": {
@@ -2273,7 +2393,7 @@
           "std": "42236a5efaffeb1110f986d858c30c7dabeb7efa54a3d80ec548b77135351388"
         }
       },
-      "status": "unknown"
+      "status": "proved"
     }
   },
   "reader.pages.positive_size": {
@@ -2294,7 +2414,7 @@
         },
         "definition": "0b34f1318a497024af6b1d79b9514a48"
       },
-      "result": "unknown",
+      "result": "proved",
       "obligations": [],
       "receipt": {
         "receipt": "verification",
@@ -2305,9 +2425,11 @@
           "json_schema": 1
         },
         "verifier": {
-          "name": "none",
-          "version": null,
-          "configuration": {}
+          "name": "cpl-prove",
+          "version": "0.1.0",
+          "configuration": {
+            "theory": "linear_integer_arithmetic"
+          }
         },
         "revision": {
           "commit": null,
@@ -2436,7 +2558,7 @@
           "proof_timeout_ms": 10000,
           "admitted": []
         },
-        "status": "unknown",
+        "status": "proved",
         "obligations": [],
         "assumptions": [],
         "produced_at": "<produced_at>",
@@ -2447,7 +2569,7 @@
       "code": "verification_result",
       "category": "contract",
       "severity": "info",
-      "message": "positive_size: unknown (verifier unavailable)",
+      "message": "positive_size: proved",
       "span": {
         "file": "src/reader/pages.cpl",
         "line": 38,
@@ -2458,7 +2580,7 @@
       "symbol": "reader.pages.positive_size",
       "qualified_name": "reader.pages.positive_size",
       "facet": "verification_policy",
-      "reason": "verifier_unavailable",
+      "reason": null,
       "receipt": {
         "assumptions": [],
         "check_configuration": {
@@ -2477,7 +2599,7 @@
           "std": "42236a5efaffeb1110f986d858c30c7dabeb7efa54a3d80ec548b77135351388"
         }
       },
-      "status": "unknown"
+      "status": "proved"
     }
   }
 }

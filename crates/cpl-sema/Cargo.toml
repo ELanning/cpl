@@ -11,6 +11,8 @@ cpl-hir.workspace = true
 cpl-project.workspace = true
 cpl-syntax.workspace = true
 cpl-diag.workspace = true
+# The verifier behind every `@prove` function's verification status (semantics 5.5, S36).
+cpl-prove.workspace = true
 # The builtin ids and the one Int division (toolchain 1.6, T70; stdlib S47).
 cpl-rtspec.workspace = true
 num-bigint.workspace = true

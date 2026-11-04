@@ -422,7 +422,7 @@ fn declaration_level_facets_from_both_sides_are_grafted_and_hash_checked() {
     let base = one(BASE);
     let left = one(&BASE.replace(
         "pub pure fn calc(n: Int) -> Int {",
-        "pub pure fn calc(n: Int) -> Int\n    requires n >= 0\n{",
+        "pub pure fn calc(n: Int) -> Int\n    ensures result > n\n{",
     ));
     let right = one(&BASE.replace(
         "@id(\"fn_calc\")\n",
@@ -432,7 +432,7 @@ fn declaration_level_facets_from_both_sides_are_grafted_and_hash_checked() {
     assert_eq!(m.report.status, "tested", "{:#?}", m.report);
     let merged = text(&m, "src/m.cpl");
     assert!(
-        merged.contains("/// The successor.\n@id(\"fn_calc\")\npub pure fn calc(n: Int) -> Int\n    requires n >= 0\n{\n    n + 1\n}"),
+        merged.contains("/// The successor.\n@id(\"fn_calc\")\npub pure fn calc(n: Int) -> Int\n    ensures result > n\n{\n    n + 1\n}"),
         "{merged}"
     );
     // A verification policy and a contract graft the same way, in either direction.
@@ -441,7 +441,7 @@ fn declaration_level_facets_from_both_sides_are_grafted_and_hash_checked() {
     assert_eq!(m.report.status, "tested", "{:#?}", m.report);
     let merged = text(&m, "src/m.cpl");
     assert!(
-        merged.contains("@prove\npub pure fn calc(n: Int) -> Int\n    requires n >= 0"),
+        merged.contains("@prove\npub pure fn calc(n: Int) -> Int\n    ensures result > n"),
         "{merged}"
     );
 }

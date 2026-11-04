@@ -72,11 +72,12 @@ fn cli_previews_changes_applies_with_authority_and_rejects_stale_or_failing_edit
     assert_eq!(proposal["change"]["accepted"], true);
     assert_eq!(proposal["change"]["attestations"][0]["status"], "attested");
     assert_eq!(fs::read(root.join("src/demo.cpl")).unwrap(), original);
+    // The verifier proves `price`'s postcondition for the new body as well.
     assert!(proposal["change"]["evidence"]["obligations"]
         .as_array()
         .unwrap()
         .iter()
-        .any(|o| o["status"] == "unknown"));
+        .all(|o| o["status"] == "proved"));
     let applied = run(
         &root,
         &[
@@ -307,13 +308,28 @@ fn cli_evidence_is_recomputed_and_unknown_proofs_remain_unknown() {
     );
     assert_eq!(verified["verification"]["configuration"]["seed"], 42);
     run(&root, &["verify", "--evidence", "evidence.json"], 0);
-    run(&root, &["verify", "--require-proofs"], 1);
+    // Every obligation of the example is proved.
+    run(&root, &["verify", "--require-proofs"], 0);
     let mut evidence = verified["verification"].clone();
     evidence["tests"] = json!([]);
     fs::write(root.join("evidence.json"), evidence.to_string()).unwrap();
     let rejected = run(&root, &["verify", "--evidence", "evidence.json"], 1);
     assert_eq!(rejected["diagnostics"][0]["code"], "evidence_stale");
     run(&root, &["verify", "--receipt", "src/demo.cpl"], 2);
+    // A postcondition about text is outside the verifier's fragment: it stays unknown, which
+    // only `--require-proofs` rejects.
+    let mut source = fs::read_to_string(root.join("src/demo.cpl")).unwrap();
+    source.push_str(
+        "\npub fn shout(t: Text) -> Text\n    ensures result.len > t.len\n{\n    t ++ \"!\"\n}\n",
+    );
+    fs::write(root.join("src/demo.cpl"), source).unwrap();
+    let unknown = run(&root, &["verify"], 0);
+    assert!(unknown["verification"]["obligations"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|o| o["status"] == "unknown"));
+    run(&root, &["verify", "--require-proofs"], 1);
 }
 
 #[test]

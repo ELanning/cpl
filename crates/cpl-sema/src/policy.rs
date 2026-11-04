@@ -7,9 +7,10 @@
 //! (S36 (c), S47 (b)) at the function's name (S63 (3)), with `symbol`,
 //! `facet: "verification_policy"`, and `status`; `proved` and, from
 //! Milestone 5, `conditional` satisfy the policy, and no manifest switch
-//! weakens it (T36). In Milestone 1 every status is `unknown`, so every
-//! `@prove` declaration fails a release check. Development mode reports
-//! nothing here.
+//! weakens it (T36): a `@prove` declaration the verifier did not prove
+//! fails a release check. Development mode reports nothing here.
+//! `hole_in_release` definitions, recorded by the hole stage, are marked
+//! failed here, so the stages before see the same program in both modes.
 //!
 //! The other release rules are reported where their facts are known: the
 //! typer's hole stage (`crate::types`, its `holes` module) reports a
@@ -30,6 +31,9 @@ pub(crate) fn apply_policy(cx: &mut Checker<'_>) {
     if !cx.config.release {
         return;
     }
+    for def in std::mem::take(&mut cx.release_failed) {
+        cx.fail(def);
+    }
     let mut diags = Vec::new();
     let mut failed = Vec::new();
     for status in &cx.verification {
@@ -41,8 +45,8 @@ pub(crate) fn apply_policy(cx: &mut Checker<'_>) {
         let def = status.def;
         let name = cx.program.def(def).name.display();
         let reason = match status.reason.as_deref() {
-            Some("verifier_unavailable") => " (no verifier is available in this toolchain)",
-            _ => "",
+            Some(reason) => format!(" ({})", reason.replace('_', " ")),
+            None => String::new(),
         };
         let d = diag(
             codes::VERIFICATION_UNSATISFIED,

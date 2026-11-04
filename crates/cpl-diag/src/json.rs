@@ -743,8 +743,10 @@ pub struct Obligation {
     pub clause: String,
     pub location: Location,
     pub status: ObligationStatus,
-    /// For `unknown`: `verifier_unavailable`, `unsupported_expression`,
-    /// `timeout`, `no_measure`; `null` otherwise.
+    /// For `unknown`: the verifier's reason (`unsupported_expression`,
+    /// `invariant_too_weak`, `nonlinear_arithmetic`, `integer_reasoning`,
+    /// `limit`, `indirect_recursion`, `has_errors`) or `no_measure`;
+    /// `null` otherwise (`spec/verification.md`).
     pub reason: Option<String>,
     pub evidence: Option<serde_json::Value>,
     /// Assumption ids.
@@ -885,7 +887,7 @@ pub struct VerificationConfig {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct VerifierInfo {
-    /// `"none"` in Milestone 1.
+    /// `"cpl-prove"` (`spec/verification.md`).
     pub name: String,
     pub version: Option<String>,
     pub configuration: JsonMap,

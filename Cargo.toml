@@ -9,6 +9,7 @@ members = [
     "crates/cpl-eval",
     "crates/cpl-index",
     "crates/cpl-work",
+    "crates/cpl-prove",
     "crates/cpl-evolve",
     "crates/cpl-cli",
     # Milestone 2 (spec/toolchain.md 1.1-1.2, T69)
@@ -37,6 +38,7 @@ cpl-sema = { path = "crates/cpl-sema" }
 cpl-eval = { path = "crates/cpl-eval" }
 cpl-index = { path = "crates/cpl-index" }
 cpl-work = { path = "crates/cpl-work" }
+cpl-prove = { path = "crates/cpl-prove" }
 cpl-evolve = { path = "crates/cpl-evolve" }
 # Milestone 2 (spec/toolchain.md 1.1-1.3, T69)
 cpl-rtspec = { path = "crates/cpl-rtspec" }

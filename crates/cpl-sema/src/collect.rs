@@ -477,6 +477,7 @@ fn annotations(decl: &ast::Declaration, is_std: bool, out: &mut Vec<Diagnostic>)
                 | "schema"
                 | "migration"
                 | "read_only"
+                | "role"
         ) || (std_only && is_std))
         {
             let message = if std_only {
@@ -533,10 +534,10 @@ fn annotations(decl: &ast::Declaration, is_std: bool, out: &mut Vec<Diagnostic>)
                 }
             }
             "intent" | "preserve" | "protocol" | "transition" | "message" | "schema"
-            | "migration" => {
+            | "migration" | "role" => {
                 let count = match name {
                     "intent" | "preserve" => 1,
-                    "message" | "schema" => 2,
+                    "message" | "schema" | "role" => 2,
                     _ => 3,
                 };
                 if ann.args.len() != count
@@ -548,9 +549,9 @@ fn annotations(decl: &ast::Declaration, is_std: bool, out: &mut Vec<Diagnostic>)
                         "@{name} takes {count} nonempty text arguments"
                     )));
                 }
-                if matches!(name, "transition" | "message" | "migration") && !is_fn {
+                if matches!(name, "transition" | "message" | "migration" | "role") && !is_fn {
                     out.push(misplaced(
-                        "transition, message, and migration annotations require a function",
+                        "transition, message, migration, and role annotations require a function",
                     ));
                 }
                 if matches!(name, "protocol" | "schema")

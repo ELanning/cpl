@@ -14,6 +14,7 @@ cpl-project.workspace = true
 cpl-sema.workspace = true
 cpl-index.workspace = true
 cpl-eval.workspace = true
+cpl-prove.workspace = true
 cpl-work.workspace = true
 blake3.workspace = true
 num-bigint.workspace = true

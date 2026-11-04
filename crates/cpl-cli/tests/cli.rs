@@ -56,7 +56,7 @@ fn check_reader_row() {
     assert_eq!(v["qualified_name"], "reader.pages.paginate");
     assert_eq!(v["facet"], "verification_policy");
     assert_eq!(v["status"], "unknown");
-    assert_eq!(v["reason"], "verifier_unavailable");
+    assert_eq!(v["reason"], "unsupported_expression");
     assert_eq!(v["span"]["file"], "src/reader/pages.cpl");
     assert_eq!(
         (v["span"]["line"].clone(), v["span"]["col"].clone()),
@@ -83,7 +83,7 @@ fn check_reader_row() {
     assert_eq!(
         env["verification"],
         json!([{ "symbol": "pgn_7c2d", "qualified_name": "reader.pages.paginate",
-                 "status": "unknown", "reason": "verifier_unavailable" }])
+                 "status": "unknown", "reason": "unsupported_expression" }])
     );
     check_json_golden("check_reader.json", &run, &fx, false);
 }
@@ -257,7 +257,7 @@ fn check_human_output_has_the_stable_lines() {
     let lines: Vec<&str> = run.stderr.lines().collect();
     assert_eq!(
         lines[0],
-        "info[verification_result]: paginate: unknown (verifier unavailable)"
+        "info[verification_result]: paginate: unknown (unsupported expression)"
     );
     assert_eq!(lines[1], "  --> src/reader/pages.cpl:45:8");
 
@@ -2843,7 +2843,7 @@ fn inspect_include_items() {
     );
     assert_eq!(
         (first["status"].clone(), first["reason"].clone()),
-        (json!("unknown"), json!("verifier_unavailable"))
+        (json!("unknown"), json!("unsupported_expression"))
     );
 
     // `tests`: direct for paginate, transitive for what it calls.
@@ -3194,7 +3194,7 @@ fn inspect_human_output_has_labelled_sections() {
         "  reader.pages.paginate_ints",
         "    call sites",
         "      src/reader/pages.cpl:75:8-37",
-        "  pgn_7c2d#ensures/1  ensures  unknown (verifier_unavailable)",
+        "  pgn_7c2d#ensures/1  ensures  unknown (unsupported_expression)",
         "    clause    flatten(result) == items",
         "    location  src/reader/pages.cpl:46:5-37",
         "  tests.pagination.\"pagination preserves input\"  (direct)",
@@ -3250,7 +3250,7 @@ fn inspect_human_output_has_labelled_sections() {
 // ===========================================================================
 
 #[test]
-fn prove_paginate_is_unknown_in_milestone_1() {
+fn prove_paginate_is_unknown_outside_the_fragment() {
     let Some(fx) = Fixture::committed("prove-paginate") else {
         return;
     };
@@ -3277,9 +3277,13 @@ fn prove_paginate_is_unknown_in_milestone_1() {
     assert_eq!(ensures, PAGINATE_CONTRACT);
     for o in obligations {
         assert!(o["id"].as_str().unwrap().starts_with("pgn_7c2d#"), "{o}");
-        assert_eq!(o["status"], "unknown", "{o}");
-        assert_eq!(o["reason"], "verifier_unavailable", "{o}");
-        assert_eq!(o["evidence"], Value::Null);
+        // Proved, or unknown because it is about list contents.
+        if o["status"] == "unknown" {
+            assert_eq!(o["reason"], "unsupported_expression", "{o}");
+        } else {
+            assert_eq!(o["status"], "proved", "{o}");
+            assert_eq!(o["evidence"]["by"], "linear_arithmetic", "{o}");
+        }
         assert_eq!(o["assumptions"], json!([]));
     }
     // The receipt of Section 8.1.
@@ -3288,7 +3292,7 @@ fn prove_paginate_is_unknown_in_milestone_1() {
     assert_eq!(receipt["schema"], 1);
     assert_eq!(
         receipt["verifier"],
-        json!({ "name": "none", "version": null, "configuration": {} })
+        json!({ "name": "cpl-prove", "version": "0.1.0", "configuration": { "theory": "linear_integer_arithmetic" } })
     );
     assert_eq!(receipt["revision"], env["revision"]);
     assert_eq!(&receipt["target"], symbol);
@@ -3324,7 +3328,7 @@ fn prove_paginate_is_unknown_in_milestone_1() {
     assert_eq!(d["qualified_name"], "reader.pages.paginate");
     assert_eq!(d["facet"], "verification_policy");
     assert_eq!(d["status"], "unknown");
-    assert_eq!(d["reason"], "verifier_unavailable");
+    assert_eq!(d["reason"], "unsupported_expression");
     assert_eq!(&d["receipt"], core);
     assert_eq!(
         (d["span"]["line"].clone(), d["span"]["col"].clone()),
@@ -3341,12 +3345,12 @@ fn prove_targets_and_refusals() {
         assert_eq!(code, 1, "{target}");
         assert_eq!(env["symbol"]["id"], "pgn_7c2d");
     }
-    // A function without @prove has its verification status too: unknown,
-    // with the policy it has.
+    // A function without @prove has its verification status too, with the
+    // policy it has: `clean` has nothing to discharge.
     let (code, env) = json_of(&fx.reader, &["prove", "reader.pages.clean"]);
-    assert_eq!(code, 1);
-    assert_eq!(env["status"], "unsuccessful");
-    assert_eq!(env["result"], "unknown");
+    assert_eq!(code, 0);
+    assert_eq!(env["status"], "ok");
+    assert_eq!(env["result"], "proved");
     assert_eq!(env["symbol"]["provisional"], true);
     assert_eq!(
         env["receipt"]["configuration"]["policy"],
@@ -3355,8 +3359,8 @@ fn prove_targets_and_refusals() {
     assert_eq!(kinds(&env), pairs(&[("info", "verification_result")]));
     // A std function is a function too.
     let (code, env) = json_of(&fx.reader, &["prove", "std.text.trim"]);
-    assert_eq!(code, 1);
-    assert_eq!(env["result"], "unknown");
+    assert_eq!(code, 0);
+    assert_eq!(env["result"], "proved");
     // Declarations that are not functions: usage_not_provable, exit 2.
     for target in [
         "reader.pages.Positive",
@@ -3405,7 +3409,7 @@ fn prove_human_output() {
     let n = env["obligations"].as_array().unwrap().len();
     assert_eq!(
         lines[1],
-        format!("  {n} obligations: 0 proved, 0 failed, {n} unknown (verifier unavailable in cpl 0.1.0)")
+        format!("  {n} obligations: 4 proved, 0 failed, {} unknown", n - 4)
     );
     // The receipt is named by its digest, which leaves out `produced_at`
     // and `duration_ms`: two runs on one revision give the same name.
@@ -3416,16 +3420,16 @@ fn prove_human_output() {
     );
     assert!(
         run.stderr.starts_with(
-            "info[verification_result]: paginate: unknown (verifier unavailable)\n  --> src/reader/pages.cpl:45:8\n"
+            "info[verification_result]: paginate: unknown (unsupported expression)\n  --> src/reader/pages.cpl:45:8\n"
         ),
         "{}",
         run.stderr
     );
     let run = cpl(&fx.reader, &["prove", "reader.pages.clean"]);
-    run.expect_code(1);
+    run.expect_code(0);
     assert!(run
         .stdout
-        .starts_with("prove reader.pages.clean (reader.pages.clean): unknown\n"));
+        .starts_with("prove reader.pages.clean (reader.pages.clean): proved\n"));
     let run = cpl(&fx.reader, &["prove", "reader.pages.Positive"]);
     run.expect_code(2);
     assert_eq!(run.stdout, "");

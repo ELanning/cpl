@@ -16,7 +16,7 @@
       "code": "verification_result",
       "category": "contract",
       "severity": "info",
-      "message": "paginate: unknown (verifier unavailable)",
+      "message": "paginate: unknown (unsupported expression)",
       "span": {
         "file": "src/reader/pages.cpl",
         "line": 45,
@@ -27,7 +27,7 @@
       "symbol": "pgn_7c2d",
       "qualified_name": "reader.pages.paginate",
       "facet": "verification_policy",
-      "reason": "verifier_unavailable",
+      "reason": "unsupported_expression",
       "receipt": {
         "assumptions": [],
         "check_configuration": {
@@ -79,8 +79,13 @@
         "end_col": 37
       },
       "status": "unknown",
-      "reason": "verifier_unavailable",
-      "evidence": null,
+      "reason": "unsupported_expression",
+      "evidence": {
+        "candidate": {
+          "items": [],
+          "size": 1
+        }
+      },
       "assumptions": []
     },
     {
@@ -95,8 +100,13 @@
         "end_col": 69
       },
       "status": "unknown",
-      "reason": "verifier_unavailable",
-      "evidence": null,
+      "reason": "unsupported_expression",
+      "evidence": {
+        "candidate": {
+          "items": [],
+          "size": 1
+        }
+      },
       "assumptions": []
     },
     {
@@ -111,8 +121,13 @@
         "end_col": 64
       },
       "status": "unknown",
-      "reason": "verifier_unavailable",
-      "evidence": null,
+      "reason": "unsupported_expression",
+      "evidence": {
+        "candidate": {
+          "items": [],
+          "size": 1
+        }
+      },
       "assumptions": []
     },
     {
@@ -127,8 +142,13 @@
         "end_col": 50
       },
       "status": "unknown",
-      "reason": "verifier_unavailable",
-      "evidence": null,
+      "reason": "unsupported_expression",
+      "evidence": {
+        "candidate": {
+          "items": [],
+          "size": 1
+        }
+      },
       "assumptions": []
     },
     {
@@ -143,8 +163,13 @@
         "end_col": 50
       },
       "status": "unknown",
-      "reason": "verifier_unavailable",
-      "evidence": null,
+      "reason": "unsupported_expression",
+      "evidence": {
+        "candidate": {
+          "items": [],
+          "size": 1
+        }
+      },
       "assumptions": []
     },
     {
@@ -158,9 +183,12 @@
         "end_line": 55,
         "end_col": 57
       },
-      "status": "unknown",
-      "reason": "verifier_unavailable",
-      "evidence": null,
+      "status": "proved",
+      "reason": null,
+      "evidence": {
+        "by": "linear_arithmetic",
+        "paths": 1
+      },
       "assumptions": []
     },
     {
@@ -175,8 +203,13 @@
         "end_col": 57
       },
       "status": "unknown",
-      "reason": "verifier_unavailable",
-      "evidence": null,
+      "reason": "unsupported_expression",
+      "evidence": {
+        "candidate": {
+          "items": [],
+          "size": 1
+        }
+      },
       "assumptions": []
     },
     {
@@ -190,9 +223,12 @@
         "end_line": 56,
         "end_col": 27
       },
-      "status": "unknown",
-      "reason": "verifier_unavailable",
-      "evidence": null,
+      "status": "proved",
+      "reason": null,
+      "evidence": {
+        "by": "linear_arithmetic",
+        "paths": 2
+      },
       "assumptions": []
     },
     {
@@ -206,9 +242,12 @@
         "end_line": 58,
         "end_col": 43
       },
-      "status": "unknown",
-      "reason": "verifier_unavailable",
-      "evidence": null,
+      "status": "proved",
+      "reason": null,
+      "evidence": {
+        "by": "linear_arithmetic",
+        "paths": 1
+      },
       "assumptions": []
     },
     {
@@ -222,9 +261,12 @@
         "end_line": 59,
         "end_col": 31
       },
-      "status": "unknown",
-      "reason": "verifier_unavailable",
-      "evidence": null,
+      "status": "proved",
+      "reason": null,
+      "evidence": {
+        "by": "linear_arithmetic",
+        "paths": 1
+      },
       "assumptions": []
     }
   ],
@@ -237,9 +279,11 @@
       "json_schema": 1
     },
     "verifier": {
-      "name": "none",
-      "version": null,
-      "configuration": {}
+      "name": "cpl-prove",
+      "version": "0.1.0",
+      "configuration": {
+        "theory": "linear_integer_arithmetic"
+      }
     },
     "revision": {
       "commit": "<commit>",
@@ -454,8 +498,13 @@
           "end_col": 37
         },
         "status": "unknown",
-        "reason": "verifier_unavailable",
-        "evidence": null,
+        "reason": "unsupported_expression",
+        "evidence": {
+          "candidate": {
+            "items": [],
+            "size": 1
+          }
+        },
         "assumptions": []
       },
       {
@@ -470,8 +519,13 @@
           "end_col": 69
         },
         "status": "unknown",
-        "reason": "verifier_unavailable",
-        "evidence": null,
+        "reason": "unsupported_expression",
+        "evidence": {
+          "candidate": {
+            "items": [],
+            "size": 1
+          }
+        },
         "assumptions": []
       },
       {
@@ -486,8 +540,13 @@
           "end_col": 64
         },
         "status": "unknown",
-        "reason": "verifier_unavailable",
-        "evidence": null,
+        "reason": "unsupported_expression",
+        "evidence": {
+          "candidate": {
+            "items": [],
+            "size": 1
+          }
+        },
         "assumptions": []
       },
       {
@@ -502,8 +561,13 @@
           "end_col": 50
         },
         "status": "unknown",
-        "reason": "verifier_unavailable",
-        "evidence": null,
+        "reason": "unsupported_expression",
+        "evidence": {
+          "candidate": {
+            "items": [],
+            "size": 1
+          }
+        },
         "assumptions": []
       },
       {
@@ -518,8 +582,13 @@
           "end_col": 50
         },
         "status": "unknown",
-        "reason": "verifier_unavailable",
-        "evidence": null,
+        "reason": "unsupported_expression",
+        "evidence": {
+          "candidate": {
+            "items": [],
+            "size": 1
+          }
+        },
         "assumptions": []
       },
       {
@@ -533,9 +602,12 @@
           "end_line": 55,
           "end_col": 57
         },
-        "status": "unknown",
-        "reason": "verifier_unavailable",
-        "evidence": null,
+        "status": "proved",
+        "reason": null,
+        "evidence": {
+          "by": "linear_arithmetic",
+          "paths": 1
+        },
         "assumptions": []
       },
       {
@@ -550,8 +622,13 @@
           "end_col": 57
         },
         "status": "unknown",
-        "reason": "verifier_unavailable",
-        "evidence": null,
+        "reason": "unsupported_expression",
+        "evidence": {
+          "candidate": {
+            "items": [],
+            "size": 1
+          }
+        },
         "assumptions": []
       },
       {
@@ -565,9 +642,12 @@
           "end_line": 56,
           "end_col": 27
         },
-        "status": "unknown",
-        "reason": "verifier_unavailable",
-        "evidence": null,
+        "status": "proved",
+        "reason": null,
+        "evidence": {
+          "by": "linear_arithmetic",
+          "paths": 2
+        },
         "assumptions": []
       },
       {
@@ -581,9 +661,12 @@
           "end_line": 58,
           "end_col": 43
         },
-        "status": "unknown",
-        "reason": "verifier_unavailable",
-        "evidence": null,
+        "status": "proved",
+        "reason": null,
+        "evidence": {
+          "by": "linear_arithmetic",
+          "paths": 1
+        },
         "assumptions": []
       },
       {
@@ -597,9 +680,12 @@
           "end_line": 59,
           "end_col": 31
         },
-        "status": "unknown",
-        "reason": "verifier_unavailable",
-        "evidence": null,
+        "status": "proved",
+        "reason": null,
+        "evidence": {
+          "by": "linear_arithmetic",
+          "paths": 1
+        },
         "assumptions": []
       }
     ],

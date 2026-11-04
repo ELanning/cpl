@@ -19,6 +19,7 @@ cpl-eval.workspace = true
 cpl-index.workspace = true
 cpl-work.workspace = true
 cpl-evolve.workspace = true
+cpl-prove.workspace = true
 cpl-cabi.workspace = true
 cpl-emit-c.workspace = true
 cpl-rt.workspace = true

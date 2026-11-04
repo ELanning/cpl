@@ -29,22 +29,20 @@
 //! - A test receipt's `tested` is the static call closure of the selected
 //!   tests, the tests included, so that a test's own version is part of
 //!   the evidence a reused receipt must match (8.2).
-//! - Milestone 1 has no verifier, so a verification status is `unknown`
-//!   with reason `verifier_unavailable` (semantics S36 (b)), even for a
-//!   function whose obligations are all established by the type checker
-//!   or that has none: 8.1's `proved` presumes a verifier that discharged
-//!   them, and T29 makes `cpl prove` exit 1 in Milestone 1.
+//! - A verification status is the verifier's (`cpl_prove`,
+//!   `spec/verification.md`): a function whose obligations are all proved
+//!   (or that has none), whose termination is known, and that has no typed
+//!   hole is `proved`, and `cpl prove` exits 0 for it (T29).
 
 use crate::codes;
-use crate::obligations::VERIFIER_UNAVAILABLE;
 use crate::query::{name_span, Index, Target};
 use crate::receipt::{test_receipt, verification_receipt};
 use cpl_diag::json::{
     CheckOutput, CheckSummary, HoleBindingJson, HoleCapabilityJson, HoleDependenciesJson,
-    HoleOperationJson, HoleReportJson, JsonMap, ModuleHash, ProofStatus, ProveOutput, ReceiptCore,
-    ReceiptToolchain, Revision, RevisionState, Status, SymbolVersion, TestReceipt, TestReport,
-    TestRunConfig, VerificationConfig, VerificationPolicyJson, VerificationStatusJson,
-    VerifierInfo,
+    HoleOperationJson, HoleReportJson, JsonMap, ModuleHash, Obligation, ObligationStatus,
+    ProofStatus, ProveOutput, ReceiptCore, ReceiptToolchain, Revision, RevisionState, Status,
+    SymbolVersion, TestReceipt, TestReport, TestRunConfig, VerificationConfig,
+    VerificationPolicyJson, VerificationStatusJson, VerifierInfo,
 };
 use cpl_diag::{Category, Diagnostic, Facet, FileOrigin, Severity};
 use cpl_sema::hir::{DefId, DefKind};
@@ -64,7 +62,7 @@ impl Proof {
     /// The envelope status of `cpl prove` (T29, Section 7.4): `ok` (exit 0)
     /// only when every obligation is proved, a `proved` or `conditional`
     /// result; `unsuccessful` (exit 1) for `unknown` and `failed`, which
-    /// `result` tells apart. Always `unsuccessful` in Milestone 1.
+    /// `result` tells apart.
     pub fn status(&self) -> Status {
         match self.output.result {
             ProofStatus::Proved | ProofStatus::Conditional => Status::Ok,
@@ -93,12 +91,39 @@ pub fn test_environment() -> BTreeMap<String, String> {
     ])
 }
 
-/// Milestone 1's verifier: none (Section 7.2 `cpl prove`).
-fn no_verifier() -> VerifierInfo {
+/// A function's status from its obligations (Section 8.1): `failed` when one failed, `unknown`
+/// (the first unknown obligation's reason, or `no_measure` when only termination is unknown)
+/// when one is not proved or termination is unknown, `proved` otherwise.
+fn proof_status(
+    obligations: &[Obligation],
+    termination_unknown: bool,
+) -> (ProofStatus, Option<String>) {
+    if obligations
+        .iter()
+        .any(|o| o.status == ObligationStatus::Failed)
+    {
+        return (ProofStatus::Failed, None);
+    }
+    if let Some(o) = obligations
+        .iter()
+        .find(|o| o.status == ObligationStatus::Unknown)
+    {
+        return (ProofStatus::Unknown, o.reason.clone());
+    }
+    if termination_unknown {
+        return (ProofStatus::Unknown, Some("no_measure".to_string()));
+    }
+    (ProofStatus::Proved, None)
+}
+
+/// The verifier of every receipt (`spec/verification.md`).
+fn verifier() -> VerifierInfo {
+    let mut configuration = JsonMap::new();
+    configuration.insert("theory".into(), json!("linear_integer_arithmetic"));
     VerifierInfo {
-        name: "none".to_string(),
-        version: None,
-        configuration: JsonMap::new(),
+        name: cpl_prove::VERIFIER.to_string(),
+        version: Some(cpl_prove::VERSION.to_string()),
+        configuration,
     }
 }
 
@@ -356,9 +381,9 @@ impl<'p> Index<'p> {
     /// "verification_policy"`, `status`, `reason`, and its `receipt`, the
     /// receipt's `core`; a note when the function's termination is unknown
     /// as well, semantics 5.5: recursive without a measure, or a `while`
-    /// loop without one). Milestone 1 has no verifier: the status is
-    /// `unknown` with reason `verifier_unavailable` (module docs), the
-    /// verifier is `{ "name": "none", "version": null }`, and the receipt's
+    /// loop without one). The status is the verifier's report on the
+    /// function (with `obligation` and `model` for a failed one), the
+    /// verifier is `cpl-prove` with its version, and the receipt's
     /// `dependencies` are the function's dependencies, interface and body.
     ///
     /// Errors: the resolution's (`index_unknown_symbol`,
@@ -381,7 +406,20 @@ impl<'p> Index<'p> {
             .with_symbol(d.stable_id.clone(), qualified_name, None));
         }
         let obligations = self.obligations(def);
-        let status = ProofStatus::Unknown;
+        let termination_unknown = crate::obligations::termination_unknown(self, def);
+        // The verifier's status of a function with a body (it also knows about holes); from the
+        // obligations for a `@builtin`, whose clauses are axioms.
+        let (status, reason) = match self.proof(program, def) {
+            Some(report) => (
+                match report.status {
+                    cpl_prove::Status::Proved => ProofStatus::Proved,
+                    cpl_prove::Status::Failed => ProofStatus::Failed,
+                    cpl_prove::Status::Unknown => ProofStatus::Unknown,
+                },
+                report.reason.map(str::to_string),
+            ),
+            None => proof_status(&obligations, termination_unknown),
+        };
         let core = self.verification_receipt_core(def, false);
         let config = VerificationConfig {
             release: false,
@@ -405,23 +443,48 @@ impl<'p> Index<'p> {
             status,
             obligations.clone(),
             Vec::new(),
-            no_verifier(),
+            verifier(),
         );
-        let mut diagnostic = Diagnostic::info(
-            codes::VERIFICATION_RESULT,
-            Category::Contract,
-            format!("{}: unknown (verifier unavailable)", d.name.display()),
-        )
-        .with_span(name_span(program.ast(def)))
-        .with_symbol(
-            d.stable_id.clone(),
-            qualified_name,
-            Some(Facet::VerificationPolicy),
-        )
-        .with_data("status", json!(status.as_str()))
-        .with_data("reason", json!(VERIFIER_UNAVAILABLE))
-        .with_data("receipt", to_value(&core));
-        if crate::obligations::termination_unknown(self, def) {
+        // The same message as the check's `verification_result`.
+        let failed = obligations
+            .iter()
+            .find(|o| o.status == ObligationStatus::Failed);
+        let message = match (&reason, failed) {
+            (_, Some(o)) if status == ProofStatus::Failed => {
+                format!("{}: failed ({} obligation)", d.name.display(), o.kind)
+            }
+            (Some(r), _) => format!(
+                "{}: {} ({})",
+                d.name.display(),
+                status.as_str(),
+                r.replace('_', " ")
+            ),
+            (None, _) => format!("{}: {}", d.name.display(), status.as_str()),
+        };
+        let mut diagnostic =
+            Diagnostic::info(codes::VERIFICATION_RESULT, Category::Contract, message)
+                .with_span(name_span(program.ast(def)))
+                .with_symbol(
+                    d.stable_id.clone(),
+                    qualified_name,
+                    Some(Facet::VerificationPolicy),
+                )
+                .with_data("status", json!(status.as_str()))
+                .with_data("reason", json!(reason))
+                .with_data("receipt", to_value(&core));
+        if let Some(o) = obligations
+            .iter()
+            .find(|o| o.status == ObligationStatus::Failed)
+        {
+            diagnostic = diagnostic.with_data("obligation", json!(o.id)).with_data(
+                "model",
+                o.evidence
+                    .as_ref()
+                    .map(|e| e["model"].clone())
+                    .unwrap_or_default(),
+            );
+        }
+        if termination_unknown {
             diagnostic = diagnostic.with_note(
                 "termination is unknown as well: a `decreases` measure is missing (`missing_decreases`)",
                 None,

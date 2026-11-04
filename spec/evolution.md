@@ -30,15 +30,15 @@ source files, lock, std, and the evolution format/toolchain version.
 | --- | --- |
 | Semantic patches | `Edit`, `Operation` (replace, rename, add, remove, fill a hole), `cpl edit`, facet-hash preconditions, staged multi-edit changes |
 | Semantic merge | `merge::merge`, `cpl merge`/`cpl conflicts`: facet-level three-way merge by stable identity, rename-following references, import set merge |
-| Change contracts | `ChangeContract`, structural preservation, behavior samples, generated differential testing, explicit unknown obligations |
+| Change contracts | `ChangeContract`, structural preservation, `preserve_behavior` proved by symbolic equivalence (`verification.md`) with execution-confirmed counterexamples, measured `improve` requirements, behavior samples, generated differential testing |
 | Agent permissions | `Policy`, per-actor grants, forbids, add/remove namespaces, read grants, region ownership, `writable by ACTOR` |
 | Semantic conflict detection | composed-candidate checking and testing: structural conflicts, check failures, test-detected regressions, unknown interactions |
 | Transactional changes | `prepare`, journaled `apply`/`recover`, atomic Git `publish`, two-parent merge publication |
 | State-space exploration | `explore`, breadth-first search, shortest failing traces, state invariants, reachability witnesses, derived alphabets |
-| Protocol types | `@protocol`, `@transition`, `@message`, nominal endpoint and graph checks, `protocol NAME` graphs |
+| Protocol types | `@protocol`, `@transition`, `@message`, nominal endpoint and graph checks, affine states, `@role` conformance, `protocol NAME` graphs |
 | Controlled effectful concurrency | `concurrent { ... }` task blocks with checked effect footprints (`concurrency.md`); `concurrent::plan/execute/replay`, canonical resources, explicit conflict ordering |
 | Data migrations | `@schema`, `@migration`, `pack/migrate/migrate_to`, schema fingerprints, migration paths, compatibility in verification |
-| Proof-carrying changes | snapshot-bound `Evidence` with a per-kind summary, independent rechecking, evidence stored in published commits |
+| Proof-carrying changes | snapshot-bound `Evidence` with a per-kind summary and verifier statuses (`verification.md`), independent rechecking, evidence stored in published commits |
 | Incremental verification | `verify --changed`, reverse dependency closure across both revisions, schema compatibility, scope counts |
 | Programming API | `query`, source AST, typed expression locations, resolved references, typed holes, structured edits |
 | Self-description | `@intent`, `@preserve`, inspect docs, query metadata, docs-facet preservation, `@preserve` acknowledgements |
@@ -53,7 +53,9 @@ base and its candidate, the sides of a merge) hash each unchanged
 declaration once. Verification runs affected tests on a pool of evaluation
 threads (`CPL_PARALLELISM`, else the available processors up to eight);
 records are kept in test order, so evidence is identical to a sequential
-run. Exploration validates events once and steps from stored state values
+run. The affected functions' proof obligations are decided on the same
+number of threads, in order, each function's verifier report computed
+once per snapshot. Exploration validates events once and steps from stored state values
 without rebuilding machine contexts. Differential testing and other
 repeated evaluations run on one evaluation stack:
 `cpl_eval::on_eval_stack` evaluates in place on a thread that already is
@@ -117,11 +119,37 @@ nominal type. Ordinary argument checking rejects an operation on the wrong
 state, on both engines. Additional arguments and capabilities are allowed.
 `@message(sender, receiver)` labels a checked transition with its participants.
 
-These are immutable value protocols. They do not introduce affine ownership,
-prevent reuse of an old value, authenticate a distributed peer, or prove
-fairness, actual network delivery, or absence of every distributed deadlock.
-The graph checks detect unreachable states and states with no completion
-path; participant labels describe the interaction without assuming delivery.
+Protocol states are **affine**: a value whose type is a state, or contains
+one (a struct field, an enum payload, a wrapper, `Option`, `Result`), is used
+at most once, so after a transition consumes a state the old value cannot be
+used again (`crates/cpl-sema/src/linear.rs`). Every read consumes (a call
+argument, an operand, a `match` scrutinee, a field access, a returned value);
+assigning a `var` makes it usable again. The analysis is path-sensitive: a
+value consumed on one branch of an `if` or `match` is consumed after it, and
+loop, `forall`, and `parallel` bodies are analyzed twice, so a state consumed
+in an iteration and not reassigned is a reuse in the next. Contract clauses
+consume nothing.
+
+| Rule | Diagnostic |
+| - | - |
+| a local holding a state is read after a read consumed it (a note names the consuming read) | `protocol_state_reused` |
+| a list element type contains a state (lists share their elements) | `protocol_state_in_list` |
+| a generic function that may use a parameter twice is instantiated with a state | `protocol_state_duplicated` |
+
+`@role(protocol, role)` on a function declares it the implementation of one
+participant: its calls may perform only transitions whose `@message` sender
+is that role, and it must perform every such transition of the protocol.
+
+| Rule | Diagnostic |
+| - | - |
+| the role is not a sender or receiver of the protocol's messages | `protocol_role_unknown` |
+| the function calls a transition that another role sends | `protocol_role_violation` |
+| a transition the role sends is never called by the function | `protocol_role_incomplete` |
+
+The checks do not authenticate a distributed peer or prove fairness, actual
+network delivery, or absence of every distributed deadlock. The graph checks
+detect unreachable states and states with no completion path; participant
+labels describe the interaction without assuming delivery.
 
 ### Schemas and migrations
 
@@ -255,12 +283,34 @@ identity through a rename, while another body edit invalidates its hash.
 `reads` entries `{symbol, facet, expect}` pin assumptions about dependencies.
 Preserve selectors must resolve; empty or nonexistent promises are errors.
 
-`preserve_behavior: true` requests universal equivalence. Unchanged
-executable facets and unchanged resolution inputs discharge it structurally;
-otherwise its status is `unknown`. `improve` contains requested improvement
-names (such as `time_complexity`); no general improvement verifier is
-available, so these requirements remain unknown. A required unknown
-obligation prevents acceptance. Nonempty `behavior_samples` compare the old
+`preserve_behavior: true` requests universal equivalence on the base
+version's domain. Its `behavior` obligation lists every function the change
+modifies (own executable facets or resolved callees differ) with the
+equivalence verdict of `verification.md`: identical definitions, together
+with everything they call, are shared by both sides, and every other callee
+is executed in place. Candidate inputs the prover could not rule out are run
+on both versions; a difference becomes `failed` with
+`{"by": "execution", "inputs", "before", "after"}`. A removed public function
+is `failed` (`removed`), a changed type `unknown` (`type_changed`). The
+obligation is `proved` when every function is (`partial` evidence marks a
+proof that assumes both versions terminate).
+
+`improve` entries are a measure name for every function the change modifies
+(`"time_complexity"`) or `{"symbol", "measure"}` for one. Each is measured:
+both versions run on inputs of sizes 1 to 64 (integers of that magnitude,
+texts, bytes, and lists of that length, structs of such parts; three inputs
+per size), counting interpreter steps (function activations and loop
+iterations, `Interpreter::steps`) under a budget of two million steps per
+run; a version out of budget is slower there than one within it, and a size
+at which both run out is not compared. Outputs must agree. The status is `measured` when the new version is
+never slower and its advantage grows with the input (at the largest size it
+is at least twice as fast, and at least twice its advantage at the smallest),
+`failed` otherwise (`no_asymptotic_improvement`, `slower at size N`,
+`behavior_changed`), and `unknown` for a function that cannot be run
+(generic, capability parameters). `steps` asks only for fewer steps at the
+largest size. Evidence lists the steps per size and the empirical growth
+exponents between the two largest sizes. Improvement requirements accept `measured`; every other required
+obligation must be `proved`, and an unknown one prevents acceptance. Nonempty `behavior_samples` compare the old
 and new function on specified JSON arguments and record concrete mismatches;
 success is `tested`, with equivalence still `unknown`.
 
@@ -349,7 +399,8 @@ and obligations in that closure. This includes contracts, constructors,
 field uses, and type references. Module/import, manifest, lock, or std
 changes select the whole project. Typechecking always covers the whole
 candidate. This is incremental execution/obligation selection, not an
-incremental compiler or an SMT solver.
+incremental compiler. Obligation statuses are the verifier's
+(`verification.md`).
 
 Evidence records configuration (seed, cases, shrink/depth/time limits,
 proof policy), source/std/lock fingerprint, optional baseline fingerprint,

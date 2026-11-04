@@ -58,10 +58,16 @@ evidence:
 }
 ```
 
-`"preserve_behavior": true` requires universal equivalence: a changed
-implementation remains `unknown` and cannot be accepted by the current
-verifier. Likewise, a requested complexity improvement remains unresolved.
-This prevents test results from being promoted to proofs.
+`"preserve_behavior": true` requires universal equivalence, which the
+verifier decides symbolically (`spec/verification.md`): the new body
+`10 * quantity` is proved to agree with `quantity * 10` on every quantity
+that satisfies `requires quantity >= 0`. A body that differs is rejected
+with an input that shows the difference, confirmed by running both
+versions; one the prover cannot decide stays `unknown` and is not accepted,
+so test results are never promoted to proofs. `"improve":
+["time_complexity"]` is measured instead: both versions run on inputs of
+growing size, and it is accepted only when the new version is never slower
+and its advantage grows with the input.
 
 Inside a Git checkout, publish a validated immutable candidate instead of
 updating source files:

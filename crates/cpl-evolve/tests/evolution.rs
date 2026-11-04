@@ -117,7 +117,26 @@ fn failing_candidates_and_unproved_change_contracts_are_not_accepted() {
     let result = prepared(&s, &body(&s, "{ n + 2 }"));
     assert!(!result.report.accepted);
     assert_eq!(result.report.evidence.tests.len(), 1);
+    // Equivalence is proved symbolically.
     let mut change = body(&s, "{ 1 + n }");
+    change.contract.preserve_behavior = true;
+    let result = prepared(&s, &change);
+    assert!(result.report.accepted, "{:#?}", result.report.obligations);
+    assert_eq!(result.report.obligations[0]["status"], "proved");
+    assert_eq!(
+        result.report.obligations[0]["functions"][0]["evidence"]["by"],
+        "symbolic_equivalence"
+    );
+    // A difference is refuted with the input that shows it.
+    let mut change = body(&s, "{ if n == 7 { n } else { n + 1 } }");
+    change.contract.preserve_behavior = true;
+    let result = prepared(&s, &change);
+    assert!(!result.report.accepted);
+    let function = &result.report.obligations[0]["functions"][0];
+    assert_eq!(function["status"], "failed", "{function}");
+    assert_eq!(function["evidence"]["inputs"]["n"], 7);
+    // Outside the fragment: unknown, and not accepted on test evidence.
+    let mut change = body(&s, "{ (\"ab\" ++ \"c\").len + n - 2 }");
     change.contract.preserve_behavior = true;
     let result = prepared(&s, &change);
     assert!(!result.report.accepted);
@@ -218,7 +237,11 @@ fn incremental_verification_tracks_transitive_type_and_contract_references() {
         ..VerifyConfig::default()
     };
     assert!(verify::verify(&s, None, &options).is_err());
-    let with_contract = snapshot(&SOURCE.replace("{ n + 1 }", "\nensures result > n\n{ n + 1 }"));
+    // A postcondition outside the verifier's fragment (text equality) stays unknown.
+    let with_contract = snapshot(&SOURCE.replace(
+        "{ n + 1 }",
+        "\nensures result.to_text() != \"0\"\n{ n + 1 }",
+    ));
     let proof = verify::verify(
         &with_contract,
         None,

@@ -25,9 +25,9 @@ pub struct Differential {
 }
 
 /// A splitmix64 stream: small, deterministic, and independent of any other generator's draws.
-struct Rng(u64);
+pub(crate) struct Rng(u64);
 impl Rng {
-    fn new(seed: u64, symbol: &StableId, case: u32) -> Rng {
+    pub(crate) fn new(seed: u64, symbol: &StableId, case: u32) -> Rng {
         let mut h = blake3::Hasher::new();
         h.update(b"cpl-differential-v1\0");
         h.update(&seed.to_le_bytes());
@@ -57,7 +57,13 @@ const ALPHABET: [char; 12] = ['a', 'b', 'z', 'A', ' ', '0', '9', '-', '\n', 'é'
 const MAX_DEPTH: u32 = 24;
 
 /// A value of `ty`; `None` for types without generated values (generics, capabilities).
-fn arbitrary(p: &Program, ty: &Ty, rng: &mut Rng, size: u32, depth: u32) -> Option<Value> {
+pub(crate) fn arbitrary(
+    p: &Program,
+    ty: &Ty,
+    rng: &mut Rng,
+    size: u32,
+    depth: u32,
+) -> Option<Value> {
     if depth > MAX_DEPTH {
         return None;
     }
@@ -143,7 +149,7 @@ fn arbitrary(p: &Program, ty: &Ty, rng: &mut Rng, size: u32, depth: u32) -> Opti
 }
 
 #[derive(Debug, PartialEq)]
-enum Outcome {
+pub(crate) enum Outcome {
     Value(Json),
     /// A fault, compared by diagnostic code; messages and spans can differ between versions.
     Fault(String, Json),
@@ -151,14 +157,14 @@ enum Outcome {
     Outside,
 }
 impl Outcome {
-    fn json(&self) -> Json {
+    pub(crate) fn json(&self) -> Json {
         match self {
             Outcome::Value(v) => json!({"value": v}),
             Outcome::Fault(_, d) => json!({"fault": d}),
             Outcome::Outside => json!({"outside_domain": true}),
         }
     }
-    fn same(&self, other: &Outcome) -> bool {
+    pub(crate) fn same(&self, other: &Outcome) -> bool {
         match (self, other) {
             (Outcome::Value(a), Outcome::Value(b)) => a == b,
             (Outcome::Fault(a, _), Outcome::Fault(b, _)) => a == b,
@@ -168,28 +174,43 @@ impl Outcome {
     }
 }
 
-fn run(
+pub(crate) fn run(
     s: &Snapshot,
     id: &StableId,
     args: &[Json],
     cfg: &VerifyConfig,
 ) -> Result<Outcome, Diagnostic> {
+    run_counting(s, id, args, cfg, None).map(|(o, _)| o)
+}
+
+/// [`run`] with a step budget, also returning the steps taken (`None` when the budget ran out).
+pub(crate) fn run_counting(
+    s: &Snapshot,
+    id: &StableId,
+    args: &[Json],
+    cfg: &VerifyConfig,
+    max_steps: Option<u64>,
+) -> Result<(Outcome, Option<u64>), Diagnostic> {
     let p = &s.checked.program;
     let def = p
         .by_stable_id(id)
         .ok_or_else(|| error("differential_target_missing", id.to_string()))?;
+    let mut eval = cfg.eval();
+    eval.max_steps = max_steps;
     let call = cpl_eval::run_function(
         p,
         &p.symbol_path(def),
         &args.iter().cloned().map(RunArg::Json).collect::<Vec<_>>(),
-        &cfg.eval(),
+        &eval,
     );
     let outcome = match call {
         Ok(outcome) => outcome,
-        Err(RunError::Arg { .. }) => return Ok(Outcome::Outside),
+        Err(RunError::Arg { .. }) => return Ok((Outcome::Outside, Some(0))),
         Err(e) => return Err(error("differential_not_runnable", e.to_string())),
     };
-    Ok(match outcome.value {
+    let steps = outcome.steps;
+    let exhausted = matches!(&outcome.value, Err(f) if f.kind == FaultKind::ResourceExhaustion(cpl_eval::Resource::Steps));
+    let result = match outcome.value {
         Ok(v) => Outcome::Value(cpl_eval::value_to_json(p, &v, &outcome.return_ty)),
         Err(f) => {
             // The called function's own precondition, unlike a nested call's, has no caller.
@@ -203,7 +224,8 @@ fn run(
                 }
             }
         }
-    })
+    };
+    Ok((result, (!exhausted).then_some(steps)))
 }
 
 /// Smaller variants of one argument in value JSON: integers toward zero, shorter texts and lists,

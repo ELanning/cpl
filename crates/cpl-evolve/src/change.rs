@@ -1,6 +1,6 @@
 //! Facet-addressed optimistic edits, authority, change contracts, and semantic compatibility reports.
 use crate::{
-    error, query,
+    error,
     verify::{self, Evidence, VerifyConfig},
     Snapshot,
 };
@@ -64,10 +64,21 @@ pub struct ChangeContract {
     pub differential: Vec<crate::differential::Differential>,
     /// These are universal obligations. Tests alone never discharge them.
     pub preserve_behavior: bool,
-    pub improve: Vec<String>,
+    /// Measured improvements: a measure name (`"time_complexity"`) for every function the change
+    /// modifies, or `{symbol, measure}` for one.
+    pub improve: Vec<Improvement>,
     pub require_migrations: bool,
     /// `@preserve` statements the actor attests that this change keeps.
     pub acknowledge: Vec<Acknowledgement>,
+}
+/// One `improve` requirement.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(untagged)]
+pub enum Improvement {
+    /// The measure, for every function the change modifies.
+    Named(String),
+    /// The measure of one function.
+    Target { symbol: String, measure: String },
 }
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 #[serde(deny_unknown_fields)]
@@ -583,26 +594,38 @@ pub fn prepare(
     }
     let mut obligations = Vec::new();
     if change.contract.preserve_behavior {
-        let executable = [
-            Facet::Name,
-            Facet::Signature,
-            Facet::Contract,
-            Facet::Effects,
-            Facet::Body,
-        ];
-        let same = base.index().facet_map().entries.iter().all(|(id, a)| {
-            candidate
-                .index()
-                .facet_map()
-                .get(id)
-                .is_some_and(|b| executable.iter().all(|f| a.facet(*f) == b.facet(*f)))
-        }) && query::project_ids(&base.checked.program)
-            == query::project_ids(&candidate.checked.program)
-            && !query::impact(base, &candidate).full_recheck;
-        obligations.push(json!({"requirement": "behavior", "status": if same { "proved" } else { "unknown" }, "reason": if same { "unchanged_executable_facets" } else { "equivalence_verifier_unavailable" }}));
+        obligations.push(crate::equivalence::preserve_behavior(
+            base,
+            &candidate,
+            &change.verification,
+        )?);
     }
     for improvement in &change.contract.improve {
-        obligations.push(json!({"requirement": improvement, "status": "unknown", "reason": "improvement_verifier_unavailable"}));
+        let (targets, measure) = match improvement {
+            Improvement::Named(measure) => (
+                crate::equivalence::changed_functions(base, &candidate),
+                measure,
+            ),
+            Improvement::Target { symbol, measure } => {
+                let def = base.resolve(symbol)?;
+                (
+                    vec![base.checked.program.def(def).stable_id.clone()],
+                    measure,
+                )
+            }
+        };
+        if targets.is_empty() {
+            obligations.push(json!({"requirement": measure, "status": "unknown", "reason": "no_changed_function"}));
+        }
+        for id in targets {
+            obligations.push(crate::equivalence::measure(
+                base,
+                &candidate,
+                &id,
+                measure,
+                &change.verification,
+            )?);
+        }
     }
     // The contract decides whether schema compatibility is required; evidence records it either way.
     let verification = VerifyConfig {
@@ -610,8 +633,12 @@ pub fn prepare(
         ..change.verification.clone()
     };
     let evidence = verify::verify(&candidate, Some(base), &verification)?;
-    let accepted =
-        samples_ok && evidence.accepted && obligations.iter().all(|o| o["status"] == "proved");
+    // An improvement is established by measurement; every other requirement by proof.
+    let accepted = samples_ok
+        && evidence.accepted
+        && obligations
+            .iter()
+            .all(|o| o["status"] == "proved" || o["status"] == "measured");
     let changes = json!(cpl_index::semantic_diff(
         base.index().facet_map(),
         candidate.index().facet_map()

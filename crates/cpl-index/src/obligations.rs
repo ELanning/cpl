@@ -1,7 +1,7 @@
 //! Proof obligations of a function (`spec/toolchain.md` 8.1): the
 //! enumeration behind `Index::obligations`, whose documentation gives the
-//! ids, the numbering in body order ([`crate::walk`]), and the Milestone 1
-//! statuses; the recursion test of `termination`; and what the syntax
+//! ids, the numbering in body order ([`crate::walk`]), and the statuses,
+//! the verifier's verdicts keyed by site ([`cpl_prove::Site`]); the recursion test of `termination`; and what the syntax
 //! supplies that the HIR does not keep ([`crate::syntax`]: the canonical
 //! text of a divisor and the span of an `assert` statement, Section 3.3:
 //! statements carry no span).
@@ -11,14 +11,15 @@ use crate::syntax;
 use crate::walk::{self, Visitor};
 use cpl_diag::json::{Obligation, ObligationStatus};
 use cpl_diag::{SourceMap, Span};
+use cpl_prove::Site;
 use cpl_sema::hir::{Clause, DefId, DefKind, Expr, ExprKind, FnBody, RefKind, Stmt};
 use cpl_syntax::ast::{self, BinaryOp, Declaration};
 use cpl_syntax::{format_fragment, Fragment, FragmentMode};
 use serde_json::json;
 use std::collections::BTreeSet;
 
-/// The reason of every obligation Milestone 1 leaves open (S36).
-pub(crate) const VERIFIER_UNAVAILABLE: &str = "verifier_unavailable";
+/// The reason of an obligation before the verifier's verdict replaces it.
+pub(crate) const VERIFIER_UNAVAILABLE: &str = "not_analyzed";
 /// The reason of a recursive function's termination without a measure.
 const NO_MEASURE: &str = "no_measure";
 
@@ -36,12 +37,27 @@ pub(crate) fn of(index: &Index<'_>, def: DefId) -> Vec<Obligation> {
     let sm = program.source_map();
     let decl = program.ast(def);
     let id = index.version(def).id.as_str().to_string();
+    let report = index.proof(program, def);
+    let verdict = |site: Site| match &report {
+        Some(r) => r.verdict(&site),
+        None => cpl_prove::Verdict {
+            status: cpl_prove::Status::Unknown,
+            reason: Some("not_analyzed"),
+            evidence: None,
+        },
+    };
     let mut out = Vec::new();
     for (i, c) in f.ensures.iter().enumerate() {
-        out.push(open(sm, format!("{id}#ensures/{}", i + 1), "ensures", c));
+        out.push(decided(
+            open(sm, format!("{id}#ensures/{}", i + 1), "ensures", c),
+            verdict(Site::Ensures(i)),
+        ));
     }
     if let Some(c) = &f.decreases {
-        out.push(open(sm, format!("{id}#decreases"), "decreases", c));
+        out.push(decided(
+            open(sm, format!("{id}#decreases"), "decreases", c),
+            verdict(Site::Decreases),
+        ));
     } else if index.is_recursive(def) {
         out.push(Obligation {
             id: format!("{id}#termination"),
@@ -57,57 +73,66 @@ pub(crate) fn of(index: &Index<'_>, def: DefId) -> Vec<Obligation> {
 
     let mut sites = Sites::default();
     walk::definition(d, &mut sites);
-    for (n, (invariants, decreases)) in sites.loops.iter().enumerate() {
+    for (n, (cond, invariants, decreases)) in sites.loops.iter().enumerate() {
         let n = n + 1;
         for (i, c) in invariants.iter().enumerate() {
-            let i = i + 1;
-            out.push(open(
-                sm,
-                format!("{id}#loop/{n}/invariant/{i}/init"),
-                "invariant_init",
-                c,
+            out.push(decided(
+                open(
+                    sm,
+                    format!("{id}#loop/{n}/invariant/{}/init", i + 1),
+                    "invariant_init",
+                    c,
+                ),
+                verdict(Site::InvariantInit(*cond, i)),
             ));
-            out.push(open(
-                sm,
-                format!("{id}#loop/{n}/invariant/{i}/preserve"),
-                "invariant_preserve",
-                c,
+            out.push(decided(
+                open(
+                    sm,
+                    format!("{id}#loop/{n}/invariant/{}/preserve", i + 1),
+                    "invariant_preserve",
+                    c,
+                ),
+                verdict(Site::InvariantPreserve(*cond, i)),
             ));
         }
         if let Some(c) = decreases {
-            out.push(open(
-                sm,
-                format!("{id}#loop/{n}/decreases"),
-                "loop_decreases",
-                c,
+            out.push(decided(
+                open(sm, format!("{id}#loop/{n}/decreases"), "loop_decreases", c),
+                verdict(Site::LoopDecreases(*cond)),
             ));
         }
     }
     for (n, call) in sites.calls.iter().enumerate() {
         for (i, c) in callee_requires(index, call).iter().enumerate() {
-            out.push(Obligation {
-                id: format!("{id}#call/{}/requires/{}", n + 1, i + 1),
-                kind: "call_requires".to_string(),
-                clause: c.text.clone(),
-                location: sm.location(call.span),
+            out.push(decided(
+                Obligation {
+                    id: format!("{id}#call/{}/requires/{}", n + 1, i + 1),
+                    kind: "call_requires".to_string(),
+                    clause: c.text.clone(),
+                    location: sm.location(call.span),
+                    status: ObligationStatus::Unknown,
+                    reason: Some(VERIFIER_UNAVAILABLE.to_string()),
+                    evidence: None,
+                    assumptions: Vec::new(),
+                },
+                verdict(Site::CallRequires(call.span, i)),
+            ));
+        }
+    }
+    for (n, division) in sites.divisions.iter().enumerate() {
+        out.push(decided(
+            Obligation {
+                id: format!("{id}#div/{}", n + 1),
+                kind: "division".to_string(),
+                clause: format!("{} != 0", divisor_text(sm, decl, division)),
+                location: sm.location(division.span),
                 status: ObligationStatus::Unknown,
                 reason: Some(VERIFIER_UNAVAILABLE.to_string()),
                 evidence: None,
                 assumptions: Vec::new(),
-            });
-        }
-    }
-    for (n, division) in sites.divisions.iter().enumerate() {
-        out.push(Obligation {
-            id: format!("{id}#div/{}", n + 1),
-            kind: "division".to_string(),
-            clause: format!("{} != 0", divisor_text(sm, decl, division)),
-            location: sm.location(division.span),
-            status: ObligationStatus::Unknown,
-            reason: Some(VERIFIER_UNAVAILABLE.to_string()),
-            evidence: None,
-            assumptions: Vec::new(),
-        });
+            },
+            verdict(Site::Division(division.span)),
+        ));
     }
     for (n, (refine, refined)) in sites.refines.iter().enumerate() {
         let predicate = program
@@ -129,16 +154,19 @@ pub(crate) fn of(index: &Index<'_>, def: DefId) -> Vec<Obligation> {
     }
     for (n, (condition, text)) in sites.asserts.iter().enumerate() {
         let span = assert_span(decl, condition.span).unwrap_or(condition.span);
-        out.push(Obligation {
-            id: format!("{id}#assert/{}", n + 1),
-            kind: "assert".to_string(),
-            clause: text.clone(),
-            location: sm.location(span),
-            status: ObligationStatus::Unknown,
-            reason: Some(VERIFIER_UNAVAILABLE.to_string()),
-            evidence: None,
-            assumptions: Vec::new(),
-        });
+        out.push(decided(
+            Obligation {
+                id: format!("{id}#assert/{}", n + 1),
+                kind: "assert".to_string(),
+                clause: text.clone(),
+                location: sm.location(span),
+                status: ObligationStatus::Unknown,
+                reason: Some(VERIFIER_UNAVAILABLE.to_string()),
+                evidence: None,
+                assumptions: Vec::new(),
+            },
+            verdict(Site::Assert(condition.span)),
+        ));
     }
     for (n, (construction, target, proved)) in sites
         .constructors
@@ -147,7 +175,7 @@ pub(crate) fn of(index: &Index<'_>, def: DefId) -> Vec<Obligation> {
         .enumerate()
     {
         let predicate = program.def(*target).kind.checked_predicate().unwrap();
-        out.push(Obligation {
+        let obligation = Obligation {
             id: format!("{id}#constructor/{}", n + 1),
             kind: "constructor_invariant".into(),
             clause: predicate.predicate.text.clone(),
@@ -160,6 +188,11 @@ pub(crate) fn of(index: &Index<'_>, def: DefId) -> Vec<Obligation> {
             reason: (!proved).then(|| "runtime_check_required".into()),
             evidence: proved.then(|| json!({"by":"bounded_constant_evaluation"})),
             assumptions: Vec::new(),
+        };
+        out.push(if *proved {
+            obligation
+        } else {
+            decided(obligation, verdict(Site::Constructor(construction.span)))
         });
     }
     out
@@ -187,7 +220,22 @@ pub(crate) fn termination_unknown(index: &Index<'_>, def: DefId) -> bool {
     }
     let mut sites = Sites::default();
     walk::definition(d, &mut sites);
-    sites.loops.iter().any(|(_, decreases)| decreases.is_none())
+    sites
+        .loops
+        .iter()
+        .any(|(_, _, decreases)| decreases.is_none())
+}
+
+/// `o` with the verifier's verdict.
+fn decided(mut o: Obligation, v: cpl_prove::Verdict) -> Obligation {
+    o.status = match v.status {
+        cpl_prove::Status::Proved => ObligationStatus::Proved,
+        cpl_prove::Status::Failed => ObligationStatus::Failed,
+        cpl_prove::Status::Unknown => ObligationStatus::Unknown,
+    };
+    o.reason = v.reason.map(str::to_string);
+    o.evidence = v.evidence;
+    o
 }
 
 /// An obligation on a clause the verifier would have to discharge.
@@ -207,8 +255,8 @@ fn open(sm: &SourceMap, id: String, kind: &str, clause: &Clause) -> Obligation {
 /// The sites of a function in body order.
 #[derive(Default)]
 struct Sites<'h> {
-    /// Every `while`: its invariants and its measure.
-    loops: Vec<(&'h [Clause], Option<&'h Clause>)>,
+    /// Every `while`: its condition's span (the verifier's key), its invariants, and its measure.
+    loops: Vec<(Span, &'h [Clause], Option<&'h Clause>)>,
     /// Every `Call` and `CapCall`.
     calls: Vec<&'h Expr>,
     /// Every `/` and `%`.
@@ -241,10 +289,11 @@ impl<'h> Visitor<'h> for Sites<'h> {
     fn stmt(&mut self, s: &'h Stmt) {
         match s {
             Stmt::While {
+                cond,
                 invariants,
                 decreases,
                 ..
-            } => self.loops.push((invariants, decreases.as_ref())),
+            } => self.loops.push((cond.span, invariants, decreases.as_ref())),
             Stmt::Assert { expr, text } => self.asserts.push((expr, text.clone())),
             _ => {}
         }

@@ -154,6 +154,10 @@ pub struct EvalConfig {
     pub check_contracts: bool,
     /// Default `false`; `true` records [`EffectEvent`]s.
     pub trace_effects: bool,
+    /// Default `None`: the opt-in step budget of semantics S38. A step is a function
+    /// activation or a loop iteration ([`Interpreter::steps`]); exceeding the budget is
+    /// `resource_exhaustion` (`resource: "steps"`).
+    pub max_steps: Option<u64>,
 }
 
 impl EvalConfig {
@@ -169,6 +173,7 @@ impl Default for EvalConfig {
             time_budget: None,
             check_contracts: true,
             trace_effects: false,
+            max_steps: None,
         }
     }
 }
@@ -279,6 +284,9 @@ pub struct Interpreter<'p> {
     // prevents address reuse; Rc::make_mut detaches it, so a host mutation cannot leave a stale cache hit.
     text_length_cache: [Option<(std::rc::Weak<String>, usize)>; 8],
     next_text_length: usize,
+    /// Function activations and loop iterations so far, shared with the interpreters of
+    /// parallel tasks: a deterministic measure of work.
+    steps: std::sync::Arc<std::sync::atomic::AtomicU64>,
 }
 
 impl<'p> Interpreter<'p> {
@@ -302,6 +310,7 @@ impl<'p> Interpreter<'p> {
             parallel_cancel: None,
             text_length_cache: std::array::from_fn(|_| None),
             next_text_length: 0,
+            steps: Default::default(),
         }
     }
 
@@ -703,8 +712,29 @@ impl<'p> Interpreter<'p> {
         self.frames.pop();
     }
 
+    /// The steps taken so far: function activations and loop iterations, those of parallel
+    /// tasks included. Deterministic for a given program, input, and configuration.
+    pub fn steps(&self) -> u64 {
+        self.steps.load(std::sync::atomic::Ordering::Relaxed)
+    }
+
+    /// Count one step against [`EvalConfig::max_steps`].
+    pub(crate) fn step(&self, span: Option<Span>) -> Eval<()> {
+        let taken = self
+            .steps
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+            + 1;
+        match self.config.max_steps {
+            Some(limit) if taken > limit => {
+                self.raise(Fault::resource_exhaustion(Resource::Steps, limit), span)
+            }
+            _ => Ok(()),
+        }
+    }
+
     /// The time budget of the current top-level evaluation.
     fn check_limits(&self, span: Option<Span>) -> Eval<()> {
+        self.step(span)?;
         if crate::stack::nearly_exhausted() {
             let limit = self.config.max_call_depth;
             let mut fault = Fault::resource_exhaustion(Resource::Stack, u64::from(limit));

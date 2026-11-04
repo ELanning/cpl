@@ -3519,10 +3519,20 @@ fn the_obligations_of_paginate_are_those_of_section_8_1() {
         );
     }
     assert_eq!(by_id.len(), 10, "{:?}", by_id.keys());
-    for o in by_id.values() {
-        assert_eq!(o["status"], "unknown", "{o}");
-        assert_eq!(o["reason"], "verifier_unavailable", "{o}");
-        assert_eq!(o["evidence"], Value::Null, "{o}");
+    // The verifier proves the call preconditions and the loop measure; the
+    // list equalities and quantifiers are outside its fragment.
+    for (id, o) in &by_id {
+        let proved = id.contains("/requires/")
+            || id.ends_with("loop/1/decreases")
+            || id.ends_with("invariant/2/init");
+        if proved {
+            assert_eq!(o["status"], "proved", "{o}");
+            assert_eq!(o["reason"], Value::Null, "{o}");
+            assert_eq!(o["evidence"]["by"], "linear_arithmetic", "{o}");
+        } else {
+            assert_eq!(o["status"], "unknown", "{o}");
+            assert_eq!(o["reason"], "unsupported_expression", "{o}");
+        }
         assert_eq!(o["assumptions"], json!([]), "{o}");
     }
 }
@@ -3531,7 +3541,9 @@ fn the_obligations_of_paginate_are_those_of_section_8_1() {
 fn divisions_in_clauses_and_bodies_are_obligations_and_requires_are_not() {
     let fx = Fixture::new("adv-divisions");
     let (code, env) = json_of(&fx.reader, &["prove", "reader.pages.divide_exactly"]);
-    assert_eq!(code, 1, "{env}");
+    // Every obligation is proved: `b != 0` guards both divisions, and
+    // `a % b == 0` gives `result * b == a`.
+    assert_eq!(code, 0, "{env}");
     let by_id = obligations_by_id(&env);
     let ids: Vec<&str> = by_id.keys().map(String::as_str).collect();
     // 8.1: the n-th `/` or `%`, body order, clauses included: the `%` of the
@@ -3634,9 +3646,9 @@ fn inspect_and_prove_report_the_same_obligations() {
 fn a_plain_function_reports_its_status_receipt_and_policy() {
     let fx = Fixture::new("adv-plain-prove");
     let (code, env) = json_of(&fx.reader, &["prove", "reader.pages.divide_exactly"]);
-    assert_eq!(code, 1, "{env}");
-    assert_eq!(env["status"], "unsuccessful");
-    assert_eq!(env["result"], "unknown");
+    assert_eq!(code, 0, "{env}");
+    assert_eq!(env["status"], "ok");
+    assert_eq!(env["result"], "proved");
     assert_eq!(env["symbol"]["id"], "reader.pages.divide_exactly");
     assert_eq!(env["symbol"]["provisional"], true);
     let d = only(&env, "verification_result");
@@ -3645,8 +3657,8 @@ fn a_plain_function_reports_its_status_receipt_and_policy() {
     assert_eq!(d["symbol"], "reader.pages.divide_exactly");
     assert_eq!(d["qualified_name"], "reader.pages.divide_exactly");
     assert_eq!(d["facet"], "verification_policy");
-    assert_eq!(d["status"], "unknown");
-    assert_eq!(d["reason"], "verifier_unavailable");
+    assert_eq!(d["status"], "proved");
+    assert_eq!(d["reason"], Value::Null);
     // Semantics S63 (3): the name token.
     assert_eq!(
         d["span"],
@@ -3654,25 +3666,23 @@ fn a_plain_function_reports_its_status_receipt_and_policy() {
     );
     assert_eq!(d["receipt"], env["receipt"]["core"]);
     let receipt = &env["receipt"];
-    assert_eq!(receipt["status"], "unknown");
+    assert_eq!(receipt["status"], "proved");
     assert_eq!(receipt["target"], env["symbol"]);
     assert_eq!(receipt["obligations"], env["obligations"]);
     assert_eq!(
         receipt["configuration"]["policy"],
         json!({ "prove": false })
     );
+    assert_eq!(receipt["verifier"]["name"], "cpl-prove");
     let run = cpl(&fx.reader, &["prove", "reader.pages.divide_exactly"]);
-    run.expect_code(1);
+    run.expect_code(0);
     let lines: Vec<&str> = run.stdout.lines().collect();
     assert_eq!(lines.len(), 3, "{}", run.stdout);
     assert_eq!(
         lines[0],
-        "prove reader.pages.divide_exactly (reader.pages.divide_exactly): unknown"
+        "prove reader.pages.divide_exactly (reader.pages.divide_exactly): proved"
     );
-    assert_eq!(
-        lines[1],
-        "  3 obligations: 0 proved, 0 failed, 3 unknown (verifier unavailable in cpl 0.1.0)"
-    );
+    assert_eq!(lines[1], "  3 obligations: 3 proved, 0 failed, 0 unknown");
 }
 
 #[test]
@@ -3680,9 +3690,9 @@ fn a_literal_refinement_is_proved_by_the_type_checker() {
     let fx = Fixture::new("adv-literal-refinement");
     fx.write("reader/src/reader/extra.cpl", EXTRA);
     let (code, env) = json_of(&fx.reader, &["prove", "reader.extra.two_pages"]);
-    // Semantics 10 and S36: no `proved` result in Milestone 1; T29: exit 1.
-    assert_eq!(code, 1, "{env}");
-    assert_eq!(env["result"], "unknown");
+    // Its one obligation is proved and it terminates: `proved`, exit 0 (T29).
+    assert_eq!(code, 0, "{env}");
+    assert_eq!(env["result"], "proved");
     let list = env["obligations"].as_array().expect("obligations");
     assert_eq!(list.len(), 1, "{list:?}");
     let o = &list[0];
@@ -3703,7 +3713,8 @@ fn asserts_measures_and_termination_are_obligations() {
     let fx = Fixture::new("adv-measures");
     fx.write("reader/src/reader/extra.cpl", EXTRA);
     let (code, env) = json_of(&fx.reader, &["prove", "reader.extra.checked"]);
-    assert_eq!(code, 1, "{env}");
+    // `n == n` holds: proved.
+    assert_eq!(code, 0, "{env}");
     let by_id = obligations_by_id(&env);
     let ids: Vec<&str> = by_id.keys().map(String::as_str).collect();
     assert_eq!(ids, ["reader.extra.checked#assert/1"]);
@@ -3729,12 +3740,8 @@ fn asserts_measures_and_termination_are_obligations() {
     let o = &by_id["reader.extra.forever#termination"];
     assert_eq!(o["kind"], "termination");
     assert_eq!(o["status"], "unknown");
-    // 8.1's row says `no_measure`, its Milestone 1 paragraph
-    // `verifier_unavailable` for every obligation: either is unknown.
-    assert!(
-        o["reason"] == "no_measure" || o["reason"] == "verifier_unavailable",
-        "{o}"
-    );
+    assert_eq!(o["reason"], "no_measure", "{o}");
+    assert_eq!(env["result"], "unknown");
 }
 
 #[test]
@@ -3769,10 +3776,11 @@ fn a_builtin_has_no_obligations_of_its_own() {
     // Milestone 5 verifier as such), never obligations to discharge.
     let fx = Fixture::new("adv-builtin");
     let (code, env) = json_of(&fx.reader, &["prove", "std.prelude.List.take"]);
-    assert_eq!(code, 1, "{env}");
+    // Nothing to discharge: `proved` (8.1's status table).
+    assert_eq!(code, 0, "{env}");
     assert_eq!(env["symbol"]["path"], "std.prelude.List.take");
     assert_eq!(env["obligations"], json!([]));
-    assert_eq!(env["result"], "unknown");
+    assert_eq!(env["result"], "proved");
     let d = only(&env, "verification_result");
     assert_eq!(d["symbol"], "std.prelude.List.take");
     assert_eq!(d["qualified_name"], "std.prelude.List.take");
@@ -3828,9 +3836,15 @@ fn a_function_whose_body_is_a_hole_keeps_its_contract_obligations() {
     // S59: no named assumptions in Milestone 1.
     assert_eq!(env["receipt"]["assumptions"], json!([]));
     assert_eq!(env["receipt"]["core"]["assumptions"], json!([]));
+    // An unfilled hole leaves a function `unknown` whatever its obligations.
     let (code, env) = json_of(&fx.holes, &["prove", "holes.pages.summarize"]);
     assert_eq!(code, 1, "{env}");
     assert_eq!(env["obligations"], json!([]));
+    assert_eq!(env["result"], "unknown");
+    assert_eq!(
+        only(&env, "verification_result")["reason"],
+        "unresolved_hole"
+    );
 }
 
 // ===========================================================================

@@ -171,9 +171,93 @@ pub(crate) fn check(cx: &mut Checker<'_>) {
             }
         }
     }
+    role_implementations(p, &mut fail);
     for (id, error) in errors {
         cx.fail(id);
         cx.emit(Stage::Type, error);
+    }
+}
+
+/// `@role(protocol, role)` marks a function as part of that role's implementation. A role's
+/// functions perform only the transitions whose `@message` sender is the role, and together they
+/// perform every one of them, directly or by being the transition.
+fn role_implementations(p: &cpl_hir::Program, fail: &mut impl FnMut(DefId, &'static str, String)) {
+    // Labeled transitions: (protocol, function, sender).
+    let mut transitions: Vec<(String, DefId, String)> = Vec::new();
+    let mut named: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
+    for d in p.defs() {
+        let t = p.annotation_texts(d.id, "transition");
+        let m = p.annotation_texts(d.id, "message");
+        if t.len() == 3 && m.len() == 2 {
+            transitions.push((t[0].to_string(), d.id, m[0].to_string()));
+            let roles = named.entry(t[0].to_string()).or_default();
+            roles.insert(m[0].to_string());
+            roles.insert(m[1].to_string());
+        }
+    }
+    let mut members: BTreeMap<(String, String), Vec<DefId>> = BTreeMap::new();
+    for d in p.defs() {
+        let r = p.annotation_texts(d.id, "role");
+        if r.len() != 2 {
+            continue;
+        }
+        if !named.get(r[0]).is_some_and(|roles| roles.contains(r[1])) {
+            fail(
+                d.id,
+                "protocol_role_unknown",
+                format!("no message of protocol {} names the role {}", r[0], r[1]),
+            );
+            continue;
+        }
+        members
+            .entry((r[0].to_string(), r[1].to_string()))
+            .or_default()
+            .push(d.id);
+    }
+    for ((protocol, role), functions) in &members {
+        let mut performed = BTreeSet::new();
+        for f in functions {
+            for r in p.references_from(*f) {
+                if r.kind != cpl_hir::RefKind::Call {
+                    continue;
+                }
+                let Some((_, _, sender)) = transitions
+                    .iter()
+                    .find(|(proto, t, _)| proto == protocol && *t == r.to)
+                else {
+                    continue;
+                };
+                if sender != role {
+                    fail(
+                        *f,
+                        "protocol_role_violation",
+                        format!(
+                            "role {role} performs {}, which {sender} sends in protocol {protocol}",
+                            p.display_path(r.to)
+                        ),
+                    );
+                }
+                performed.insert(r.to);
+            }
+            performed.insert(*f);
+        }
+        let missing: Vec<String> = transitions
+            .iter()
+            .filter(|(proto, t, sender)| {
+                proto == protocol && sender == role && !performed.contains(t)
+            })
+            .map(|(_, t, _)| p.display_path(*t))
+            .collect();
+        if !missing.is_empty() {
+            fail(
+                functions[0],
+                "protocol_role_incomplete",
+                format!(
+                    "role {role} of protocol {protocol} never performs {}",
+                    missing.join(", ")
+                ),
+            );
+        }
     }
 }
 

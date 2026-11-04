@@ -37,6 +37,19 @@ codes! {
     CONCURRENT_CONFLICT = "concurrent_conflict", Effect, Error;
     /// An `@read_only` argument that names no operation of the capability.
     READ_ONLY_UNKNOWN_OPERATION = "read_only_unknown_operation", Type, Error;
+    // Affine protocol states and role implementations (spec/evolution.md).
+    /// A protocol state read again after a read consumed it.
+    PROTOCOL_STATE_REUSED = "protocol_state_reused", Type, Error;
+    /// A list whose elements are, or contain, protocol states.
+    PROTOCOL_STATE_IN_LIST = "protocol_state_in_list", Type, Error;
+    /// A protocol state passed to a generic function that may use it twice.
+    PROTOCOL_STATE_DUPLICATED = "protocol_state_duplicated", Type, Error;
+    /// A role's function performs a transition another role sends.
+    PROTOCOL_ROLE_VIOLATION = "protocol_role_violation", Type, Error;
+    /// A role's functions do not perform every transition the role sends.
+    PROTOCOL_ROLE_INCOMPLETE = "protocol_role_incomplete", Type, Error;
+    /// `@role` names no protocol, or a role no message of it names.
+    PROTOCOL_ROLE_UNKNOWN = "protocol_role_unknown", Type, Error;
     // State machines and explicit function roles (spec/state-machines.md).
     PURE_CALLS_MUTATE = "pure_calls_mutate", Effect, Error;
     MUTATE_IN_CONTRACT = "mutate_in_contract", Effect, Error;

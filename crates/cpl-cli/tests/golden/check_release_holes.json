@@ -16,7 +16,7 @@
       "code": "verification_unsatisfied",
       "category": "release_policy",
       "severity": "error",
-      "message": "`paginate` is `@prove` but its verification status is unknown (no verifier is available in this toolchain); a release build requires its obligations to be proved",
+      "message": "`paginate` is `@prove` but its verification status is unknown (unresolved hole); a release build requires its obligations to be proved",
       "span": {
         "file": "src/holes/pages.cpl",
         "line": 15,
@@ -33,7 +33,7 @@
       "code": "verification_result",
       "category": "contract",
       "severity": "info",
-      "message": "paginate: unknown (verifier unavailable)",
+      "message": "paginate: unknown (unresolved hole)",
       "span": {
         "file": "src/holes/pages.cpl",
         "line": 15,
@@ -44,7 +44,7 @@
       "symbol": "pgn_7c2d",
       "qualified_name": "holes.pages.paginate",
       "facet": "verification_policy",
-      "reason": "verifier_unavailable",
+      "reason": "unresolved_hole",
       "receipt": {
         "assumptions": [],
         "check_configuration": {
@@ -292,7 +292,7 @@
       "symbol": "pgn_7c2d",
       "qualified_name": "holes.pages.paginate",
       "status": "unknown",
-      "reason": "verifier_unavailable"
+      "reason": "unresolved_hole"
     }
   ]
 }

@@ -31,8 +31,13 @@
             "end_col": 37
           },
           "status": "unknown",
-          "reason": "verifier_unavailable",
-          "evidence": null,
+          "reason": "unsupported_expression",
+          "evidence": {
+            "candidate": {
+              "items": [],
+              "size": 1
+            }
+          },
           "assumptions": []
         },
         {
@@ -47,8 +52,13 @@
             "end_col": 69
           },
           "status": "unknown",
-          "reason": "verifier_unavailable",
-          "evidence": null,
+          "reason": "unsupported_expression",
+          "evidence": {
+            "candidate": {
+              "items": [],
+              "size": 1
+            }
+          },
           "assumptions": []
         },
         {
@@ -63,8 +73,13 @@
             "end_col": 64
           },
           "status": "unknown",
-          "reason": "verifier_unavailable",
-          "evidence": null,
+          "reason": "unsupported_expression",
+          "evidence": {
+            "candidate": {
+              "items": [],
+              "size": 1
+            }
+          },
           "assumptions": []
         }
       ],
@@ -77,9 +92,11 @@
           "json_schema": 1
         },
         "verifier": {
-          "name": "none",
-          "version": null,
-          "configuration": {}
+          "name": "cpl-prove",
+          "version": "0.1.0",
+          "configuration": {
+            "theory": "linear_integer_arithmetic"
+          }
         },
         "revision": {
           "commit": null,
@@ -226,8 +243,13 @@
               "end_col": 37
             },
             "status": "unknown",
-            "reason": "verifier_unavailable",
-            "evidence": null,
+            "reason": "unsupported_expression",
+            "evidence": {
+              "candidate": {
+                "items": [],
+                "size": 1
+              }
+            },
             "assumptions": []
           },
           {
@@ -242,8 +264,13 @@
               "end_col": 69
             },
             "status": "unknown",
-            "reason": "verifier_unavailable",
-            "evidence": null,
+            "reason": "unsupported_expression",
+            "evidence": {
+              "candidate": {
+                "items": [],
+                "size": 1
+              }
+            },
             "assumptions": []
           },
           {
@@ -258,8 +285,13 @@
               "end_col": 64
             },
             "status": "unknown",
-            "reason": "verifier_unavailable",
-            "evidence": null,
+            "reason": "unsupported_expression",
+            "evidence": {
+              "candidate": {
+                "items": [],
+                "size": 1
+              }
+            },
             "assumptions": []
           }
         ],
@@ -272,7 +304,7 @@
       "code": "verification_result",
       "category": "contract",
       "severity": "info",
-      "message": "paginate: unknown (verifier unavailable)",
+      "message": "paginate: unknown (unresolved hole)",
       "span": {
         "file": "src/holes/pages.cpl",
         "line": 15,
@@ -283,7 +315,7 @@
       "symbol": "pgn_7c2d",
       "qualified_name": "holes.pages.paginate",
       "facet": "verification_policy",
-      "reason": "verifier_unavailable",
+      "reason": "unresolved_hole",
       "receipt": {
         "assumptions": [],
         "check_configuration": {
@@ -334,9 +366,11 @@
           "json_schema": 1
         },
         "verifier": {
-          "name": "none",
-          "version": null,
-          "configuration": {}
+          "name": "cpl-prove",
+          "version": "0.1.0",
+          "configuration": {
+            "theory": "linear_integer_arithmetic"
+          }
         },
         "revision": {
           "commit": null,
@@ -431,7 +465,7 @@
       "code": "verification_result",
       "category": "contract",
       "severity": "info",
-      "message": "summarize: unknown (verifier unavailable)",
+      "message": "summarize: unknown (unresolved hole)",
       "span": {
         "file": "src/holes/pages.cpl",
         "line": 23,
@@ -442,7 +476,7 @@
       "symbol": "holes.pages.summarize",
       "qualified_name": "holes.pages.summarize",
       "facet": "verification_policy",
-      "reason": "verifier_unavailable",
+      "reason": "unresolved_hole",
       "receipt": {
         "assumptions": [],
         "check_configuration": {

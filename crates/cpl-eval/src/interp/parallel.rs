@@ -109,8 +109,10 @@ impl<'p> Interpreter<'p> {
         let calls = self.calls;
         let deadline = self.deadline;
         let stop = Arc::new(AtomicUsize::new(usize::MAX));
+        let steps = self.steps.clone();
         let run = |part: usize, input: &Portable| {
             let mut child = Interpreter::new(program, config.clone());
+            child.steps = steps.clone();
             child.parallel_depth = 1;
             child.frames = frames.clone();
             child.measures = measures.clone();
@@ -333,8 +335,10 @@ impl<'p> Interpreter<'p> {
             .iter()
             .map(|b| (b.capability, b.label.clone(), b.validate))
             .collect();
+        let steps = self.steps.clone();
         let run = |task: &'p Task, forks: &[(HandleId, Shared)]| {
             let mut child = Interpreter::new(p, config.clone());
+            child.steps = steps.clone();
             child.parallel_depth = 1;
             child.frames = frames.clone();
             child.measures = measures.clone();

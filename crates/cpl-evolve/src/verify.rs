@@ -101,6 +101,46 @@ pub(crate) fn parallelism() -> usize {
         .unwrap_or_else(|| std::thread::available_parallelism().map_or(1, |n| n.get().min(8)))
 }
 
+/// The obligations of `defs`, in order, decided on a pool of threads: each function's verifier
+/// report is independent of the others' (and cached in the index), so the result equals a
+/// sequential run's.
+fn obligations_of(
+    index: &cpl_index::Index<'_>,
+    defs: &[cpl_hir::DefId],
+) -> Vec<cpl_diag::json::Obligation> {
+    let workers = parallelism().min(defs.len().div_ceil(32));
+    if workers <= 1 {
+        return defs.iter().flat_map(|d| index.obligations(*d)).collect();
+    }
+    let next = std::sync::atomic::AtomicUsize::new(0);
+    let mut out: Vec<Vec<cpl_diag::json::Obligation>> = vec![Vec::new(); defs.len()];
+    std::thread::scope(|scope| {
+        let handles: Vec<_> = (0..workers)
+            .map(|_| {
+                std::thread::Builder::new()
+                    // The verifier recurses over expressions and inlined calls.
+                    .stack_size(64 << 20)
+                    .spawn_scoped(scope, || {
+                        let mut done = Vec::new();
+                        loop {
+                            let i = next.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                            let Some(d) = defs.get(i) else { break };
+                            done.push((i, index.obligations(*d)));
+                        }
+                        done
+                    })
+                    .expect("an obligation worker starts")
+            })
+            .collect();
+        for handle in handles {
+            for (i, list) in handle.join().expect("an obligation worker panicked") {
+                out[i] = list;
+            }
+        }
+    });
+    out.into_iter().flatten().collect()
+}
+
 /// Run tests on a pool of evaluation threads. Tests are independent and properties draw from
 /// their own seeded streams, so the records equal a sequential run's, in the given order.
 pub(crate) fn run_tests(
@@ -187,12 +227,12 @@ pub fn verify(
         .filter_map(|id| p.by_stable_id(id))
         .collect();
     let tests = run_tests(p, &ids, &test_config);
-    let obligations: Vec<_> = impact
+    let affected: Vec<cpl_hir::DefId> = impact
         .affected
         .iter()
         .filter_map(|id| p.by_stable_id(id))
-        .flat_map(|id| index.obligations(id))
         .collect();
+    let obligations = obligations_of(&index, &affected);
     let proofs_ok = obligations.iter().all(|o| {
         o.status == ObligationStatus::Proved
             || (!config.require_proofs && o.status == ObligationStatus::Unknown)

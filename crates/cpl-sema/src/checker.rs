@@ -110,6 +110,9 @@ pub(crate) struct Checker<'a> {
     /// `CheckResult::verification`, filled by the contract stage
     /// (`crate::contracts`).
     pub verification: Vec<VerificationStatus>,
+    /// Definitions a release rule rejects (`hole_in_release`): marked failed by the release
+    /// policy stage, so that the stages before it see the same program in both modes (S47).
+    pub release_failed: Vec<DefId>,
     stages: Vec<Vec<Diagnostic>>,
 }
 
@@ -130,6 +133,7 @@ impl<'a> Checker<'a> {
             calls: BTreeMap::new(),
             holes: Vec::new(),
             verification: Vec::new(),
+            release_failed: Vec::new(),
             stages: vec![Vec::new(); 8],
         }
     }

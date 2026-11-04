@@ -817,6 +817,7 @@ impl<'p> Interpreter<'p> {
         let mut iteration: u64 = 0;
         loop {
             self.check_time(Some(cond.span))?;
+            self.step(Some(cond.span))?;
             if !self.eval_bool(cond)? {
                 return Ok(());
             }

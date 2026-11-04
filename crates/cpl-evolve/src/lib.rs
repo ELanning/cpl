@@ -3,6 +3,7 @@
 pub mod change;
 pub mod concurrent;
 pub mod differential;
+pub mod equivalence;
 pub mod explore;
 pub mod merge;
 pub mod migration;

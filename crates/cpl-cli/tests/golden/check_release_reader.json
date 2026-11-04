@@ -16,7 +16,7 @@
       "code": "verification_unsatisfied",
       "category": "release_policy",
       "severity": "error",
-      "message": "`paginate` is `@prove` but its verification status is unknown (no verifier is available in this toolchain); a release build requires its obligations to be proved",
+      "message": "`paginate` is `@prove` but its verification status is unknown (unsupported expression); a release build requires its obligations to be proved",
       "span": {
         "file": "src/reader/pages.cpl",
         "line": 45,
@@ -33,7 +33,7 @@
       "code": "verification_result",
       "category": "contract",
       "severity": "info",
-      "message": "paginate: unknown (verifier unavailable)",
+      "message": "paginate: unknown (unsupported expression)",
       "span": {
         "file": "src/reader/pages.cpl",
         "line": 45,
@@ -44,7 +44,7 @@
       "symbol": "pgn_7c2d",
       "qualified_name": "reader.pages.paginate",
       "facet": "verification_policy",
-      "reason": "verifier_unavailable",
+      "reason": "unsupported_expression",
       "receipt": {
         "assumptions": [],
         "check_configuration": {
@@ -87,7 +87,7 @@
       "symbol": "pgn_7c2d",
       "qualified_name": "reader.pages.paginate",
       "status": "unknown",
-      "reason": "verifier_unavailable"
+      "reason": "unsupported_expression"
     }
   ]
 }

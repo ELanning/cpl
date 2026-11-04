@@ -178,9 +178,24 @@ pure fn ratio(n: Int) -> Int { 100 / n }
     assert!(c.report.accepted, "{:#?}", c.report.behavior);
     // A refinement outside its range is discarded at the boundary, not compared.
     assert_eq!(c.report.behavior[0]["cases_passed"], 100);
-    // Both versions divide by zero at 0: the same fault is agreement.
+    // Both versions divide by zero at 0: the same fault is agreement. The candidate is still
+    // not accepted: its division obligation fails, with `n = 0` as the counterexample.
     let c = change(&s, "fn_ratio", "{ (100 * 1) / n }", spec("fn_ratio"));
-    assert!(c.report.accepted, "{:#?}", c.report.behavior);
+    assert_eq!(
+        c.report.behavior[0]["status"], "tested",
+        "{:#?}",
+        c.report.behavior
+    );
+    let division = c
+        .report
+        .evidence
+        .obligations
+        .iter()
+        .find(|o| o.kind == "division")
+        .expect("a division obligation");
+    assert_eq!(division.status, cpl_diag::json::ObligationStatus::Failed);
+    assert_eq!(division.evidence.as_ref().unwrap()["model"]["n"], 0);
+    assert!(!c.report.accepted);
     let c = change(
         &s,
         "fn_ratio",

@@ -145,6 +145,23 @@ fn the_forbidden_edges_of_the_table_are_absent() {
             false,
         ),
         ("cpl-emit-c", vec!["cpl-cabi"], true),
+        // The verifier reads the typed HIR only: the checker is a dev-dependency (its tests
+        // check the programs they verify), and nothing that runs programs is a dependency.
+        (
+            "cpl-prove",
+            vec![
+                "cpl-project",
+                "cpl-sema",
+                "cpl-eval",
+                "cpl-index",
+                "cpl-work",
+                "cpl-evolve",
+                "cpl-rt",
+                "cpl-emit-c",
+                "cpl-cabi",
+            ],
+            false,
+        ),
     ];
     let mut found = Vec::new();
     for (krate, banned, dev_too) in &forbidden {
@@ -179,13 +196,15 @@ fn the_forbidden_edges_of_the_table_are_absent() {
             }
         }
     }
-    // the only new edges into cpl-sema and cpl-eval are to the data-only cpl-rtspec
+    // the only new edges into cpl-sema and cpl-eval are to the data-only cpl-rtspec, and
+    // cpl-sema's to the verifier, which reads the HIR alone (spec/verification.md)
     let allowed_sema = [
         "cpl-hir",
         "cpl-project",
         "cpl-syntax",
         "cpl-diag",
         "cpl-rtspec",
+        "cpl-prove",
     ];
     let allowed_eval = ["cpl-hir", "cpl-syntax", "cpl-diag", "cpl-rtspec"];
     for (krate, allowed) in [

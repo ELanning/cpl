@@ -1829,43 +1829,45 @@ is the function's name token or, for a loop, the whole loop from `while`
 has no obligation of its own (there is no measure to state one) and is
 reported only through the note of 5.5.
 
-### 5.5 `@prove` in Milestone 1
+### 5.5 `@prove`
 
 Decision: [D-113] S36. `@prove` on a function records the verification policy
 "every contract and termination obligation of this function must be
-discharged by the verifier". In Milestone 1 no verifier exists, so: (a) the
-contracts of a `@prove` function are checked at runtime exactly like any
-other function's; (b) `cpl prove <symbol>` and `cpl check` (in text and
-JSON rendering alike, 9.1) report the function's verification status as
-`unknown` with `reason: "verifier_unavailable"` (diagnostic
-`verification_result`, severity `info`, one per `@prove` declaration), and
-a function with a `missing_decreases` warning (5.4) is additionally
-`unknown` for termination; (c) a release check (Section 8.2) rejects every
-declaration whose verification policy is unsatisfied: a `@prove` function
-with status `unknown` or `failed` is the error `verification_unsatisfied`,
-with no project-level switch to weaken it, because the design says an
-`unknown` result never weakens the requirement (line 134) and that release
-builds require the verification obligations to be closed (line 225). The
-design's only admission mechanism, "explicitly admitted by project policy"
-(line 136), concerns a *caller's* named assumption about an unchecked or
-foreign *dependency* of its proof, never a declaration's own `@prove`
-obligations; it belongs to Milestone 5 (Section 10), where every admitted
-assumption is recorded per dependency in the receipt's `assumptions` (S59)
-and remains rejected for CPL implementations under
-`no_unresolved_assumptions` (D36). Rationale: tests and runtime checks
-never silently become a proof; the `holes` corpus project must therefore
-fail `--release` for two reasons (its hole and its unproved `@prove`), and
-`reader` for one. Rejected alternatives: treating `@prove` as a no-op until
-Milestone 5; a project-wide `admit` switch for unknown results (deletes the
-meaning of `@prove` for any project that flips it).
+discharged by the verifier". (a) The contracts of a `@prove` function are
+checked at runtime exactly like any other function's; (b) `cpl prove
+<symbol>` and `cpl check` (in text and JSON rendering alike, 9.1) report the
+function's verification status as the verifier decides it
+(`spec/verification.md`; diagnostic `verification_result`, severity
+`info`, one per `@prove` declaration): `proved` when every obligation is
+proved, termination is known, and no typed hole is left; `failed` when an
+obligation fails, with the inputs that break it; `unknown` otherwise, with
+the reason. A function with a `missing_decreases` warning (5.4) is
+`unknown` for termination (`no_measure`) whatever its other obligations;
+(c) a release check (Section 8.2) rejects every declaration whose
+verification policy is unsatisfied: a `@prove` function with status
+`unknown` or `failed` is the error `verification_unsatisfied`, with no
+project-level switch to weaken it, because the design says an `unknown`
+result never weakens the requirement (line 134) and that release builds
+require the verification obligations to be closed (line 225). The design's
+only admission mechanism, "explicitly admitted by project policy" (line
+136), concerns a *caller's* named assumption about an unchecked or foreign
+*dependency* of its proof, never a declaration's own `@prove` obligations;
+it belongs to Milestone 5 (Section 10), where every admitted assumption is
+recorded per dependency in the receipt's `assumptions` (S59) and remains
+rejected for CPL implementations under `no_unresolved_assumptions` (D36).
+Rationale: tests and runtime checks never silently become a proof; the
+`holes` corpus project fails `--release` for two reasons (its hole and its
+`@prove` function, `unknown` with `unresolved_hole`), and `reader` for one
+(`paginate`, whose list postconditions are outside the verifier's
+fragment). Rejected alternatives: treating `@prove` as a no-op; a
+project-wide `admit` switch for unknown results (deletes the meaning of
+`@prove` for any project that flips it).
 
 Verification statuses are `proved`, `failed`, and `unknown` (9.5;
 `conditional` arrives with Milestone 5 and satisfies the policy); a
-`checked`-mode run that passes contributes nothing to them. In Milestone 1
-the status of every function is `unknown`, also of one that has no proof
-obligation or only refinement obligations that 3.5 established, which
-`spec/toolchain.md` 8.1's status table would call `proved`: that table
-describes what a verifier reports, and Milestone 1 has none.
+`checked`-mode run that passes contributes nothing to them. A function
+with no proof obligation, or only refinement obligations that 3.5
+established, is `proved` (`spec/toolchain.md` 8.1's status table).
 
 `verification_result` carries `symbol`, `qualified_name`, `facet:
 "verification_policy"`, `status`, `reason`, and the `receipt` of S59,
@@ -3016,7 +3018,7 @@ else in it.
 | `kind`, `detail`, `resource`, `limit` | per 6.7 (`limit` for `memory`: S76; the binding kinds of `internal_error`: S80) |
 | `parameter`, `pointer` | the name of a parameter, and an RFC 6901 position inside an argument (S39, S81) or inside an operation's result (S77, S80) |
 | `operation`, `binding` | the qualified name of a capability operation (1.4) and the binding name of 6.9 (S77, S80) |
-| `reason` | `verification_result`: `verifier_unavailable` in Milestone 1 |
+| `reason` | `verification_result`: the verifier's reason for `unknown` (`spec/verification.md`), null otherwise |
 
 ### 9.4 The complete code list (Milestones 1 and 2)
 
@@ -3218,7 +3220,7 @@ unreportable from a test).
 | standard capabilities: time, randomness, filesystem, networking, model calls | none in edition 0.1 (`spec/stdlib.md` S42); no handle can be created in Milestone 1 (6.9); the handles of project capabilities come from C bindings and C hosts from Milestone 2 (6.9, S78), and from Python and Node adapters in Milestones 3 and 4 |
 | adapters, foreign calls, `ForeignError` construction, `[bindings]` in `cpl.toml` | Milestone 1: parsed and validated (`spec/toolchain.md` 11.1), bound by nothing; C adapters arrive in Milestone 2 (`backend = "c"`: 6.9, S77, S78, `spec/stdlib.md` S45, `spec/cabi.md` Section 6), Python and Node adapters in Milestones 3 and 4 |
 | runtime task groups, cancellation, `async`/`await` | reserved words only (D4); the cancellation that a C host may request from Milestone 2 is a request of the host, not a language construct, and no CPL code observes it (S75, `spec/cabi.md` Section 4) |
-| verification proper: SMT encoding, proof reuse, named assumptions and their admission by project policy (per dependency, never for a declaration's own `@prove` obligations), `cpl prove` producing `proved`/`failed` | `unknown` with `verifier_unavailable` (S36); `assumptions: []` in every receipt (S59) |
+| verification beyond the decided fragment: proof reuse, named assumptions and their admission by project policy (per dependency, never for a declaration's own `@prove` obligations) | the verifier of `spec/verification.md` decides linear integer arithmetic over the HIR and reports `unknown` with a reason outside it (S36); `assumptions: []` in every receipt (S59) |
 | static elimination of checked contracts | none beyond the refinement proof rule (3.5) |
 | ghost assertions, `lemma`, mathematical quantifiers beyond `forall` over lists | reserved words only |
 | capability handles as values, aliasing analysis | forbidden (S27) |
@@ -3294,7 +3296,7 @@ arrives in Milestone 3 (S78).
 | S33 | direct self-call in a contract is an error |
 | S34 | a faulting contract clause reports its own fault |
 | S35 | function `decreases` evaluated after the preconditions and compared with the nearest enclosing activation |
-| S36 | `@prove` in Milestone 1: checked at runtime, status `unknown`, always rejected by release; dependency assumptions are Milestone 5 |
+| S36 | `@prove`: checked at runtime, status from the verifier (`spec/verification.md`), rejected by release unless `proved`; dependency assumptions are Milestone 5 |
 | S37 | truncating division; remainder has the dividend's sign |
 | S38 | explicit call-depth limit `[run] max_call_depth = 10000` |
 | S39 | `cpl run` evaluates one non-generic, handle-free function on supplied arguments (handles from bindings from Milestone 2, S78); syntax and encoding are toolchain.md's |

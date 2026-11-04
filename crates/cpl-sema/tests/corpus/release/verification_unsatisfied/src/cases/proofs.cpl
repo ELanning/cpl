@@ -1,15 +1,25 @@
 module cases.proofs
 
-// Release case: with no verifier every `@prove` declaration has status
-// `unknown`, which `--release` rejects with `verification_unsatisfied` (S36,
-// T36); the `verification_result` info is still reported. Both span the
-// function's name (semantics S63 [D-230]), so both markers name the `fn`
-// line. No cpl.lock: `project_lock_missing`, span-less.
+// Release case: a `@prove` declaration whose status is `unknown` (here its
+// postcondition is about text, which the verifier does not decide) is
+// rejected by `--release` with `verification_unsatisfied` (S36, T36); the
+// `verification_result` info is still reported. Both span the function's
+// name (semantics S63 [D-230]), so both markers name the `fn` line. A
+// proved declaration satisfies the policy. No cpl.lock:
+// `project_lock_missing`, span-less.
 // expect-warning(global): project_lock_missing
 
 // expect-info@+2: verification_result
 @prove
-pub fn absolute(n: Int) -> Int // expect-error: verification_unsatisfied
+pub fn shout(t: Text) -> Text // expect-error: verification_unsatisfied
+    ensures result.len > t.len
+{
+    t ++ "!"
+}
+
+// expect-info@+2: verification_result
+@prove
+pub fn absolute(n: Int) -> Int
     ensures result >= 0
     ensures result == n or result == -n
 {

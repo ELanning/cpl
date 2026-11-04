@@ -118,8 +118,8 @@ pub enum Resource {
     /// host reports (semantics S76).
     Memory,
     Time,
-    /// Reserved for the opt-in step budget semantics S38 allows, which no
-    /// Milestone 1 flag defines.
+    /// The opt-in step budget semantics S38 allows (`EvalConfig::max_steps`),
+    /// which `cpl-evolve` sets to measure improvements; no CLI flag defines it.
     Steps,
 }
 

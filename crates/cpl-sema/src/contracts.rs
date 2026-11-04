@@ -36,11 +36,15 @@
 //!
 //! # Verification statuses (5.5, S36)
 //!
-//! Milestone 1 has no verifier: every `@prove` function's status is
-//! `unknown` with `reason: "verifier_unavailable"`, one
-//! [`VerificationStatus`] in `CheckResult::verification` and one
+//! Every `@prove` function's status is the verifier's ([`cpl_prove::verify`],
+//! `spec/verification.md`): `proved` when every obligation is proved and
+//! termination is known, `failed` when an obligation fails for some input
+//! (the first such obligation's kind is `obligation`, its counterexample
+//! `model`, and a note points at it), `unknown` otherwise with the reason;
+//! one [`VerificationStatus`] in `CheckResult::verification` and one
 //! `verification_result` (`facet: "verification_policy"`, `status`,
-//! `reason`) per declaration, in declaration order. A function with a
+//! `reason`) per declaration, in declaration order. A function whose own
+//! declaration has errors is `unknown` (`has_errors`). A function with a
 //! `missing_decreases` warning is additionally unknown for termination,
 //! which its `verification_result` states in a note. The S59 `receipt`
 //! needs the checkout's revision and the per-module content hashes of
@@ -59,8 +63,59 @@ use cpl_syntax::ast;
 use serde_json::json;
 use std::collections::BTreeSet;
 
-/// The reason of every Milestone 1 verification status (S36).
-const VERIFIER_UNAVAILABLE: &str = "verifier_unavailable";
+/// The verification status of a `@prove` function: the verifier's (`cpl_prove`), with the
+/// obligation that failed.
+struct Verdict {
+    status: ProofStatus,
+    reason: Option<&'static str>,
+    /// The kind, id, location, and counterexample of the first failed obligation.
+    failing: Option<(&'static str, String, Option<Span>, serde_json::Value)>,
+}
+
+impl Verdict {
+    /// A function whose own declaration has errors has no meaningful status.
+    fn errors() -> Verdict {
+        Verdict {
+            status: ProofStatus::Unknown,
+            reason: Some("has_errors"),
+            failing: None,
+        }
+    }
+
+    fn of(cx: &Checker<'_>, def: DefId, f: &cpl_hir::FnDef) -> Verdict {
+        let Some(report) = cpl_prove::verify(&cx.program, def) else {
+            return Verdict::errors();
+        };
+        let status = match report.status {
+            cpl_prove::Status::Proved => ProofStatus::Proved,
+            cpl_prove::Status::Failed => ProofStatus::Failed,
+            cpl_prove::Status::Unknown => ProofStatus::Unknown,
+        };
+        let failing = report
+            .verdicts
+            .iter()
+            .find(|(_, v)| v.status == cpl_prove::Status::Failed)
+            .map(|(site, v)| {
+                let model = v
+                    .evidence
+                    .as_ref()
+                    .map(|e| e["model"].clone())
+                    .unwrap_or_default();
+                // The obligation's id, as `cpl prove` and receipts name it.
+                let id = format!(
+                    "{}#{}",
+                    cx.program.def(def).stable_id.as_str(),
+                    report.ids.get(site).map_or("", String::as_str)
+                );
+                (site.kind(), id, site.span(f), model)
+            });
+        Verdict {
+            status,
+            reason: report.reason,
+            failing,
+        }
+    }
+}
 
 /// Check every declaration's contracts (see the module docs).
 pub(crate) fn check_contracts(cx: &mut Checker<'_>) {
@@ -133,13 +188,34 @@ pub(crate) fn check_contracts(cx: &mut Checker<'_>) {
                     out.push(blame(d, cx, def.id, Some(Facet::Body)));
                     termination_unknown = true;
                 }
-                let mut d = diag(
-                    codes::VERIFICATION_RESULT,
-                    Some(name_span),
-                    format!("{}: unknown (verifier unavailable)", def.name.display()),
-                )
-                .with_data("status", json!("unknown"))
-                .with_data("reason", json!(VERIFIER_UNAVAILABLE));
+                let verdict = if out.iter().any(Diagnostic::is_error) {
+                    Verdict::errors()
+                } else {
+                    Verdict::of(cx, def.id, f)
+                };
+                let name = def.name.display();
+                let message = match (verdict.status, verdict.reason) {
+                    (ProofStatus::Failed, _) => format!(
+                        "{name}: failed ({} obligation)",
+                        verdict.failing.as_ref().map_or("an", |(k, _, _, _)| k)
+                    ),
+                    (ProofStatus::Unknown, Some(reason)) => {
+                        format!("{name}: unknown ({})", reason.replace('_', " "))
+                    }
+                    (status, _) => format!("{name}: {}", status.as_str()),
+                };
+                let mut d = diag(codes::VERIFICATION_RESULT, Some(name_span), message)
+                    .with_data("status", json!(verdict.status.as_str()))
+                    .with_data("reason", json!(verdict.reason));
+                if let Some((kind, id, span, model)) = &verdict.failing {
+                    d = d
+                        .with_data("obligation", json!(id))
+                        .with_data("model", model.clone())
+                        .with_note(
+                            format!("this `{kind}` obligation fails for the inputs in `model`"),
+                            *span,
+                        );
+                }
                 if termination_unknown {
                     d = d.with_note(
                         "termination is unknown as well: a `decreases` measure is missing (`missing_decreases`)",
@@ -149,8 +225,8 @@ pub(crate) fn check_contracts(cx: &mut Checker<'_>) {
                 out.push(blame(d, cx, def.id, Some(Facet::VerificationPolicy)));
                 verification.push(VerificationStatus {
                     def: def.id,
-                    status: ProofStatus::Unknown,
-                    reason: Some(VERIFIER_UNAVAILABLE.to_string()),
+                    status: verdict.status,
+                    reason: verdict.reason.map(str::to_string),
                 });
             }
         }

@@ -78,6 +78,8 @@ pub struct RunOutcome {
     /// is present when the call faulted too, a refinement violation of an
     /// argument included (the decoded value is what was checked).
     pub arguments: Vec<Value>,
+    /// The steps the call took ([`crate::Interpreter::steps`]).
+    pub steps: u64,
 }
 
 /// Why nothing ran (the usage outcomes of Section 7.2, exit 2).
@@ -364,6 +366,7 @@ pub fn run_function_with_hosts(
                 value: value.map(|v| Portable::from(&v)),
                 effects: it.effects().to_vec(),
                 arguments,
+                steps: it.steps(),
             })
         },
         &mut serve,
@@ -373,6 +376,7 @@ pub fn run_function_with_hosts(
         return_ty: fd.ret.clone(),
         effects: outcome.effects,
         arguments: outcome.arguments.into_iter().map(Value::from).collect(),
+        steps: outcome.steps,
     })
 }
 
@@ -567,6 +571,7 @@ struct Outcome {
     value: Result<Portable, Fault>,
     effects: Vec<EffectEvent>,
     arguments: Vec<Portable>,
+    steps: u64,
 }
 
 /// A `Send` copy of a [`Value`]: its nodes in post-order (every node after

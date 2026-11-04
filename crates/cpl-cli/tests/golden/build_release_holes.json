@@ -16,7 +16,7 @@
       "code": "verification_unsatisfied",
       "category": "release_policy",
       "severity": "error",
-      "message": "`paginate` is `@prove` but its verification status is unknown (no verifier is available in this toolchain); a release build requires its obligations to be proved",
+      "message": "`paginate` is `@prove` but its verification status is unknown (unresolved hole); a release build requires its obligations to be proved",
       "span": {
         "file": "src/holes/pages.cpl",
         "line": 15,

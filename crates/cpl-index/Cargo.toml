@@ -18,6 +18,8 @@ cpl-diag.workspace = true
 cpl-syntax.workspace = true
 cpl-project.workspace = true
 cpl-sema.workspace = true
+# The verifier behind obligation statuses (Section 8.1, spec/verification.md).
+cpl-prove.workspace = true
 blake3.workspace = true
 rand.workspace = true
 serde.workspace = true

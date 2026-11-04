@@ -488,16 +488,22 @@ with `cpl build --target c` or `cpl build --target python`.
 
 CPL is early software. Its current core types are `Int`, `Bool`, `Text`,
 `Bytes`, `Unit`, `List`, `Option`, `Result`, and user-defined value types.
-General automatic contract proving, Node.js bindings, and automatic work
-execution/integration remain future work. `@prove` and `cpl prove` expose
-proof requirements and status; an `unknown` result is not a proof. Runtime
-contract checks and passing tests are separate evidence.
+Node.js bindings and automatic work execution/integration remain future
+work. `cpl prove` and `@prove` are backed by an automatic
+[verifier](spec/verification.md): it decides contracts, loop invariants,
+measures, divisions, and call preconditions over integer and boolean
+arithmetic, data types, and inlined calls, reporting `proved`, `failed`
+with the inputs that break an obligation, or `unknown` with the reason
+outside that fragment. An `unknown` result is not a proof; runtime contract
+checks and passing tests are separate evidence.
 
 The [program-evolution tools](spec/evolution.md) add checked semantic edits
 and transactions, semantic merges that check and test the composition,
 generated differential testing of changed functions, facet permissions,
 evidence rechecking, `cpl query`, `cpl verify --changed`, bounded machine
-exploration with invariants and reachability goals, nominal protocol types,
+exploration with invariants and reachability goals, affine protocol types
+with role conformance, change contracts whose `preserve_behavior` is proved
+by symbolic equivalence and whose `improve` requirements are measured,
 versioned data migrations, and effectful task scopes with recorded replay.
 [`concurrent` blocks](spec/concurrency.md) run independent effectful tasks
 whose effect footprints the checker proves cannot interfere.

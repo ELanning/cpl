@@ -2207,19 +2207,24 @@ fn later(n: Int) -> Int
 /// `symbol` (the `@id` when present), `qualified_name`, `facet:
 /// "verification_policy"`, and `status` (9.4), category `release_policy`,
 /// at the name (S63 (3)); the definition has errors (toolchain 1.6).
+/// Both postconditions are about text, which the verifier does not decide.
 #[test]
 fn release_rejects_every_unproved_declaration() {
     let src = "module adv.proofs
 
 @prove
-fn private_proof(n: Int) -> Int {
-    n
+fn private_proof(t: Text) -> Text
+    ensures result.len > 0
+{
+    t
 }
 
 @id(\"pub_proof_1\")
 @prove
-pub fn public_proof(n: Int) -> Int {
-    n
+pub fn public_proof(t: Text) -> Text
+    ensures result.len > t.len
+{
+    t ++ \"!\"
 }
 ";
     let private = line_of(src, "fn private_proof");
@@ -2251,7 +2256,7 @@ pub fn public_proof(n: Int) -> Int {
         .verification
         .iter()
         .all(|v| v.status == ProofStatus::Unknown
-            && v.reason.as_deref() == Some("verifier_unavailable")));
+            && v.reason.as_deref() == Some("unsupported_expression")));
     assert_eq!(
         def_status(&rel.program, "adv.proofs.public_proof"),
         DefStatus::HasErrors
@@ -2659,17 +2664,24 @@ const HOLES_PAGES: &str = "src/holes/pages.cpl";
 /// (toolchain 7.2's example object; S36; 9.4).
 #[track_caller]
 fn assert_paginate_status(d: &Value, file: &str, line: u32, qualified: &str) {
+    // Reader's postconditions compare lists, which the verifier does not decide; the holes
+    // version is unfinished.
+    let (reason, message) = if qualified.starts_with("holes.") {
+        ("unresolved_hole", "paginate: unknown (unresolved hole)")
+    } else {
+        (
+            "unsupported_expression",
+            "paginate: unknown (unsupported expression)",
+        )
+    };
     assert_eq!(d["category"], json!("contract"));
     assert_eq!(d["severity"], json!("info"));
     assert_eq!(d["symbol"], json!("pgn_7c2d"));
     assert_eq!(d["qualified_name"], json!(qualified));
     assert_eq!(d["facet"], json!("verification_policy"));
     assert_eq!(d["status"], json!("unknown"));
-    assert_eq!(d["reason"], json!("verifier_unavailable"));
-    assert_eq!(
-        d["message"],
-        json!("paginate: unknown (verifier unavailable)")
-    );
+    assert_eq!(d["reason"], json!(reason));
+    assert_eq!(d["message"], json!(message));
     assert_eq!(
         d["span"],
         json!({ "file": file, "line": line, "col": 8, "end_line": line, "end_col": 16 })
@@ -2709,7 +2721,7 @@ fn reader_development_diagnostics_are_exactly_one_status() {
         [(
             "reader.pages.paginate".to_string(),
             ProofStatus::Unknown,
-            Some("verifier_unavailable".to_string())
+            Some("unsupported_expression".to_string())
         )]
     );
     assert!(r.holes.is_empty());

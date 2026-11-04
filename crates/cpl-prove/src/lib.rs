@@ -191,9 +191,93 @@ pub fn verify(p: &Program, def: DefId) -> Option<Report> {
             reason,
         });
     }
+    let indirect = f.decreases.is_some() && indirect_recursion(p, def);
+    let mut verdicts = verdicts_of(p, def, f, &sites, indirect, false)?;
+    // Loops cut by too weak invariants: again, with the invariants inference proves inductive.
+    // Their extra assumptions only strengthen what a run can show, so a site keeps the second
+    // run's verdict when it is decided there.
+    if verdicts
+        .iter()
+        .any(|(_, v)| v.reason == Some("invariant_too_weak"))
+    {
+        if let Some(again) = verdicts_of(p, def, f, &sites, indirect, true) {
+            for ((_, v), (_, w)) in verdicts.iter_mut().zip(again) {
+                if v.status == Status::Unknown && w.status != Status::Unknown {
+                    *v = w;
+                }
+            }
+        }
+    }
+    let (mut status, mut reason) = summary(&verdicts, termination_unknown);
+    // A function with a typed hole is unfinished: its proofs cover every completion, but the
+    // function itself is not proved until the hole is filled.
+    if status != Status::Failed && has_hole(f) {
+        (status, reason) = (Status::Unknown, Some("unresolved_hole"));
+    }
+    Some(Report {
+        verdicts,
+        ids,
+        status,
+        reason,
+    })
+}
+
+/// The sites whose obligations a run of `def` on the inputs `inputs` (value JSON by parameter
+/// name) violates: the function executed on those values with loops run iteration by iteration
+/// and calls executed in place, keeping only paths that abstracted nothing. `None` when the
+/// inputs are not all concrete values or the run is cut short.
+pub fn run_concretely(p: &Program, def: DefId, inputs: &Value) -> Option<BTreeSet<Site>> {
+    let f = p.def(def).kind.as_fn()?;
+    if !f.using.is_empty() || !f.generics.is_empty() {
+        return None;
+    }
+    let mut shared = Shared::default();
+    let (checks, aborted) = {
+        let mut x = Exec::new(p, &mut shared, def, Mode::Verify);
+        x.concrete = true;
+        let mut params = Vec::with_capacity(f.params.len());
+        for param in &f.params {
+            params.push(x.from_json(&param.ty, inputs.get(param.name.as_str())?)?);
+        }
+        let (path, _) = exec::enter(&mut x, Some(&params))?;
+        let paths = exec::assume_requires(&mut x, path);
+        let paths = exec::enter_measure(&mut x, paths);
+        let outs = exec::body(&mut x, paths);
+        exec::check_ensures(&mut x, outs);
+        (std::mem::take(&mut x.checks), x.aborted)
+    };
+    if aborted.is_some() {
+        return None;
+    }
+    let mut violated = BTreeSet::new();
+    for (site, check) in checks {
+        if check.inexact != 0 || violated.contains(&site) {
+            continue;
+        }
+        if let Outcome::Sat(model) = solver::solve(&check.cond(), &shared.bools) {
+            // Concrete values leave nothing to choose but what no condition mentions.
+            if check.cond().eval(&model) {
+                violated.insert(site);
+            }
+        }
+    }
+    Some(violated)
+}
+
+/// One symbolic run of `def` and the verdict of each of `sites`; `infer`: with loop invariant
+/// inference.
+fn verdicts_of(
+    p: &Program,
+    def: DefId,
+    f: &cpl_hir::FnDef,
+    sites: &[Site],
+    indirect: bool,
+    infer: bool,
+) -> Option<Vec<(Site, Verdict)>> {
     let mut shared = Shared::default();
     let (checks, params, aborted) = {
         let mut x = Exec::new(p, &mut shared, def, Mode::Verify);
+        x.infer = infer;
         let (path, params) = exec::enter(&mut x, None)?;
         let paths = exec::assume_requires(&mut x, path);
         let paths = exec::enter_measure(&mut x, paths);
@@ -211,32 +295,116 @@ pub fn verify(p: &Program, def: DefId) -> Option<Report> {
     for (s, c) in checks {
         by_site.entry(s).or_default().push(c);
     }
-    let indirect = f.decreases.is_some() && indirect_recursion(p, def);
     let mut memo = Memo::new();
     let mut verdicts = Vec::new();
+    let mut sources = Vec::new();
     for site in sites {
-        let verdict = if let Some(reason) = aborted {
-            Verdict::unknown(reason)
-        } else if site == Site::Decreases && indirect {
-            Verdict::unknown("indirect_recursion")
+        let (verdict, source) = if let Some(reason) = aborted {
+            (Verdict::unknown(reason), None)
+        } else if *site == Site::Decreases && indirect {
+            (Verdict::unknown("indirect_recursion"), None)
         } else {
-            let checks = by_site.get(&site).map(Vec::as_slice).unwrap_or(&[]);
+            let checks = by_site.get(site).map(Vec::as_slice).unwrap_or(&[]);
             decide(p, &shared, &mut memo, checks, &inputs)
         };
-        verdicts.push((site, verdict));
+        verdicts.push((*site, verdict));
+        sources.push(source);
     }
-    let (mut status, mut reason) = summary(&verdicts, termination_unknown);
-    // A function with a typed hole is unfinished: its proofs cover every completion, but the
-    // function itself is not proved until the hole is filled.
-    if status != Status::Failed && has_hole(f) {
-        (status, reason) = (Status::Unknown, Some("unresolved_hole"));
+    // Candidates the abstractions could not settle: run them concretely (a function with
+    // generic or capability parameters cannot be).
+    if f.generics.is_empty() && f.using.is_empty() {
+        let mut runs = Runs::default();
+        for (i, source) in sources.into_iter().enumerate() {
+            let Some((check, model)) = source else {
+                continue;
+            };
+            if verdicts[i].1.status != Status::Unknown {
+                continue;
+            }
+            let Some(first) = verdicts[i]
+                .1
+                .evidence
+                .as_ref()
+                .and_then(|e| e.get("candidate"))
+                .cloned()
+            else {
+                continue;
+            };
+            if runs.run(p, def, &first, &mut verdicts) || runs.exhausted() {
+                continue;
+            }
+            // Others: models of the same condition with different inputs.
+            let mut vars = BTreeSet::new();
+            for (_, v) in &inputs {
+                input_vars(&shared, v, &mut vars);
+            }
+            if vars.is_empty() {
+                continue;
+            }
+            let c = &by_site[&verdicts[i].0][check];
+            let mut cond = c.cond();
+            let mut last = model;
+            for _ in 0..Runs::MORE {
+                if runs.exhausted() {
+                    break;
+                }
+                let Some(model) = other_candidate(&shared, &mut cond, &last, &vars) else {
+                    break;
+                };
+                let candidate = render_inputs(p, &shared, &model, &inputs);
+                if runs.run(p, def, &candidate, &mut verdicts) {
+                    break;
+                }
+                last = model;
+            }
+        }
     }
-    Some(Report {
-        verdicts,
-        ids,
-        status,
-        reason,
-    })
+    Some(verdicts)
+}
+
+/// Concrete runs of candidates (`run_concretely`), bounded per function.
+#[derive(Default)]
+struct Runs {
+    tried: Vec<Value>,
+}
+
+impl Runs {
+    const LIMIT: usize = 12;
+    const MORE: usize = 3;
+
+    fn exhausted(&self) -> bool {
+        self.tried.len() >= Self::LIMIT
+    }
+
+    /// Run `def` on `candidate`; every `unknown` site the run violates fails with it as its
+    /// model. Whether one did.
+    fn run(
+        &mut self,
+        p: &Program,
+        def: DefId,
+        candidate: &Value,
+        verdicts: &mut [(Site, Verdict)],
+    ) -> bool {
+        if self.exhausted() || self.tried.contains(candidate) {
+            return false;
+        }
+        self.tried.push(candidate.clone());
+        let Some(violated) = run_concretely(p, def, candidate) else {
+            return false;
+        };
+        let mut any = false;
+        for (site, v) in verdicts.iter_mut() {
+            if v.status == Status::Unknown && violated.contains(site) {
+                *v = Verdict {
+                    status: Status::Failed,
+                    reason: None,
+                    evidence: Some(json!({ "model": candidate.clone(), "concrete": true })),
+                };
+                any = true;
+            }
+        }
+        any
+    }
 }
 
 /// Whether a function's clauses or body contain a typed hole.
@@ -318,12 +486,69 @@ fn solve_check(memo: &mut Memo, c: &Check, bools: &BTreeSet<Var>) -> Outcome {
 }
 
 /// The verdict on one obligation from its conditions, one per path.
+/// The verdict of one site from its checks, and for an `unknown` one with a candidate, the
+/// check and model it came from (to look for other candidates).
 fn decide(
     p: &Program,
     shared: &Shared,
     memo: &mut Memo,
     checks: &[Check],
     inputs: &[(String, Sym)],
+) -> (Verdict, Option<(usize, Model)>) {
+    let mut source = None;
+    let verdict = decide_into(p, shared, memo, checks, inputs, &mut source);
+    (verdict, source)
+}
+
+/// Inputs a candidate may stand for, as solver variables: what a different candidate must differ in.
+fn input_vars(shared: &Shared, v: &Sym, out: &mut BTreeSet<Var>) {
+    match v {
+        Sym::Int(l) => out.extend(l.terms.keys().copied()),
+        Sym::Bool(f) => out.extend(solver::vars(f)),
+        Sym::Data { fields, .. } => fields.iter().for_each(|f| input_vars(shared, f, out)),
+        Sym::Seq(items) => items.iter().for_each(|f| input_vars(shared, f, out)),
+        Sym::Opaque { id, .. } => {
+            if let Some(t) = shared.tags.get(id) {
+                out.insert(*t);
+            }
+            for ((owner, _), (fields, _)) in shared.payloads.range((*id, 0)..=(*id, u32::MAX)) {
+                debug_assert_eq!(owner, id);
+                fields.iter().for_each(|f| input_vars(shared, f, out));
+            }
+        }
+    }
+}
+
+/// Another model of `cond` whose inputs differ from `last`'s; `cond` is strengthened to exclude
+/// `last`'s inputs.
+fn other_candidate(
+    shared: &Shared,
+    cond: &mut Form,
+    last: &Model,
+    vars: &BTreeSet<Var>,
+) -> Option<Model> {
+    let differs = Form::or(
+        vars.iter()
+            .map(|v| {
+                let value = last.get(v).cloned().unwrap_or_default();
+                Form::not(Form::eq(&Lin::var(*v), &Lin::constant(value)))
+            })
+            .collect(),
+    );
+    *cond = Form::and(vec![cond.clone(), differs]);
+    let Outcome::Sat(model) = solver::solve(cond, &shared.bools) else {
+        return None;
+    };
+    confirm(shared, cond, model).ok()
+}
+
+fn decide_into(
+    p: &Program,
+    shared: &Shared,
+    memo: &mut Memo,
+    checks: &[Check],
+    inputs: &[(String, Sym)],
+    source: &mut Option<(usize, Model)>,
 ) -> Verdict {
     let mut unknown: Option<(&'static str, Option<Value>)> = None;
     let mut note = |reason: &'static str, candidate: Option<Value>| {
@@ -335,7 +560,7 @@ fn decide(
             unknown = Some((reason, candidate));
         }
     };
-    for c in checks {
+    for (index, c) in checks.iter().enumerate() {
         match solve_check(memo, c, &shared.bools) {
             Outcome::Unsat => {}
             Outcome::Sat(model) => {
@@ -357,7 +582,11 @@ fn decide(
                         } else {
                             "invariant_too_weak"
                         };
-                        note(reason, Some(render_inputs(p, shared, &model, inputs)));
+                        let rendered = render_inputs(p, shared, &model, inputs);
+                        if source.is_none() {
+                            *source = Some((index, model));
+                        }
+                        note(reason, Some(rendered));
                     }
                     Err(()) => note("nonlinear_arithmetic", None),
                 }
@@ -510,20 +739,45 @@ impl Equivalence {
     }
 }
 
-const MAX_PAIRS: usize = 20_000;
+/// Pairs of paths decided per equivalence query (after the infeasible ones are skipped), and
+/// pairs examined for being infeasible.
+const MAX_PAIRS: usize = 5_000;
+const MAX_EXAMINED: usize = 1_000_000;
 const MAX_CANDIDATES: usize = 8;
 
 /// Whether function `new_def` of `new` behaves like `old_def` of `old` on every input that
 /// satisfies the old preconditions: the same result or the same fault, after the same effects.
 /// Contracts are part of the behavior (checked mode). `same` tells which callees are identical in
 /// both programs, transitively: those are uninterpreted functions shared by both sides (with
-/// their contracts), while every other callee is inlined or abstracted per side.
+/// their contracts), while every other callee is inlined or abstracted per side. When that
+/// leaves the answer `unknown` because of an abstraction, the query is repeated with the
+/// identical callees executed in place where they can be (not recursive, no effects, not too
+/// deep), which decides refactorings that inline or extract a helper.
 pub fn equivalent(
     old: &Program,
     old_def: DefId,
     new: &Program,
     new_def: DefId,
     same: &dyn Fn(&StableId) -> bool,
+) -> Equivalence {
+    let first = equivalent_in(old, old_def, new, new_def, same, false);
+    if first.status != Status::Unknown || first.reason != Some("unsupported_expression") {
+        return first;
+    }
+    let second = equivalent_in(old, old_def, new, new_def, same, true);
+    match second.status {
+        Status::Unknown => first,
+        _ => second,
+    }
+}
+
+fn equivalent_in(
+    old: &Program,
+    old_def: DefId,
+    new: &Program,
+    new_def: DefId,
+    same: &dyn Fn(&StableId) -> bool,
+    inline: bool,
 ) -> Equivalence {
     let (Some(fo), Some(fnew)) = (old.def(old_def).kind.as_fn(), new.def(new_def).kind.as_fn())
     else {
@@ -574,6 +828,7 @@ pub fn equivalent(
                 side: "old",
                 same,
                 canon: None,
+                inline,
             },
         );
         let Some((path, params)) = exec::enter(&mut x, None) else {
@@ -594,6 +849,7 @@ pub fn equivalent(
                 side: "new",
                 same,
                 canon: Some(&canon),
+                inline,
             },
         );
         let Some((path, _)) = exec::enter(&mut y, Some(&params)) else {
@@ -613,7 +869,7 @@ pub fn equivalent(
     if let Some(reason) = aborted_old.or(aborted_new) {
         return Equivalence::unknown(reason);
     }
-    if old_outs.len() * new_outs.len() > MAX_PAIRS {
+    if old_outs.len() * new_outs.len() > MAX_EXAMINED {
         return Equivalence::unknown("limit");
     }
     let inputs: Vec<(String, Sym)> = fo
@@ -630,11 +886,19 @@ pub fn equivalent(
             side: "old",
             same,
             canon: None,
+            inline,
         },
     );
     let mut pairs = Vec::new();
     for (po, a) in &old_outs {
+        // A pair whose sides took opposite branches of one condition is infeasible: most pairs
+        // of two similar versions are, and spotting them here saves solving them.
+        let opposite: std::collections::HashSet<Form> =
+            po.cond.iter().map(|c| Form::not(c.clone())).collect();
         for (pn, b) in &new_outs {
+            if pn.cond.iter().any(|c| opposite.contains(c)) {
+                continue;
+            }
             let mut scratch = exec::Path::new(0);
             let differ = match (a, b) {
                 (Flow::Val(x) | Flow::Ret(x), Flow::Val(y) | Flow::Ret(y)) => {
@@ -665,6 +929,9 @@ pub fn equivalent(
             all.extend(scratch.cond);
             all.push(Form::or(vec![differ, traces]));
             pairs.push((Form::and(all), po.inexact | pn.inexact | scratch.inexact));
+            if pairs.len() > MAX_PAIRS {
+                return Equivalence::unknown("limit");
+            }
         }
     }
     drop(z);

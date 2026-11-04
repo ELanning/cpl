@@ -313,6 +313,7 @@ name = "cpl-prove"
 version = "0.1.0"
 dependencies = [
  "cpl-diag",
+ "cpl-eval",
  "cpl-hir",
  "cpl-project",
  "cpl-sema",

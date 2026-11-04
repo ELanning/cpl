@@ -60,6 +60,7 @@
 
 pub mod corpus;
 mod hir;
+pub mod programs;
 mod std_lib;
 pub mod sweep;
 

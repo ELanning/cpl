@@ -3574,7 +3574,9 @@ fn loops_asserts_and_divisions_are_numbered_in_body_order() {
     let fx = Fixture::new("adv-numbering");
     fx.write("reader/src/reader/nest.cpl", NEST);
     let (code, env) = json_of(&fx.reader, &["prove", "reader.nest.loops"]);
-    assert_eq!(code, 1, "{env}");
+    // Every obligation is proved; the inner loop's `j <= i` on entry needs `i >= 0`, which the
+    // outer loop does not declare and invariant inference supplies.
+    assert_eq!(code, 0, "{env}");
     let by_id = obligations_by_id(&env);
     // 8.1: the n-th loop and the n-th `assert` in body order (an inner
     // loop after the loop that holds it), invariants in order; `requires`

@@ -10,6 +10,9 @@ use cpl_hir::{DefKind, Program, Ty};
 /// A stream of sweep draws.
 pub struct Sweep {
     stream: Stream,
+    /// The data types whose values are being drawn, outermost first: a value of one of them drawn
+    /// inside it is a recursive occurrence.
+    drawing: Vec<Ty>,
 }
 
 /// Why a draw gave no value: the type is no data type, or a refinement rejected 100 draws in a row.
@@ -24,6 +27,7 @@ impl Sweep {
     pub fn new(key: [u8; 32]) -> Sweep {
         Sweep {
             stream: Stream::new(key),
+            drawing: Vec::new(),
         }
     }
 
@@ -32,7 +36,78 @@ impl Sweep {
     /// enum by a variant drawn with `below(n)` over its `n` variants and then its payloads in order, a wrapper by its
     /// inner type, `Unit` as `Unit`, `Bytes` as the bytes of a `gen.list(gen.range(0, 255))` draw, and any other
     /// refinement by its base, a draw that its chain rejects being drawn again (100 rejections: undrawable).
+    ///
+    /// A recursive type is drawn finitely: a value of a data definition drawn inside a value of the same
+    /// definition (a recursive occurrence) is drawn at a quarter of the size, and at size 0 there an `Option` is
+    /// `None` and an enum's variant is drawn among those whose payloads do not reach a definition being drawn
+    /// (all of them when there is no such variant).
     pub fn draw(&mut self, p: &Program, ty: &Ty, size: u32) -> Result<Value, Undrawable> {
+        if !matches!(ty, Ty::Adt(..) | Ty::Wrapper(_)) {
+            return self.draw_inner(p, ty, size);
+        }
+        let (size, bottom) = if self.drawing.contains(ty) {
+            (size / 4, size < 4)
+        } else {
+            (size, false)
+        };
+        self.drawing.push(ty.clone());
+        let drawn = if bottom {
+            self.draw_bottom(p, ty, size)
+        } else {
+            self.draw_inner(p, ty, size)
+        };
+        self.drawing.pop();
+        drawn
+    }
+
+    /// A recursive occurrence at size 0: an enum by a variant that does not recurse, when there is one.
+    fn draw_bottom(&mut self, p: &Program, ty: &Ty, size: u32) -> Result<Value, Undrawable> {
+        let Ty::Adt(d, args) = ty else {
+            return self.draw_inner(p, ty, size);
+        };
+        let DefKind::Enum(e) = &p.def(*d).kind else {
+            return self.draw_inner(p, ty, size);
+        };
+        let drawing = self.drawing_defs();
+        let finite: Vec<usize> = (0..e.variants.len())
+            .filter(|&i| {
+                !e.variants[i].payload.iter().any(|t| {
+                    reaches(
+                        p,
+                        &crate::types::instantiate(t, args),
+                        &drawing,
+                        &mut Vec::new(),
+                    )
+                })
+            })
+            .collect();
+        if finite.is_empty() {
+            return self.draw_inner(p, ty, size);
+        }
+        let variant = finite[self.stream.below_u64(finite.len() as u64) as usize];
+        let mut payload = Vec::new();
+        for t in &e.variants[variant].payload {
+            payload.push(self.draw(p, &crate::types::instantiate(t, args), size)?);
+        }
+        Ok(Value::Enum {
+            def: *d,
+            variant: variant as u32,
+            payload: payload.into(),
+        })
+    }
+
+    /// The definitions of the data types being drawn.
+    fn drawing_defs(&self) -> Vec<cpl_hir::DefId> {
+        self.drawing
+            .iter()
+            .filter_map(|t| match t {
+                Ty::Adt(d, _) | Ty::Wrapper(d) => Some(*d),
+                _ => None,
+            })
+            .collect()
+    }
+
+    fn draw_inner(&mut self, p: &Program, ty: &Ty, size: u32) -> Result<Value, Undrawable> {
         match ty {
             Ty::Int => Ok(gen::draw(&mut self.stream, &Gen::Int, size, p)),
             Ty::Bool => Ok(gen::draw(&mut self.stream, &Gen::Bool, size, p)),
@@ -61,7 +136,10 @@ impl Sweep {
                 Ok(Value::list(items))
             }
             Ty::Adt(d, args) if *d == p.std_defs.option && args.len() == 1 => {
-                if self.stream.word().is_multiple_of(4) {
+                // `None` ends a recursive chain at size 0
+                let recursive =
+                    size == 0 && reaches(p, &args[0], &self.drawing_defs(), &mut Vec::new());
+                if recursive || self.stream.word().is_multiple_of(4) {
                     Ok(Value::none(p))
                 } else {
                     let v = self.draw(p, &args[0], size)?;
@@ -128,6 +206,41 @@ impl Sweep {
             }
             _ => Err(Undrawable::NotData(p.display_ty(ty))),
         }
+    }
+}
+
+/// Whether a value of `ty` can contain a value of one of `defs`.
+fn reaches(p: &Program, ty: &Ty, defs: &[cpl_hir::DefId], seen: &mut Vec<cpl_hir::DefId>) -> bool {
+    match ty {
+        Ty::List(t) => reaches(p, t, defs, seen),
+        Ty::Adt(d, args) => {
+            defs.contains(d)
+                || args.iter().any(|a| reaches(p, a, defs, seen))
+                || definition_reaches(p, *d, defs, seen)
+        }
+        Ty::Wrapper(d) => defs.contains(d) || definition_reaches(p, *d, defs, seen),
+        _ => false,
+    }
+}
+
+fn definition_reaches(
+    p: &Program,
+    d: cpl_hir::DefId,
+    defs: &[cpl_hir::DefId],
+    seen: &mut Vec<cpl_hir::DefId>,
+) -> bool {
+    if seen.contains(&d) {
+        return false;
+    }
+    seen.push(d);
+    match &p.def(d).kind {
+        DefKind::Struct(s) => s.fields.iter().any(|f| reaches(p, &f.ty, defs, seen)),
+        DefKind::Enum(e) => e
+            .variants
+            .iter()
+            .any(|v| v.payload.iter().any(|t| reaches(p, t, defs, seen))),
+        DefKind::Wrapper(w) => reaches(p, &w.inner, defs, seen),
+        _ => false,
     }
 }
 

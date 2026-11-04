@@ -17,9 +17,11 @@ only the constructs listed under *Exact fragment* is `proved` or `failed`,
 except when a resource limit is reached (`limit`) or, for conditions whose
 variables are eliminated with coefficients other than ±1 (multiplication
 or division by constants), when integer tightening of the rational
-elimination does not settle integer feasibility (`integer_reasoning`; the
-elimination is exact whenever every eliminated variable has unit
-coefficients, the usual case for program conditions). Everything else is
+elimination does not settle integer feasibility and a bounded search for
+an integer model (backtracking over the values of the variables chosen
+first) finds none (`integer_reasoning`; the elimination is exact whenever
+every eliminated variable has unit coefficients, the usual case for
+program conditions). Everything else is
 `unknown` with a reason; `unknown` never weakens `@prove` (S36).
 
 General verification is undecidable, so no verifier proves every true
@@ -51,7 +53,8 @@ always satisfies it.
   patterns, nested), `let`, `var` assignment, `return`, `assert`,
   `concurrent` blocks (their result is that of running the tasks in order).
 * Structs, enums (an opaque enum value is resolved per path by a variant
-  tag; equality of enum values compares tags and payloads), wrappers,
+  tag, which ranges over the enum's variants, so a model always names one;
+  equality of enum values compares tags and payloads), wrappers,
   `Option`, `Result`, `check<R>(x)`, `?`, and lists of known length
   (`[a, b]`, `++` of such lists, `len`, `is_empty`, `push`, and `forall` over
   them).
@@ -65,8 +68,17 @@ always satisfies it.
 ### Abstractions
 
 Each abstraction over-approximates, so a proof stays sound; a path that used
-one is *inexact*, and a model of an inexact path is a *candidate*, reported
-as `unknown` evidence and never as `failed`.
+one is *inexact*, and a model of an inexact path is a *candidate*. A
+candidate is run *concretely* before it is reported: the function is
+executed symbolically again on the candidate's input values, with loops run
+iteration by iteration (with the checks of checked mode) and every call
+executed in place (recursive ones included, up to a depth), so that a run
+on values the inputs settle takes a single path. When that path abstracted
+nothing and violates an obligation, the obligation is `failed` with those
+inputs as its model. A candidate that does not reproduce leads to a few
+more (models of the same condition with other input values), which are run
+the same way; what none of them settles stays `unknown` with the first
+candidate as evidence.
 
 * A call that is not executed in place (recursive, effectful, too deep) is
   an uninterpreted value constrained by the callee's `ensures`. A callee's
@@ -78,7 +90,16 @@ as `unknown` evidence and never as `failed`.
   (`invariant_preserve`, `loop_decreases`), and the loop's exit continues
   with the invariants and the negated condition. Invariants are checked at
   runtime on entry and after each iteration (semantics 5.3), so they hold
-  there.
+  there. When that leaves an obligation `invariant_too_weak`, the function
+  is analyzed again with *inferred* invariants (Houdini): candidate facts
+  about the `Int` locals the loop assigns (each at least, or at most, its
+  value on entry; two locals that change by constant steps keep the ratio
+  of their changes; an atom of the condition relaxed by the step, or the
+  local still at its entry value) are kept when they hold on entry and
+  every iteration that ends normally preserves them, assuming the declared
+  invariants, the kept candidates, and the condition. What survives is
+  inductive, so assuming it at the loop head is sound; a site keeps the
+  second analysis's verdict when that one is decided.
 * Capability operations return uninterpreted values constrained by their
   `ensures`; their `requires` are obligations.
 * Text, bytes, lists of unknown length, generic values, `parallel`
@@ -106,7 +127,7 @@ each assuming the earlier ones, as checked mode evaluates them.
 | Status | Evidence |
 | - | - |
 | `proved` | `{"by": "linear_arithmetic", "paths": n}`; `{"by": "unreachable", "paths": 0}` when no path reaches the site |
-| `failed` | `{"model": {param: value JSON}, "concrete": true}`: inputs that reach the site and violate the obligation |
+| `failed` | `{"model": {param: value JSON}, "concrete": true}`: inputs that reach the site and violate the obligation (a model of an exact path, or a candidate whose concrete run violates it) |
 | `unknown` | `null`, or `{"candidate": {param: value JSON}}` with the inputs of a model the verifier could not confirm |
 
 | `unknown` reason | Meaning |
@@ -114,8 +135,8 @@ each assuming the earlier ones, as checked mode evaluates them.
 | `unsupported_expression` | the obligation depends on an abstracted construct (above) |
 | `invariant_too_weak` | the only abstraction is a loop's invariants, and a state they allow violates the obligation: strengthen them |
 | `nonlinear_arithmetic` | a model exists only for the linear relaxation of products or quotients |
-| `integer_reasoning` | the rational relaxation is feasible but no integer model was found |
-| `limit` | 4096 paths, 4096 solver cases, or 2000 derived constraints per case were exceeded |
+| `integer_reasoning` | the rational relaxation is feasible but a bounded search found no integer model |
+| `limit` | 4096 paths, 4096 solver cases, or 2000 derived constraints per case were exceeded (for an equivalence query, also 5000 feasible-looking pairs of paths) |
 | `indirect_recursion` | the function reaches itself through another function, so its `decreases` measure is not compared at a direct call |
 | `has_errors` | the function's own declaration failed to check |
 | `no_measure` | `termination`: recursive without a header `decreases` (unchanged) |
@@ -147,7 +168,11 @@ shared inputs; each pair of paths must agree wherever both are feasible.
 * `same` names the definitions identical in both programs together with
   everything they call; calls to them are uninterpreted functions shared by
   both sides, with their contracts and the possibility of a fault inside.
-  Other callees are executed in place per side.
+  Other callees are executed in place per side. When that leaves the
+  answer `unknown` because of an abstraction, the query is repeated with
+  the identical callees executed in place too where they can be (not
+  recursive, no effects, not too deep), so that inlining a helper into a
+  function, or extracting one from it, is decided.
 * A recursive call of the function itself is the same uninterpreted
   function on both sides: by induction on the call depth this proves
   *partial* equivalence (agreement whenever both terminate), flagged as
@@ -160,8 +185,11 @@ shared inputs; each pair of paths must agree wherever both are feasible.
   definition differs is distinct on the two sides, and a changed parameter
   or return type is `unknown` (`signature_changed`).
 
-The result is `proved` (`{"by": "symbolic_equivalence", "pairs": n,
-"partial": bool}`), `failed` with `inputs` from an exact pair of paths, or
+Pairs whose sides took opposite branches of one condition are infeasible and
+skipped before solving (with shared inputs, two similar versions branch on
+syntactically identical conditions). The result is `proved` (`{"by":
+"symbolic_equivalence", "pairs": n, "partial": bool}`, `n` the pairs
+decided), `failed` with `inputs` from an exact pair of paths, or
 `unknown` with candidate inputs, which `cpl-evolve` runs on both versions
 to confirm a difference (`spec/evolution.md`).
 
@@ -169,7 +197,13 @@ to confirm a difference (`spec/evolution.md`).
 
 Values defined by cases (`abs`, `min`, `max`, `and`/`or` over plain
 values) are disjunctive facts on one path rather than forks, so the
-number of paths grows only with the program's own branches. Each condition
+number of paths grows only with the program's own branches; `abs`, `min`,
+and `max` of the same arguments are one variable on every path and side
+(and are folded when the arguments are constants). The case split of the
+solver propagates interval bounds of the case's variables through its
+disjunctions before branching: an alternative the bounds refute is
+dropped, and a disjunction left with one alternative is committed to
+without a branch. Each condition
 is split into groups of facts that share no variable and decided group by
 group (the obligation's group first, which alone settles a proof), with
 the outcomes of identical groups shared across the paths and obligations of

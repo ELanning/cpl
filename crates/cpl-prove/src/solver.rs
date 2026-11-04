@@ -74,6 +74,20 @@ impl Lin {
     fn coefficient(&self, v: Var) -> BigInt {
         self.terms.get(&v).cloned().unwrap_or_default()
     }
+    /// Replace every variable of `map` by its value there.
+    pub fn substitute_all(&self, map: &BTreeMap<Var, Lin>) -> Lin {
+        if !self.terms.keys().any(|v| map.contains_key(v)) {
+            return self.clone();
+        }
+        let mut out = Lin::constant(self.constant.clone());
+        for (v, c) in &self.terms {
+            match map.get(v) {
+                Some(with) => out = out.add(&with.scale(c)),
+                None => out = out.add(&Lin::var(*v).scale(c)),
+            }
+        }
+        out
+    }
     /// Replace `v` by `with`.
     fn substitute(&self, v: Var, with: &Lin) -> Lin {
         match self.terms.get(&v) {
@@ -180,6 +194,17 @@ impl Form {
             Form::and(vec![Form::not(a), Form::not(b)]),
         ])
     }
+    /// Replace every variable of `map` by its value there.
+    pub fn substitute_all(&self, map: &BTreeMap<Var, Lin>) -> Form {
+        match self {
+            Form::True | Form::False => self.clone(),
+            Form::Le(l) => Form::Le(l.substitute_all(map)),
+            Form::Eq(l) => Form::Eq(l.substitute_all(map)),
+            Form::Not(f) => Form::not(f.substitute_all(map)),
+            Form::And(fs) => Form::and(fs.iter().map(|f| f.substitute_all(map)).collect()),
+            Form::Or(fs) => Form::or(fs.iter().map(|f| f.substitute_all(map)).collect()),
+        }
+    }
     pub fn eval(&self, model: &Model) -> bool {
         match self {
             Form::True => true,
@@ -273,8 +298,10 @@ struct Search<'a> {
 }
 
 impl Search<'_> {
-    /// Expand `pending` into `case`, then branch on the smallest disjunction left, pruning every
-    /// branch whose atoms are already infeasible.
+    /// Expand `pending` into `case`, propagate the case's variable bounds through the
+    /// disjunctions (dropping alternatives the bounds refute, committing to the last one left),
+    /// then branch on the smallest disjunction left, pruning every branch whose atoms are already
+    /// infeasible.
     fn dfs(
         &mut self,
         mut pending: Vec<Form>,
@@ -282,23 +309,58 @@ impl Search<'_> {
         mut ors: Vec<Vec<Form>>,
         checked: usize,
     ) -> Option<Model> {
-        while let Some(f) = pending.pop() {
-            match f {
-                Form::True => {}
-                Form::False => return None,
-                Form::Le(l) => match l.as_constant() {
-                    Some(c) if c.is_positive() => return None,
-                    Some(_) => {}
-                    None => case.push(Atom::Le(l)),
-                },
-                Form::Eq(l) => match l.as_constant() {
-                    Some(c) if !c.is_zero() => return None,
-                    Some(_) => {}
-                    None => case.push(Atom::Eq(l)),
-                },
-                Form::And(fs) => pending.extend(fs),
-                Form::Or(fs) => ors.push(fs),
-                Form::Not(_) => unreachable!("negation normal form"),
+        loop {
+            while let Some(f) = pending.pop() {
+                match f {
+                    Form::True => {}
+                    Form::False => return None,
+                    Form::Le(l) => match l.as_constant() {
+                        Some(c) if c.is_positive() => return None,
+                        Some(_) => {}
+                        None => case.push(Atom::Le(l)),
+                    },
+                    Form::Eq(l) => match l.as_constant() {
+                        Some(c) if !c.is_zero() => return None,
+                        Some(_) => {}
+                        None => case.push(Atom::Eq(l)),
+                    },
+                    Form::And(fs) => pending.extend(fs),
+                    Form::Or(fs) => ors.push(fs),
+                    Form::Not(_) => unreachable!("negation normal form"),
+                }
+            }
+            if ors.is_empty() {
+                break;
+            }
+            // Every model of the case lies in these bounds: an alternative they refute cannot
+            // hold, and a disjunction they satisfy holds for every model.
+            let bounds = Bounds::of(&case, self.bools)?;
+            let mut kept = Vec::with_capacity(ors.len());
+            for alternatives in ors {
+                let mut left = Vec::with_capacity(alternatives.len());
+                let mut satisfied = false;
+                for a in alternatives {
+                    match bounds.truth(&a) {
+                        Some(false) => {}
+                        Some(true) => {
+                            satisfied = true;
+                            break;
+                        }
+                        None => left.push(a),
+                    }
+                }
+                if satisfied {
+                    continue;
+                }
+                match left.len() {
+                    0 => return None,
+                    1 => pending.extend(left),
+                    _ => kept.push(left),
+                }
+            }
+            ors = kept;
+            if pending.is_empty() {
+                break;
             }
         }
         if self.cases >= MAX_CASES {
@@ -345,6 +407,168 @@ impl Search<'_> {
                 self.unknown.get_or_insert(reason);
                 None
             }
+        }
+    }
+}
+
+/// Interval bounds of variables implied by a conjunctive case: its atoms' bounds, propagated
+/// through atoms of several variables for a few rounds. Sound but incomplete (Fourier–Motzkin
+/// decides the case); cheap enough to run at every node of the search.
+struct Bounds {
+    lo: BTreeMap<Var, BigInt>,
+    hi: BTreeMap<Var, BigInt>,
+}
+
+impl Bounds {
+    const ROUNDS: usize = 4;
+
+    /// The bounds of `case`, or `None` when they are contradictory.
+    fn of(case: &[Atom], bools: &BTreeSet<Var>) -> Option<Bounds> {
+        let mut b = Bounds {
+            lo: BTreeMap::new(),
+            hi: BTreeMap::new(),
+        };
+        for a in case {
+            let (Atom::Le(l) | Atom::Eq(l)) = a;
+            for v in l.terms.keys().filter(|v| bools.contains(v)) {
+                b.lo.insert(*v, BigInt::zero());
+                b.hi.insert(*v, BigInt::one());
+            }
+        }
+        for _ in 0..Self::ROUNDS {
+            let mut changed = false;
+            for a in case {
+                match a {
+                    Atom::Le(l) => changed |= b.propagate(l)?,
+                    Atom::Eq(l) => {
+                        changed |= b.propagate(l)?;
+                        changed |= b.propagate(&l.scale(&BigInt::from(-1)))?;
+                    }
+                }
+            }
+            if !changed {
+                break;
+            }
+        }
+        Some(b)
+    }
+
+    /// Tighten the bounds of `l <= 0`'s variables; `None` on a contradiction.
+    fn propagate(&mut self, l: &Lin) -> Option<bool> {
+        let mut changed = false;
+        for (v, c) in &l.terms {
+            // c*v <= -rest <= -min(rest)
+            let mut min = l.constant.clone();
+            let mut bounded = true;
+            for (w, d) in &l.terms {
+                if w == v {
+                    continue;
+                }
+                let bound = if d.is_positive() {
+                    self.lo.get(w)
+                } else {
+                    self.hi.get(w)
+                };
+                match bound {
+                    Some(x) => min += d * x,
+                    None => {
+                        bounded = false;
+                        break;
+                    }
+                }
+            }
+            if !bounded {
+                continue;
+            }
+            let k = -min;
+            if c.is_positive() {
+                let bound = floor_div(&k, c);
+                if self.hi.get(v).is_none_or(|h| bound < *h) {
+                    self.hi.insert(*v, bound);
+                    changed = true;
+                }
+            } else {
+                let bound = ceil_div(&k, c);
+                if self.lo.get(v).is_none_or(|h| bound > *h) {
+                    self.lo.insert(*v, bound);
+                    changed = true;
+                }
+            }
+            if let (Some(lo), Some(hi)) = (self.lo.get(v), self.hi.get(v)) {
+                if lo > hi {
+                    return None;
+                }
+            }
+        }
+        Some(changed)
+    }
+
+    /// The least and greatest value of `l` within the bounds, where bounded.
+    fn range(&self, l: &Lin) -> (Option<BigInt>, Option<BigInt>) {
+        let (mut min, mut max) = (Some(l.constant.clone()), Some(l.constant.clone()));
+        for (v, c) in &l.terms {
+            let (lo, hi) = (self.lo.get(v), self.hi.get(v));
+            let (for_min, for_max) = if c.is_positive() { (lo, hi) } else { (hi, lo) };
+            min = min.zip(for_min).map(|(m, x)| m + c * x);
+            max = max.zip(for_max).map(|(m, x)| m + c * x);
+            if min.is_none() && max.is_none() {
+                break;
+            }
+        }
+        (min, max)
+    }
+
+    /// Whether a formula in negation normal form holds for every point within the bounds
+    /// (`Some(true)`), for none (`Some(false)`), or neither is known.
+    fn truth(&self, f: &Form) -> Option<bool> {
+        match f {
+            Form::True => Some(true),
+            Form::False => Some(false),
+            Form::Le(l) => {
+                let (min, max) = self.range(l);
+                if min.is_some_and(|m| m.is_positive()) {
+                    Some(false)
+                } else if max.is_some_and(|m| !m.is_positive()) {
+                    Some(true)
+                } else {
+                    None
+                }
+            }
+            Form::Eq(l) => {
+                let (min, max) = self.range(l);
+                if min.as_ref().is_some_and(|m| m.is_positive())
+                    || max.as_ref().is_some_and(|m| m.is_negative())
+                {
+                    Some(false)
+                } else if min.is_some_and(|m| m.is_zero()) && max.is_some_and(|m| m.is_zero()) {
+                    Some(true)
+                } else {
+                    None
+                }
+            }
+            Form::And(fs) => {
+                let mut all = true;
+                for g in fs {
+                    match self.truth(g) {
+                        Some(false) => return Some(false),
+                        Some(true) => {}
+                        None => all = false,
+                    }
+                }
+                all.then_some(true)
+            }
+            Form::Or(fs) => {
+                let mut none = true;
+                for g in fs {
+                    match self.truth(g) {
+                        Some(true) => return Some(true),
+                        Some(false) => {}
+                        None => none = false,
+                    }
+                }
+                none.then_some(false)
+            }
+            Form::Not(_) => None,
         }
     }
 }
@@ -505,30 +729,31 @@ fn feasible(case: &[Atom], bools: &BTreeSet<Var>) -> Outcome {
         stages.push((x, with));
         current = next;
     }
-    // Rebuild an integer model, latest elimination first.
+    // Rebuild an integer model, latest elimination first. With coefficients other than units the
+    // rational shadow can admit values that have no integer completion: a bounded search over
+    // the values of the variables chosen earlier then looks for one.
+    // Variables that left the problem without being eliminated (their constraints combined away)
+    // are free: they come first, with no bounds of their own.
+    let eliminated: BTreeSet<Var> = stages
+        .iter()
+        .map(|(x, _)| *x)
+        .chain(substitutions.iter().map(|(v, _)| *v))
+        .collect();
+    let order: Vec<(Var, &[Lin])> = vars
+        .iter()
+        .filter(|v| !eliminated.contains(v))
+        .map(|v| (*v, &[][..]))
+        .chain(
+            stages
+                .iter()
+                .rev()
+                .map(|(x, constraints)| (*x, constraints.as_slice())),
+        )
+        .collect();
     let mut model: Model = Model::new();
-    for (x, constraints) in stages.iter().rev() {
-        let (mut lo, mut hi): (Option<BigInt>, Option<BigInt>) = (None, None);
-        for l in constraints {
-            let a = l.coefficient(*x);
-            let mut rest = l.clone();
-            rest.terms.remove(x);
-            let r = rest.eval(&model);
-            if a.is_positive() {
-                let bound = floor_div(&-r, &a);
-                hi = Some(hi.map_or(bound.clone(), |h| h.min(bound)));
-            } else {
-                let bound = ceil_div(&r, &-a);
-                lo = Some(lo.map_or(bound.clone(), |l| l.max(bound)));
-            }
-        }
-        let value = match (&lo, &hi) {
-            (Some(l), Some(h)) if l > h => return Outcome::Unknown("integer_gap"),
-            (Some(l), _) if l.is_positive() => l.clone(),
-            (_, Some(h)) if h.is_negative() => h.clone(),
-            _ => BigInt::zero(),
-        };
-        model.insert(*x, value);
+    let mut budget = MODEL_SEARCH;
+    if !assign(&order, &mut model, &mut budget) {
+        return Outcome::Unknown("integer_gap");
     }
     for (v, value) in substitutions.iter().rev() {
         let x = value.eval(&model);
@@ -548,6 +773,72 @@ fn feasible(case: &[Atom], bools: &BTreeSet<Var>) -> Outcome {
     } else {
         Outcome::Unknown("integer_model")
     }
+}
+
+/// The assignments the model search of [`assign`] may try before it gives up.
+const MODEL_SEARCH: usize = 4096;
+/// The values it tries for one variable.
+const MODEL_CHOICES: usize = 16;
+
+/// Assign `order`'s variables in turn, each within the bounds its constraints give it after the
+/// variables before it: first the value nearest zero, then its neighbors, backtracking when a
+/// later variable is left without an integer value.
+fn assign(order: &[(Var, &[Lin])], model: &mut Model, budget: &mut usize) -> bool {
+    let Some(((x, constraints), rest)) = order.split_first() else {
+        return true;
+    };
+    let (mut lo, mut hi): (Option<BigInt>, Option<BigInt>) = (None, None);
+    for l in *constraints {
+        let a = l.coefficient(*x);
+        let mut others = l.clone();
+        others.terms.remove(x);
+        let r = others.eval(model);
+        if a.is_positive() {
+            let bound = floor_div(&-r, &a);
+            hi = Some(hi.map_or(bound.clone(), |h| h.min(bound)));
+        } else {
+            let bound = ceil_div(&r, &-a);
+            lo = Some(lo.map_or(bound.clone(), |l| l.max(bound)));
+        }
+    }
+    if let (Some(l), Some(h)) = (&lo, &hi) {
+        if l > h {
+            return false;
+        }
+    }
+    let first = match (&lo, &hi) {
+        (Some(l), _) if l.is_positive() => l.clone(),
+        (_, Some(h)) if h.is_negative() => h.clone(),
+        _ => BigInt::zero(),
+    };
+    let within =
+        |v: &BigInt| lo.as_ref().is_none_or(|l| v >= l) && hi.as_ref().is_none_or(|h| v <= h);
+    let mut tried = 0;
+    let mut step = 0i64;
+    while tried < MODEL_CHOICES && step <= 2 * MODEL_CHOICES as i64 {
+        // first, first + 1, first - 1, first + 2, ...
+        let offset = if step % 2 == 1 {
+            (step + 1) / 2
+        } else {
+            -(step / 2)
+        };
+        step += 1;
+        let v = &first + BigInt::from(offset);
+        if !within(&v) {
+            continue;
+        }
+        if *budget == 0 {
+            return false;
+        }
+        *budget -= 1;
+        tried += 1;
+        model.insert(*x, v);
+        if assign(rest, model, budget) {
+            return true;
+        }
+    }
+    model.remove(x);
+    false
 }
 
 /// The variables of a formula.
@@ -609,5 +900,36 @@ mod tests {
         let bools = BTreeSet::from([3]);
         let f = Form::eq(&x(3), &k(2));
         assert_eq!(solve(&f, &bools), Outcome::Unsat);
+    }
+
+    #[test]
+    fn a_model_is_searched_when_the_first_choice_has_no_integer_completion() {
+        // 2x - 3y == 3: eliminating x leaves y free, and y = 0 leaves 3/2 <= x <= 3/2.
+        let none = BTreeSet::new();
+        let f = Form::eq(&x(0).scale(&2.into()).sub(&x(1).scale(&3.into())), &k(3));
+        match solve(&f, &none) {
+            Outcome::Sat(m) => assert!(f.eval(&m), "{m:?}"),
+            other => panic!("{other:?}"),
+        }
+    }
+
+    #[test]
+    fn bounds_settle_disjunctions_without_a_branch() {
+        // x >= 5 refutes the first alternative of each disjunction, so no case split is needed.
+        let none = BTreeSet::new();
+        let f = Form::and(vec![
+            Form::le(&k(5), &x(0)),
+            Form::or(vec![Form::le(&x(0), &k(2)), Form::eq(&x(1), &x(0))]),
+            Form::or(vec![Form::lt(&x(0), &k(0)), Form::lt(&x(1), &k(5))]),
+        ]);
+        assert_eq!(solve(&f, &none), Outcome::Unsat);
+        let g = Form::and(vec![
+            Form::le(&k(5), &x(0)),
+            Form::or(vec![Form::le(&x(0), &k(2)), Form::eq(&x(1), &x(0))]),
+        ]);
+        match solve(&g, &none) {
+            Outcome::Sat(m) => assert!(g.eval(&m), "{m:?}"),
+            other => panic!("{other:?}"),
+        }
     }
 }

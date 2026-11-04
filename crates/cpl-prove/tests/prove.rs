@@ -89,6 +89,22 @@ fn a_false_postcondition_fails_with_the_inputs_that_break_it() {
 }
 
 #[test]
+fn a_model_names_a_variant_the_enum_has() {
+    // `o != None` alone does not pin the variant tag down: its range must, so that the model
+    // is a value of the type (fuzzing found `{"$variant": ""}` here).
+    let (_, r) = report(
+        "enum Shape {\n    Dot\n    Line(Int)\n    Box(Int, Int)\n}\nfn f(o: Option<Int>, s: Shape) -> Int\n    ensures o == None or s == Dot\n{\n    0\n}\n",
+        "f",
+    );
+    let (_, v) = &r.verdicts[0];
+    assert_eq!(v.status, Status::Failed, "{v:?}");
+    let model = &v.evidence.as_ref().unwrap()["model"];
+    assert_eq!(model["o"]["$variant"], "Some", "{model}");
+    let shape = model["s"]["$variant"].as_str().unwrap_or_default();
+    assert!(["Line", "Box"].contains(&shape), "{model}");
+}
+
+#[test]
 fn divisions_and_preconditions_are_decided() {
     let source = "fn risky(a: Int, b: Int) -> Int {\n    a / b\n}\nfn safe(a: Int, b: Int) -> Int\n    requires b != 0\n{\n    a / b\n}\nfn exact(a: Int, b: Int) -> Int\n    requires b != 0\n    requires a % b == 0\n    ensures result * b == a\n{\n    a / b\n}\nfn positive(x: Int) -> Int\n    requires x > 0\n{\n    x\n}\nfn caller(y: Int) -> Int {\n    positive(y)\n}\nfn guarded(y: Int) -> Int {\n    if y > 0 { positive(y) } else { 0 }\n}\n";
     let p = check(source);
@@ -114,16 +130,26 @@ fn divisions_and_preconditions_are_decided() {
 
 #[test]
 fn loops_are_proved_from_their_invariants() {
-    let source = "fn sum_to(n: Int) -> Int\n    requires n >= 0\n    ensures result >= 0\n{\n    var i = 0\n    var s = 0\n    while i < n\n        invariant i >= 0 and i <= n\n        invariant s >= 0\n        decreases n - i\n    {\n        s = s + i\n        i = i + 1\n    }\n    s\n}\nfn weak(n: Int) -> Int\n    requires n >= 0\n    ensures result == n\n{\n    var i = 0\n    while i < n\n        invariant i >= 0\n        decreases n - i\n    {\n        i = i + 1\n    }\n    i\n}\n";
+    let source = "fn sum_to(n: Int) -> Int\n    requires n >= 0\n    ensures result >= 0\n{\n    var i = 0\n    var s = 0\n    while i < n\n        invariant i >= 0 and i <= n\n        invariant s >= 0\n        decreases n - i\n    {\n        s = s + i\n        i = i + 1\n    }\n    s\n}\nfn inferred(n: Int) -> Int\n    requires n >= 0\n    ensures result == n\n{\n    var i = 0\n    while i < n\n        invariant i >= 0\n        decreases n - i\n    {\n        i = i + 1\n    }\n    i\n}\nfn weak(n: Int) -> Int\n    requires n >= 0\n    ensures result == n\n{\n    var i = 0\n    var a = 0\n    var b = 0\n    while i < n\n        invariant i >= 0 and i <= n\n        decreases n - i\n    {\n        if i % 2 == 0 { a = a + 1 } else { b = b + 1 }\n        i = i + 1\n    }\n    a + b\n}\nfn wrong(n: Int) -> Int\n    requires n >= 0\n    ensures result == n\n{\n    var i = 0\n    while i < n\n        invariant i >= 0\n        decreases n - i\n    {\n        i = i + 2\n    }\n    i\n}\n";
     let p = check(source);
     let r = verify(&p, def(&p, "sum_to")).unwrap();
     assert_eq!(r.status, Status::Proved, "{r:?}");
-    // `i <= n` is missing: the postcondition does not follow from the invariant alone.
+    // `i <= n` is not declared: inference finds it (the condition, relaxed by the step).
+    let r = verify(&p, def(&p, "inferred")).unwrap();
+    assert_eq!(r.status, Status::Proved, "{r:?}");
+    // `a + b == i` is beyond the inferred forms: the postcondition does not follow.
     let w = verify(&p, def(&p, "weak")).unwrap();
     assert_eq!(
         statuses(&w, ensures),
         vec![(Status::Unknown, Some("invariant_too_weak"))]
     );
+    // A candidate the loop's abstraction cannot settle is run on its inputs: an odd `n` is a
+    // concrete counterexample.
+    let wrong = verify(&p, def(&p, "wrong")).unwrap();
+    let (_, v) = &wrong.verdicts[0];
+    assert_eq!(v.status, Status::Failed, "{v:?}");
+    let n = v.evidence.as_ref().unwrap()["model"]["n"].as_i64().unwrap();
+    assert!(n % 2 == 1, "{v:?}");
     let init: Vec<_> = statuses(&w, |s| {
         matches!(
             s,
@@ -166,7 +192,7 @@ fn data_types_refinements_and_invariants() {
 
 #[test]
 fn builtin_axioms_and_unsupported_values() {
-    let source = "fn first_page(items: List<Int>, size: Int) -> List<Int>\n    requires size > 0\n{\n    items.take(size)\n}\nfn shrink(items: List<Int>, size: Int) -> Int\n    requires size > 0\n    requires items.len > size\n    ensures result < items.len\n{\n    items.drop(size).len\n}\nfn texts(t: Text) -> Bool\n    ensures result\n{\n    t.len > 3\n}\n";
+    let source = "fn first_page(items: List<Int>, size: Int) -> List<Int>\n    requires size > 0\n{\n    items.take(size)\n}\nfn shrink(items: List<Int>, size: Int) -> Int\n    requires size > 0\n    requires items.len > size\n    ensures result < items.len\n{\n    items.drop(size).len\n}\nfn texts(t: Text) -> Bool\n    ensures result\n{\n    t.len > 3\n}\nfn twice(t: Text) -> Bool\n    ensures result\n{\n    (t ++ t).len == 2 * t.len\n}\n";
     let p = check(source);
     assert_eq!(
         verify(&p, def(&p, "first_page")).unwrap().status,
@@ -174,11 +200,17 @@ fn builtin_axioms_and_unsupported_values() {
     );
     let shrink = verify(&p, def(&p, "shrink")).unwrap();
     assert_eq!(shrink.status, Status::Proved, "{shrink:?}");
-    let t = verify(&p, def(&p, "texts")).unwrap();
+    // Text concatenation is uninterpreted: a true property of it stays unknown.
+    let t = verify(&p, def(&p, "twice")).unwrap();
     assert_eq!(
         statuses(&t, ensures),
         vec![(Status::Unknown, Some("unsupported_expression"))]
     );
+    // The length of a text is not either, but the candidate (a short text) runs concretely.
+    let t = verify(&p, def(&p, "texts")).unwrap();
+    assert_eq!(statuses(&t, ensures), vec![(Status::Failed, None)]);
+    let model = &t.verdicts[0].1.evidence.as_ref().unwrap()["model"]["t"];
+    assert!(model.as_str().unwrap().chars().count() <= 3, "{model}");
 }
 
 #[test]
@@ -202,6 +234,25 @@ fn equivalence_is_proved_or_refuted() {
     assert!(x < y, "{e:?}");
     let e = equivalent(&old, def(&old, "g"), &wrong, def(&wrong, "g"), &|_| false);
     assert_eq!(e.status, Status::Failed, "{e:?}");
+}
+
+#[test]
+fn inlining_or_extracting_an_identical_helper_is_decided() {
+    // `magnitude` is the same in both programs, so its calls are first one uninterpreted function
+    // of both sides; the inlined version is decided by executing the helper in place.
+    let old = check("fn magnitude(a: Int) -> Int {\n    if a < 0 { -a } else { a }\n}\nfn f(x: Int) -> Int {\n    magnitude(x) + 1\n}\n");
+    let new = check("fn magnitude(a: Int) -> Int {\n    if a < 0 { -a } else { a }\n}\nfn f(x: Int) -> Int {\n    (if x < 0 { -x } else { x }) + 1\n}\n");
+    let same = |id: &cpl_diag::StableId| id.as_str().ends_with(".magnitude");
+    let e = equivalent(&old, def(&old, "f"), &new, def(&new, "f"), &same);
+    assert_eq!(e.status, Status::Proved, "{e:?}");
+    // extracting it back is the same query the other way around
+    let e = equivalent(&new, def(&new, "f"), &old, def(&old, "f"), &same);
+    assert_eq!(e.status, Status::Proved, "{e:?}");
+    // a refactoring that drops the helper's negative case is refuted with inputs that show it
+    let wrong = check("fn magnitude(a: Int) -> Int {\n    if a < 0 { -a } else { a }\n}\nfn f(x: Int) -> Int {\n    x + 1\n}\n");
+    let e = equivalent(&old, def(&old, "f"), &wrong, def(&wrong, "f"), &same);
+    assert_eq!(e.status, Status::Failed, "{e:?}");
+    assert!(e.evidence["inputs"]["x"].as_i64().unwrap() < 0, "{e:?}");
 }
 
 #[test]

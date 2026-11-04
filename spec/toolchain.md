@@ -7149,7 +7149,11 @@ declaration order, an enum by a variant drawn with `below(n)` (stdlib 8.3)
 over its `n` variants and then its payloads in order, a wrapper by its
 inner type, `Unit` as `Unit`, `Bytes` as the bytes of a
 `gen.list(gen.range(0, 255))` draw, and any other refinement by its base,
-a draw that its chain rejects being drawn again; a function with a
+a draw that its chain rejects being drawn again. A recursive type is drawn
+finitely: a value of a data type drawn inside a value of the same type is
+drawn at a quarter of the size, and where that size is 0 an `Option` is
+`None` and an enum's variant is drawn among those whose payloads cannot
+contain a type being drawn (among all when none is such). A function with a
 parameter for which 100 draws in a row are rejected is reported as
 undrawable and not swept. Each case runs on the evaluator first. A case
 whose outcome on either engine is a time fault or a guard fault (rule 2

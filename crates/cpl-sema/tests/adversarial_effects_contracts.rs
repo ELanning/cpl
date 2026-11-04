@@ -2252,11 +2252,25 @@ pub fn public_proof(t: Text) -> Text
     assert_eq!(d[1]["span"]["col"], json!(8));
     assert_eq!(d[1]["span"]["end_col"], json!(8 + "public_proof".len()));
     assert_eq!(rel.verification.len(), 2);
-    assert!(rel
-        .verification
-        .iter()
-        .all(|v| v.status == ProofStatus::Unknown
-            && v.reason.as_deref() == Some("unsupported_expression")));
+    // `result.len > 0` fails on the empty text (the candidate, run concretely); concatenating
+    // texts is outside the verifier's fragment.
+    let status_of = |name: &str| {
+        rel.verification
+            .iter()
+            .find(|v| rel.program.display_path(v.def) == name)
+            .map(|v| (v.status, v.reason.clone()))
+    };
+    assert_eq!(
+        status_of("adv.proofs.private_proof"),
+        Some((ProofStatus::Failed, None))
+    );
+    assert_eq!(
+        status_of("adv.proofs.public_proof"),
+        Some((
+            ProofStatus::Unknown,
+            Some("unsupported_expression".to_string())
+        ))
+    );
     assert_eq!(
         def_status(&rel.program, "adv.proofs.public_proof"),
         DefStatus::HasErrors

@@ -11,7 +11,7 @@
 //! executed against shared inputs: the space of the program being verified, or in an equivalence
 //! query the old program's, with the new program's definitions mapped through [`Canon`].
 
-use crate::solver::{Form, Lin, Var};
+use crate::solver::{self, Form, Lin, Var};
 use crate::Site;
 use cpl_diag::{Span, StableId};
 use cpl_hir::{
@@ -20,7 +20,7 @@ use cpl_hir::{
 };
 use cpl_syntax::ast::{BinaryOp, UnaryOp};
 use num_bigint::BigInt;
-use num_traits::{One, Signed};
+use num_traits::{One, Signed, Zero};
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 /// The path abstracted a loop iteration by its invariants.
@@ -72,6 +72,9 @@ pub struct Shared {
     /// `p == a * b`.
     pub products: Vec<(Var, Lin, Lin)>,
     divisions: HashMap<(Lin, Lin), (Var, Var)>,
+    /// The value of `abs`, `min`, or `max` at its arguments: one variable for every path and
+    /// side that applies it to the same arguments, so their conditions coincide syntactically.
+    cases: HashMap<(&'static str, Lin, Lin), Var>,
     /// `(q, r, a, b)`: `q == a / b` and `r == a % b` (truncating) for a nonconstant `b`.
     pub quotients: Vec<(Var, Var, Lin, Lin)>,
     /// The canonical type of every opaque value, for rendering models.
@@ -105,11 +108,13 @@ pub enum Mode<'a> {
     /// Record the obligations of the root.
     Verify,
     /// Execute one side of an equivalence query: callees `same` judges identical are
-    /// uninterpreted functions shared by both sides, and so are the root's recursive calls.
+    /// uninterpreted functions shared by both sides (or, with `inline`, executed in place like
+    /// any other callee where that is possible), and so are the root's recursive calls.
     Equivalence {
         side: &'static str,
         same: &'a dyn Fn(&StableId) -> bool,
         canon: Option<&'a Canon>,
+        inline: bool,
     },
 }
 
@@ -223,6 +228,9 @@ const MAX_PATHS: usize = 4096;
 const MAX_INLINE: usize = 5;
 const MAX_AXIOM_DEPTH: u32 = 2;
 const MAX_DEPTH: u32 = 8;
+/// Concrete runs: iterations of one loop, and nested calls executed in place.
+const MAX_UNROLL: usize = 10_000;
+const MAX_CONCRETE_DEPTH: usize = 64;
 
 pub struct Exec<'p, 's> {
     pub p: &'p Program,
@@ -243,6 +251,13 @@ pub struct Exec<'p, 's> {
     /// Equivalence: paths that ended in a fault where no output stream could take them (a
     /// clause whose own evaluation faults); they are behavior like any other fault.
     pub faulted: Outs,
+    /// Infer loop invariants (verification only).
+    pub infer: bool,
+    /// Concrete inputs: loops are run iteration by iteration and every call is executed in
+    /// place (up to a depth), confirming a candidate counterexample.
+    pub concrete: bool,
+    /// Inferring a loop's invariants: loops nested in it use their declared invariants only.
+    inferring: bool,
 }
 
 fn int(s: &Sym) -> Option<&Lin> {
@@ -275,6 +290,9 @@ impl<'p, 's> Exec<'p, 's> {
             axiom_depth: 0,
             summarized: false,
             faulted: Vec::new(),
+            infer: false,
+            concrete: false,
+            inferring: false,
         }
     }
 
@@ -603,12 +621,30 @@ impl<'p, 's> Exec<'p, 's> {
     }
 
     /// The tag variable of an opaque enum value.
-    fn tag(&mut self, id: u32) -> Var {
-        if let Some(v) = self.shared.tags.get(&id) {
+    /// The variable of a value defined by cases (`abs`, `min`, `max`) at its arguments.
+    fn case_var(&mut self, name: &'static str, x: &Lin, y: &Lin) -> Var {
+        let key = (name, x.clone(), y.clone());
+        if let Some(v) = self.shared.cases.get(&key) {
             return *v;
         }
         let v = self.shared.var();
-        self.shared.tags.insert(id, v);
+        self.shared.cases.insert(key, v);
+        v
+    }
+
+    /// The variant tag of opaque enum value `id`, one of its enum's `count` variants: the range
+    /// is stated on `path`, so that a model never names a variant that does not exist.
+    fn tag(&mut self, path: &mut Path, id: u32, count: usize) -> Var {
+        let v = match self.shared.tags.get(&id) {
+            Some(v) => *v,
+            None => {
+                let v = self.shared.var();
+                self.shared.tags.insert(id, v);
+                v
+            }
+        };
+        path.add(Form::le(&Lin::constant(0), &Lin::var(v)));
+        path.add(Form::lt(&Lin::var(v), &Lin::constant(count as u32)));
         v
     }
 
@@ -723,7 +759,7 @@ impl<'p, 's> Exec<'p, 's> {
                             .kind
                             .as_enum()
                             .map_or(0, |e| e.variants.len());
-                        let (tx, ty_) = (self.tag(*x), self.tag(*y));
+                        let (tx, ty_) = (self.tag(path, *x, count), self.tag(path, *y, count));
                         let mut cases = Vec::new();
                         for k in 0..count as u32 {
                             let px = self.payload(path, *x, def, &args, k);
@@ -765,7 +801,13 @@ impl<'p, 's> Exec<'p, 's> {
                 Sym::Opaque { id, ty },
             ) => {
                 if let Some((def, args)) = self.enum_of(ty) {
-                    let t = self.tag(*id);
+                    let count = self
+                        .p
+                        .def(def)
+                        .kind
+                        .as_enum()
+                        .map_or(0, |e| e.variants.len());
+                    let t = self.tag(path, *id, count);
                     let payload = self.payload(path, *id, def, &args, *variant);
                     let mut parts = vec![Form::eq(&Lin::var(t), &Lin::constant(*variant))];
                     for (a, b) in payload.iter().zip(fields) {
@@ -1025,6 +1067,9 @@ impl<'p, 's> Exec<'p, 's> {
         decreases: Option<&Clause>,
         body: &Block,
     ) -> Outs {
+        if self.concrete {
+            return self.unroll(path, cond, invariants, decreases, body);
+        }
         let site = cond.span;
         let unit = self.unit();
         // Invariants on entry, each assuming the previous ones.
@@ -1052,12 +1097,31 @@ impl<'p, 's> Exec<'p, 's> {
         let mut assigned = BTreeSet::new();
         assigned_locals(body, &mut assigned);
         for mut p in paths {
+            // Facts the loop maintains beyond its declared invariants, proved inductive.
+            let inferred = if self.infer && matches!(self.mode, Mode::Verify) && !self.inferring {
+                self.infer_invariants(&p, cond, invariants, body, &assigned)
+            } else {
+                None
+            };
             p.inexact |= HAVOC;
+            let mut head: BTreeMap<LocalId, Lin> = BTreeMap::new();
             for local in &assigned {
                 let ty = self.local_def_ty(*local);
                 let v = self.fresh(&mut p, &ty);
+                if let Sym::Int(l) = &v {
+                    head.insert(*local, l.clone());
+                }
                 if let Some(slot) = p.env.get_mut(local.0 as usize) {
                     *slot = Some(v);
+                }
+            }
+            if let Some((vars, facts)) = inferred {
+                let map: BTreeMap<Var, Lin> = vars
+                    .iter()
+                    .filter_map(|(local, v)| head.get(local).map(|l| (*v, l.clone())))
+                    .collect();
+                for f in facts {
+                    p.add(f.substitute_all(&map));
                 }
             }
             let heads = self.quiet(|x| x.assume_clauses(vec![p], invariants));
@@ -1165,6 +1229,410 @@ impl<'p, 's> Exec<'p, 's> {
             }
         }
         out
+    }
+
+    /// A loop on concrete values: its iterations one by one, with the checks of checked mode
+    /// (semantics 5.3): the invariants before the first test and after every iteration, the
+    /// measure after the condition held (nonnegative, and below the previous iteration's).
+    /// Values the inputs do not settle abort the run.
+    fn unroll(
+        &mut self,
+        path: Path,
+        cond: &Expr,
+        invariants: &[Clause],
+        decreases: Option<&Clause>,
+        body: &Block,
+    ) -> Outs {
+        let site = cond.span;
+        let unit = self.unit();
+        let mut out = Vec::new();
+        let mut current = vec![path];
+        let mut previous: Option<Lin> = None;
+        for iteration in 0..MAX_UNROLL {
+            let mut heads = Vec::new();
+            for p in current {
+                let mut ps = vec![p];
+                for (i, inv) in invariants.iter().enumerate() {
+                    let at = if iteration == 0 {
+                        Site::InvariantInit(site, i)
+                    } else {
+                        Site::InvariantPreserve(site, i)
+                    };
+                    let mut next = Vec::new();
+                    for q in ps {
+                        for (r, f) in self.clause_here(q, inv) {
+                            if let Some(r) = self.checked(
+                                r,
+                                Some(at),
+                                f,
+                                "contract_violation:invariant",
+                                &mut out,
+                            ) {
+                                next.push(r);
+                            }
+                        }
+                    }
+                    ps = next;
+                }
+                heads.extend(ps);
+            }
+            let mut entering = Vec::new();
+            for h in heads {
+                for (mut q, flow) in self.expr(h, cond) {
+                    let c = match flow {
+                        Flow::Val(v) => self.truth_of(&mut q, &v),
+                        other => {
+                            out.push((q, other));
+                            continue;
+                        }
+                    };
+                    let (enter, exit) = self.split(q, &c);
+                    if let Some(e) = exit {
+                        out.push((e, Flow::Val(unit.clone())));
+                    }
+                    entering.extend(enter);
+                }
+            }
+            if entering.len() > 1 {
+                self.aborted.get_or_insert("limit");
+                return out;
+            }
+            let Some(e) = entering.pop() else {
+                return out;
+            };
+            let mut starts = Vec::new();
+            match decreases {
+                Some(m) => {
+                    for (q, flow) in self.expr(e, &m.expr) {
+                        match flow {
+                            Flow::Val(Sym::Int(v)) => {
+                                let mut ok = vec![Form::le(&Lin::default(), &v)];
+                                if let Some(prev) = &previous {
+                                    ok.push(Form::lt(&v, prev));
+                                }
+                                if let Some(q) = self.checked(
+                                    q,
+                                    Some(Site::LoopDecreases(site)),
+                                    Form::and(ok),
+                                    "contract_violation:decreases",
+                                    &mut out,
+                                ) {
+                                    previous = Some(v);
+                                    starts.push(q);
+                                }
+                            }
+                            Flow::Val(_) => {
+                                self.aborted.get_or_insert("limit");
+                                return out;
+                            }
+                            other => out.push((q, other)),
+                        }
+                    }
+                }
+                None => starts.push(e),
+            }
+            current = Vec::new();
+            for start in starts {
+                for (after, flow) in self.block(start, body) {
+                    match flow {
+                        Flow::Val(_) => current.push(after),
+                        other => out.push((after, other)),
+                    }
+                }
+            }
+            if current.is_empty() {
+                return out;
+            }
+        }
+        self.aborted.get_or_insert("limit");
+        out
+    }
+
+    /// A value of `ty` (this program's space) from its value JSON (toolchain 7.3); `None` for a
+    /// type or value it does not represent concretely.
+    pub fn from_json(&mut self, ty: &Ty, v: &serde_json::Value) -> Option<Sym> {
+        let p = self.p;
+        match ty {
+            Ty::Int => {
+                let n: BigInt = v.as_number()?.to_string().parse().ok()?;
+                Some(Sym::Int(Lin::constant(n)))
+            }
+            Ty::Bool => Some(Sym::Bool(Form::bool(v.as_bool()?))),
+            Ty::Text => Some(self.text(v.as_str()?)),
+            Ty::List(t) => {
+                let items = v.as_array()?;
+                let mut out = Vec::with_capacity(items.len());
+                for item in items {
+                    out.push(self.from_json(t, item)?);
+                }
+                Some(Sym::Seq(out))
+            }
+            Ty::Refined(_, def) => {
+                let base = p.def(*def).kind.as_refinement()?.base.clone();
+                self.from_json(&base, v)
+            }
+            Ty::Wrapper(def) => {
+                let inner = p.def(*def).kind.as_wrapper()?.inner.clone();
+                let payload = v.get("$payload")?.as_array()?.first()?;
+                let inner = self.from_json(&inner, payload)?;
+                Some(Sym::Data {
+                    def: self.canon(*def),
+                    variant: 0,
+                    fields: vec![inner],
+                })
+            }
+            Ty::Adt(def, _) if *def == p.std_defs().unit => Some(self.unit()),
+            Ty::Adt(def, args) => match &p.def(*def).kind {
+                DefKind::Struct(s) => {
+                    let mut fields = Vec::with_capacity(s.fields.len());
+                    for f in &s.fields {
+                        let t = instantiate(&f.ty, args);
+                        fields.push(self.from_json(&t, v.get(f.name.as_str())?)?);
+                    }
+                    Some(Sym::Data {
+                        def: self.canon(*def),
+                        variant: 0,
+                        fields,
+                    })
+                }
+                DefKind::Enum(e) => {
+                    let name = v.get("$variant")?.as_str()?;
+                    let k = e.variants.iter().position(|x| x.name == name)?;
+                    let payload = match v.get("$payload") {
+                        Some(items) => items.as_array()?.clone(),
+                        None => Vec::new(),
+                    };
+                    if payload.len() != e.variants[k].payload.len() {
+                        return None;
+                    }
+                    let mut fields = Vec::with_capacity(payload.len());
+                    for (t, item) in e.variants[k].payload.iter().zip(&payload) {
+                        fields.push(self.from_json(&instantiate(t, args), item)?);
+                    }
+                    Some(Sym::Data {
+                        def: self.canon(*def),
+                        variant: k as u32,
+                        fields,
+                    })
+                }
+                _ => None,
+            },
+            _ => None,
+        }
+    }
+
+    /// Invariant inference (Houdini) for a loop entered on `entry`. The candidates are facts
+    /// about the `Int` locals the loop assigns, stated over fresh head variables: each local is
+    /// at least (at most) its entry value; two locals that change by constant steps keep their
+    /// ratio of changes; an atom of the condition, relaxed by a step, holds (or the local is
+    /// still at its entry value). A candidate survives when it holds on entry and every
+    /// iteration that ends normally preserves it, assuming the declared invariants (run-time
+    /// checks enforce them), the surviving candidates, and the condition; the survivors are
+    /// inductive, so assuming them at the head is sound. `None` when nothing survives or the
+    /// inference exceeds its budget.
+    fn infer_invariants(
+        &mut self,
+        entry: &Path,
+        cond: &Expr,
+        invariants: &[Clause],
+        body: &Block,
+        assigned: &BTreeSet<LocalId>,
+    ) -> Option<(BTreeMap<LocalId, Var>, Vec<Form>)> {
+        const CANDIDATES: usize = 32;
+        const PATHS: usize = 512;
+        let entry_values: BTreeMap<LocalId, Lin> = assigned
+            .iter()
+            .filter_map(|local| match entry.env.get(local.0 as usize) {
+                Some(Some(Sym::Int(l))) => Some((*local, l.clone())),
+                _ => None,
+            })
+            .collect();
+        if entry_values.is_empty() {
+            return None;
+        }
+        let saved = (self.paths, self.aborted, self.inferring);
+        self.inferring = true;
+        let result = self.quiet(|x| {
+            // The head of an arbitrary iteration.
+            let mut head = entry.clone();
+            let mut vars: BTreeMap<LocalId, Var> = BTreeMap::new();
+            for local in assigned {
+                let ty = x.local_def_ty(*local);
+                let v = x.fresh(&mut head, &ty);
+                if let Sym::Int(l) = &v {
+                    if let ([(var, c)], true) = (
+                        l.terms.iter().collect::<Vec<_>>().as_slice(),
+                        l.constant.is_zero(),
+                    ) {
+                        if c.is_one() && entry_values.contains_key(local) {
+                            vars.insert(*local, **var);
+                        }
+                    }
+                }
+                if let Some(slot) = head.env.get_mut(local.0 as usize) {
+                    *slot = Some(v);
+                }
+            }
+            if vars.is_empty() {
+                return None;
+            }
+            let at_head = |local: &LocalId| Lin::var(vars[local]);
+            let mut candidates: Vec<Form> = Vec::new();
+            for (local, e) in &entry_values {
+                if vars.contains_key(local) {
+                    candidates.push(Form::le(e, &at_head(local)));
+                    candidates.push(Form::le(&at_head(local), e));
+                }
+            }
+            // One iteration: the steps of the locals and the atoms of the condition.
+            let mut steps: BTreeMap<LocalId, Option<BigInt>> = BTreeMap::new();
+            let mut atoms: Vec<Lin> = Vec::new();
+            for after in x.iterate(&head, cond, invariants, body, &[], Some(&mut atoms))? {
+                for (local, v) in &vars {
+                    let step = match after.env.get(local.0 as usize) {
+                        Some(Some(Sym::Int(l))) => {
+                            let d = l.sub(&Lin::var(*v));
+                            d.terms.is_empty().then_some(d.constant)
+                        }
+                        _ => None,
+                    };
+                    let known = steps.entry(*local).or_insert_with(|| step.clone());
+                    if *known != step {
+                        *known = None;
+                    }
+                }
+            }
+            let stepping: Vec<(LocalId, BigInt)> = steps
+                .iter()
+                .filter_map(|(l, d)| d.clone().filter(|d| !d.is_zero()).map(|d| (*l, d)))
+                .collect();
+            for (i, (v, dv)) in stepping.iter().enumerate() {
+                for (w, dw) in &stepping[i + 1..] {
+                    let change = |l: &LocalId| at_head(l).sub(&entry_values[l]);
+                    candidates.push(Form::eq(&change(v).scale(dw), &change(w).scale(dv)));
+                }
+            }
+            for atom in &atoms {
+                let mentioned: Vec<(&LocalId, &Var)> = vars
+                    .iter()
+                    .filter(|(_, v)| atom.terms.contains_key(v))
+                    .collect();
+                let [(local, var)] = mentioned.as_slice() else {
+                    continue;
+                };
+                if !atom.terms[var].abs().is_one() {
+                    continue;
+                }
+                let step = steps
+                    .get(local)
+                    .cloned()
+                    .flatten()
+                    .map_or(BigInt::one(), |d| d.abs().max(BigInt::one()));
+                let relaxed = Form::Le(atom.sub(&Lin::constant(step)));
+                candidates.push(relaxed.clone());
+                candidates.push(Form::or(vec![
+                    relaxed,
+                    Form::eq(&at_head(local), &entry_values[local]),
+                ]));
+            }
+            candidates.sort();
+            candidates.dedup();
+            candidates.truncate(CANDIDATES);
+            // On entry, the head variables are the entry values.
+            let at_entry: BTreeMap<Var, Lin> = vars
+                .iter()
+                .map(|(local, v)| (*v, entry_values[local].clone()))
+                .collect();
+            candidates.retain(|c| x.implied(&entry.cond, &c.substitute_all(&at_entry)));
+            // Drop candidates some iteration breaks, until the rest are inductive.
+            while !candidates.is_empty() {
+                let afters = x.iterate(&head, cond, invariants, body, &candidates, None)?;
+                if x.paths > saved.0 + PATHS {
+                    return None;
+                }
+                let mut broken = BTreeSet::new();
+                for after in &afters {
+                    let now: BTreeMap<Var, Lin> = vars
+                        .iter()
+                        .filter_map(|(local, v)| match after.env.get(local.0 as usize) {
+                            Some(Some(Sym::Int(l))) => Some((*v, l.clone())),
+                            _ => None,
+                        })
+                        .collect();
+                    for (i, c) in candidates.iter().enumerate() {
+                        if !broken.contains(&i) && !x.implied(&after.cond, &c.substitute_all(&now))
+                        {
+                            broken.insert(i);
+                        }
+                    }
+                }
+                if broken.is_empty() {
+                    break;
+                }
+                let mut i = 0;
+                candidates.retain(|_| {
+                    i += 1;
+                    !broken.contains(&(i - 1))
+                });
+            }
+            (!candidates.is_empty()).then_some((vars, candidates))
+        });
+        let failed = self.aborted.is_some() && saved.1.is_none();
+        self.paths = saved.0;
+        self.aborted = saved.1;
+        self.inferring = saved.2;
+        if failed {
+            return None;
+        }
+        result
+    }
+
+    /// The paths of one iteration from `head` that end normally (quietly): the declared
+    /// invariants and `facts` assumed, the condition holding, the body run. The atoms of the
+    /// condition, as `l <= 0`, are added to `atoms`. `None` past the inference's path budget.
+    fn iterate(
+        &mut self,
+        head: &Path,
+        cond: &Expr,
+        invariants: &[Clause],
+        body: &Block,
+        facts: &[Form],
+        mut atoms: Option<&mut Vec<Lin>>,
+    ) -> Option<Vec<Path>> {
+        let mut start = head.clone();
+        for f in facts {
+            start.add(f.clone());
+        }
+        let mut out = Vec::new();
+        for h in self.assume_clauses(vec![start], invariants) {
+            for (mut q, flow) in self.expr(h, cond) {
+                let Flow::Val(v) = flow else { continue };
+                let c = self.truth_of(&mut q, &v);
+                if let Some(atoms) = atoms.as_deref_mut() {
+                    condition_atoms(&c, true, atoms);
+                }
+                let Some(e) = self.assume(q, c) else { continue };
+                for (after, flow) in self.block(e, body) {
+                    if matches!(flow, Flow::Val(_)) {
+                        out.push(after);
+                    }
+                }
+                if out.len() > 256 || self.aborted.is_some() {
+                    return None;
+                }
+            }
+        }
+        Some(out)
+    }
+
+    /// Whether `facts` imply `goal` (unsatisfiability of the facts with the goal negated).
+    fn implied(&self, facts: &[Form], goal: &Form) -> bool {
+        if *goal == Form::True {
+            return true;
+        }
+        let mut all = facts.to_vec();
+        all.push(Form::not(goal.clone()));
+        solver::solve(&Form::and(all), &self.shared.bools) == solver::Outcome::Unsat
     }
 
     /// In an equivalence query, a loop whose text, callees, and inputs are the same on both sides
@@ -1957,6 +2425,12 @@ impl<'p, 's> Exec<'p, 's> {
 
     /// Truncating division `x / y` and remainder, `y` nonzero on this path.
     fn divide(&mut self, path: &mut Path, x: &Lin, y: &Lin) -> (Lin, Lin) {
+        // Truncating division of constants (the divisor is not 0 here).
+        if let (Some(a), Some(b)) = (x.as_constant(), y.as_constant()) {
+            if !b.is_zero() {
+                return (Lin::constant(a / b), Lin::constant(a % b));
+            }
+        }
         let key = (x.clone(), y.clone());
         let (q, r) = match self.shared.divisions.get(&key) {
             Some(qr) => *qr,
@@ -2088,6 +2562,8 @@ impl<'p, 's> Exec<'p, 's> {
             env
         };
         // An operation's preconditions are the caller's obligations.
+        let identity = format!("{}.{}", p.def(capability).stable_id.as_str(), opdef.name);
+        let violation = format!("contract_violation:requires:{identity}");
         let mut paths = vec![path];
         let mut faults = Vec::new();
         for (i, clause) in opdef.requires.iter().enumerate() {
@@ -2103,7 +2579,7 @@ impl<'p, 's> Exec<'p, 's> {
                         r,
                         Some(Site::CallRequires(e.span, i)),
                         f,
-                        "contract_violation:requires",
+                        &violation,
                         &mut faults,
                     ) {
                         next.push(r);
@@ -2112,7 +2588,6 @@ impl<'p, 's> Exec<'p, 's> {
             }
             paths = next;
         }
-        let identity = format!("{}.{}", p.def(capability).stable_id.as_str(), opdef.name);
         let mut out = faults;
         for mut q in paths {
             q.inexact |= ABSTRACT;
@@ -2260,18 +2735,23 @@ impl<'p, 's> Exec<'p, 's> {
             FnBody::Builtin(id) => Some(id.as_str()),
             FnBody::Block(_) => None,
         };
-        let (shared_key, side, equivalence) = match self.mode {
-            Mode::Equivalence { same, side, .. } => {
-                (callee == self.root || same(stable), side, true)
-            }
-            Mode::Verify => (false, "", false),
+        let (shared_key, side, equivalence, inline_shared) = match self.mode {
+            Mode::Equivalence {
+                same, side, inline, ..
+            } => (callee == self.root || same(stable), side, true, inline),
+            Mode::Verify => (false, "", false, false),
         };
         let effectful = !handles.is_empty();
+        // The root is on the stack, so its recursive calls are never executed in place, except on
+        // concrete inputs, where every call is (up to a depth).
         let inline = builtin.is_none()
-            && !(equivalence && shared_key)
+            && !(equivalence && shared_key && !inline_shared)
             && !effectful
-            && !self.stack.contains(&callee)
-            && self.stack.len() <= MAX_INLINE;
+            && if self.concrete {
+                self.stack.len() < MAX_CONCRETE_DEPTH
+            } else {
+                !self.stack.contains(&callee) && self.stack.len() <= MAX_INLINE
+            };
         let instantiated = instantiate(&f.ret, generic_args);
         for q in paths {
             let results: Outs = if let Some(id) = builtin {
@@ -2391,7 +2871,11 @@ impl<'p, 's> Exec<'p, 's> {
             // fork: the solver splits the cases only where an obligation depends on them.
             ("int_abs", [Some(x)]) => {
                 let x = (*x).clone();
-                let v = Lin::var(self.shared.var());
+                if x.terms.is_empty() {
+                    let c = Lin::constant(x.constant.abs());
+                    return vec![(path, Flow::Val(Sym::Int(c)))];
+                }
+                let v = Lin::var(self.case_var("int_abs", &x, &Lin::default()));
                 let zero = Lin::default();
                 path.add(Form::or(vec![
                     Form::and(vec![Form::le(&zero, &x), Form::eq(&v, &x)]),
@@ -2405,7 +2889,19 @@ impl<'p, 's> Exec<'p, 's> {
             ("int_min" | "int_max", [Some(x), Some(y)]) => {
                 let (x, y) = ((*x).clone(), (*y).clone());
                 let (lo, hi) = if id == "int_min" { (&x, &y) } else { (&y, &x) };
-                let v = Lin::var(self.shared.var());
+                if x.terms.is_empty() && y.terms.is_empty() {
+                    let v = if x.constant <= y.constant { lo } else { hi };
+                    return vec![(path, Flow::Val(Sym::Int(v.clone())))];
+                }
+                if x == y {
+                    return vec![(path, Flow::Val(Sym::Int(x)))];
+                }
+                let name = if id == "int_min" {
+                    "int_min"
+                } else {
+                    "int_max"
+                };
+                let v = Lin::var(self.case_var(name, &x, &y));
                 path.add(Form::or(vec![
                     Form::and(vec![Form::le(&x, &y), Form::eq(&v, lo)]),
                     Form::and(vec![Form::lt(&y, &x), Form::eq(&v, hi)]),
@@ -2470,7 +2966,6 @@ impl<'p, 's> Exec<'p, 's> {
             return vec![(path, v)];
         };
         let canonical = self.canon(def);
-        let tag = self.tag(*id);
         if let Some(variant) = path.variants.get(id).copied() {
             let mut path = path;
             let fields = self.payload(&mut path, *id, def, &args, variant);
@@ -2492,6 +2987,8 @@ impl<'p, 's> Exec<'p, 's> {
         if !self.budget(count) {
             return Vec::new();
         }
+        let mut path = path;
+        let tag = self.tag(&mut path, *id, count);
         let mut out = Vec::new();
         for k in 0..count as u32 {
             let mut q = path.clone();
@@ -2655,7 +3152,13 @@ impl<'p, 's> Exec<'p, 's> {
                 // Deeper than `concretize` resolves: state the variant by the tag.
                 match self.enum_of(ty) {
                     Some((def, targs)) => {
-                        let t = self.tag(*id);
+                        let count = self
+                            .p
+                            .def(def)
+                            .kind
+                            .as_enum()
+                            .map_or(0, |e| e.variants.len());
+                        let t = self.tag(path, *id, count);
                         let payload = self.payload(path, *id, def, &targs, *variant);
                         let mut parts = vec![Form::eq(&Lin::var(t), &Lin::constant(*variant))];
                         for (sub, field) in args.iter().zip(&payload) {
@@ -2712,6 +3215,23 @@ fn collect_binds(
 }
 
 /// Every local a block assigns, at any depth.
+/// The atoms of a loop condition (`positive`: as it holds when the loop is entered), each as
+/// `l <= 0`; equalities and atoms under a disjunction are skipped.
+fn condition_atoms(f: &Form, positive: bool, out: &mut Vec<Lin>) {
+    match (f, positive) {
+        (Form::Le(l), true) => out.push(l.clone()),
+        // not (l <= 0)  <=>  -l + 1 <= 0
+        (Form::Le(l), false) => out.push(l.scale(&BigInt::from(-1)).add(&Lin::constant(1))),
+        (Form::Not(g), p) => condition_atoms(g, !p, out),
+        (Form::And(gs), true) | (Form::Or(gs), false) => {
+            for g in gs {
+                condition_atoms(g, positive, out);
+            }
+        }
+        _ => {}
+    }
+}
+
 fn assigned_locals(b: &Block, out: &mut BTreeSet<LocalId>) {
     let mut visit = |s: &Stmt| {
         if let Stmt::Assign { local, .. } = s {

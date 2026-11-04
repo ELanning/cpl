@@ -18,5 +18,6 @@ num-traits.workspace = true
 serde_json.workspace = true
 
 [dev-dependencies]
+cpl-eval.workspace = true
 cpl-project.workspace = true
 cpl-sema.workspace = true

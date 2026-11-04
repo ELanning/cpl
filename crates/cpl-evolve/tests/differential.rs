@@ -229,3 +229,40 @@ pure fn never(n: Int) -> Int
     assert_eq!(c.report.behavior[0]["status"], "untested");
     assert_eq!(c.report.behavior[0]["discarded"], 50);
 }
+
+#[test]
+fn a_version_out_of_budget_is_inconclusive_not_a_difference() {
+    // Generated integers reach far beyond 64 bits, where the loop never finishes: the old version
+    // exhausts its budget there, which is no behavior to compare against the closed form.
+    let s = snapshot(
+        r#"module m
+@id("fn_sum")
+pure fn sum_below(n: Int) -> Int
+    requires n >= 0
+{
+    var i = 0
+    var total = 0
+    while i < n
+        invariant i >= 0 and i <= n
+        decreases n - i
+    {
+        total = total + i
+        i = i + 1
+    }
+    total
+}
+"#,
+    );
+    let started = std::time::Instant::now();
+    let c = change(&s, "fn_sum", "{ n * (n - 1) / 2 }", spec("fn_sum"));
+    assert!(c.report.accepted, "{:#?}", c.report.behavior);
+    let record = &c.report.behavior[0];
+    assert_eq!(record["status"], "tested", "{record}");
+    assert_eq!(record["cases_passed"], 100, "{record}");
+    assert!(record["inconclusive"].as_u64().unwrap() > 0, "{record}");
+    // Each inconclusive run stops at the step budget, not at the five-second time budget.
+    assert!(
+        started.elapsed() < std::time::Duration::from_secs(60),
+        "{record}"
+    );
+}

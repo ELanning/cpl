@@ -156,7 +156,17 @@ pub(crate) enum Outcome {
     /// The input is outside the called function's domain.
     Outside,
 }
+/// The step budget of one run on a generated input. A run that exhausts it, the time budget, or
+/// the call depth has no outcome to compare: generated inputs are large at times (integers well
+/// beyond 64 bits), and a version that loops on one is not a version that behaves differently.
+pub(crate) const STEPS: u64 = 1_000_000;
+
 impl Outcome {
+    /// The run ran out of a resource (steps, time, or call depth) before it had an outcome.
+    pub(crate) fn exhausted(&self) -> bool {
+        matches!(self, Outcome::Fault(code, _) if code == "resource_exhaustion")
+    }
+
     pub(crate) fn json(&self) -> Json {
         match self {
             Outcome::Value(v) => json!({"value": v}),
@@ -174,16 +184,17 @@ impl Outcome {
     }
 }
 
-pub(crate) fn run(
+/// A run within [`STEPS`]: the comparisons of generated inputs.
+pub(crate) fn bounded(
     s: &Snapshot,
     id: &StableId,
     args: &[Json],
     cfg: &VerifyConfig,
 ) -> Result<Outcome, Diagnostic> {
-    run_counting(s, id, args, cfg, None).map(|(o, _)| o)
+    run_counting(s, id, args, cfg, Some(STEPS)).map(|(o, _)| o)
 }
 
-/// [`run`] with a step budget, also returning the steps taken (`None` when the budget ran out).
+/// A run with a step budget, also returning the steps taken (`None` when the budget ran out).
 pub(crate) fn run_counting(
     s: &Snapshot,
     id: &StableId,
@@ -354,7 +365,7 @@ fn compare_on_stack(
             "differential cases must be positive",
         ));
     }
-    let (mut passed, mut discarded, mut attempt) = (0u32, 0u32, 0u32);
+    let (mut passed, mut discarded, mut inconclusive, mut attempt) = (0u32, 0u32, 0u32, 0u32);
     let budget = wanted.saturating_mul(10);
     while passed < wanted && attempt < budget {
         let mut rng = Rng::new(config.seed, &id, attempt);
@@ -377,17 +388,25 @@ fn compare_on_stack(
             .map(|(v, param)| cpl_eval::value_to_json(p, v, &param.ty))
             .collect();
         if let Some(filter) = &filter {
-            if run(base, filter, &args, config)? != Outcome::Value(Json::Bool(true)) {
+            if bounded(base, filter, &args, config)? != Outcome::Value(Json::Bool(true)) {
                 discarded += 1;
                 continue;
             }
         }
-        let before = run(base, &id, &args, config)?;
+        let before = bounded(base, &id, &args, config)?;
         if before == Outcome::Outside {
             discarded += 1;
             continue;
         }
-        let after = run(candidate, &id, &args, config)?;
+        if before.exhausted() {
+            inconclusive += 1;
+            continue;
+        }
+        let after = bounded(candidate, &id, &args, config)?;
+        if after.exhausted() {
+            inconclusive += 1;
+            continue;
+        }
         if !before.same(&after) {
             // Shrink while the versions still disagree on an input inside the domain.
             let (mut least, mut outcomes, mut steps) = (args.clone(), (before, after), 0);
@@ -398,18 +417,18 @@ fn compare_on_stack(
                         let mut trial = least.clone();
                         trial[i] = c;
                         if let Some(filter) = &filter {
-                            if run(base, filter, &trial, config)?
+                            if bounded(base, filter, &trial, config)?
                                 != Outcome::Value(Json::Bool(true))
                             {
                                 continue;
                             }
                         }
-                        let old = run(base, &id, &trial, config)?;
-                        if old == Outcome::Outside {
+                        let old = bounded(base, &id, &trial, config)?;
+                        if old == Outcome::Outside || old.exhausted() {
                             continue;
                         }
-                        let new = run(candidate, &id, &trial, config)?;
-                        if !old.same(&new) {
+                        let new = bounded(candidate, &id, &trial, config)?;
+                        if !new.exhausted() && !old.same(&new) {
                             least = trial;
                             outcomes = (old, new);
                             continue 'shrink;
@@ -434,7 +453,7 @@ fn compare_on_stack(
         vec![
             json!({"symbol": id, "method": "differential", "status": if ok { "tested" } else { "untested" },
             "seed": config.seed, "cases_passed": passed, "cases_requested": wanted, "discarded": discarded,
-            "equivalence": "unknown"}),
+            "inconclusive": inconclusive, "equivalence": "unknown"}),
         ],
         ok,
     ))

@@ -196,12 +196,13 @@ fn confirm(
             else {
                 continue;
             };
-            let before = differential::run(base, id, &args, config)?;
-            if before == Outcome::Outside {
+            // A version that runs out of a resource on a candidate shows no difference there.
+            let before = differential::bounded(base, id, &args, config)?;
+            if before == Outcome::Outside || before.exhausted() {
                 continue;
             }
-            let after = differential::run(candidate, id, &args, config)?;
-            if !before.same(&after) {
+            let after = differential::bounded(candidate, id, &args, config)?;
+            if !after.exhausted() && !before.same(&after) {
                 return Ok(Some(json!({
                     "by": "execution",
                     "inputs": inputs,

@@ -2,6 +2,7 @@
 name = "cpl-rtspec"
 version.workspace = true
 edition.workspace = true
+license.workspace = true
 description = "The one source of every specification-owned text and table that both CPL engines share (spec/toolchain.md 1.11, T70)"
 
 [lints]

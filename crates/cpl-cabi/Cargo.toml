@@ -2,6 +2,7 @@
 name = "cpl-cabi"
 version.workspace = true
 edition.workspace = true
+license.workspace = true
 description = "The toolchain's side of the CPL C boundary: the native engine, fault reconstruction, CAdapter, outcome comparison (spec/toolchain.md 1.14)"
 
 [lints]

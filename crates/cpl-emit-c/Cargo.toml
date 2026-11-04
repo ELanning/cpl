@@ -2,6 +2,7 @@
 name = "cpl-emit-c"
 version.workspace = true
 edition.workspace = true
+license.workspace = true
 description = "C emission from the typed HIR, generated headers and adapter wrappers, and every native build of CPL (spec/toolchain.md 1.13)"
 
 [lints]

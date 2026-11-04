@@ -136,15 +136,16 @@ consume nothing.
 | a list element type contains a state (lists share their elements) | `protocol_state_in_list` |
 | a generic function that may use a parameter twice is instantiated with a state | `protocol_state_duplicated` |
 
-`@role(protocol, role)` on a function declares it the implementation of one
-participant: its calls may perform only transitions whose `@message` sender
-is that role, and it must perform every such transition of the protocol.
+`@role(protocol, role)` on a function declares it part of the implementation
+of one participant: its calls may perform only transitions whose `@message`
+sender is that role, and the functions marked with the role must together
+perform every such transition of the protocol (calling it, or being it).
 
 | Rule | Diagnostic |
 | - | - |
 | the role is not a sender or receiver of the protocol's messages | `protocol_role_unknown` |
 | the function calls a transition that another role sends | `protocol_role_violation` |
-| a transition the role sends is never called by the function | `protocol_role_incomplete` |
+| a transition the role sends is performed by none of the role's functions | `protocol_role_incomplete` |
 
 The checks do not authenticate a distributed peer or prove fairness, actual
 network delivery, or absence of every distributed deadlock. The graph checks
@@ -289,7 +290,8 @@ modifies (own executable facets or resolved callees differ) with the
 equivalence verdict of `verification.md`: identical definitions, together
 with everything they call, are shared by both sides, and every other callee
 is executed in place. Candidate inputs the prover could not rule out are run
-on both versions; a difference becomes `failed` with
+on both versions (with the step budget of differential testing, a version
+out of budget showing no difference); a difference becomes `failed` with
 `{"by": "execution", "inputs", "before", "after"}`. A removed public function
 is `failed` (`removed`), a changed type `unknown` (`type_changed`). The
 obligation is `proved` when every function is (`partial` evidence marks a
@@ -327,8 +329,13 @@ invariant, the old function's own `requires` (a nested call's
 precondition failure is behavior, not domain), or an optional `filter`: a
 `Bool` function of the base program taking the same parameters, such as
 "existing positive behavior". Values are compared exactly; faults are
-compared by diagnostic code. Up to ten attempts per requested case are
-made (`cases` defaults to `verification.cases`). The first disagreement
+compared by diagnostic code. Each run has a budget of 1,000,000 steps
+besides the time budget; a run that exhausts either, or the call depth,
+has no outcome to compare, and its case counts as `inconclusive` (a loop
+bounded by an input never finishes on the generated integers far beyond
+64 bits, which is no difference from a version that does). Up to ten
+attempts per requested case are made (`cases` defaults to
+`verification.cases`). The first disagreement
 is shrunk on its value JSON (integers toward zero, shorter text and
 lists, recursively inside fields and payloads, each candidate rerun) and
 reported with the generated and shrunk arguments and both outcomes. A

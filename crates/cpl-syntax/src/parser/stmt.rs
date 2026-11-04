@@ -2,8 +2,9 @@
 
 use super::{Continuation, PResult, Parser};
 use crate::ast::{
-    AssertStmt, AssignStmt, Block, Comment, DecreasesClause, ExprStmt, InvariantClause, LetBinding,
-    LetStmt, ReturnStmt, Statement, Trivia, VarStmt, WhileClause, WhileStmt,
+    AssertStmt, AssignStmt, Block, Comment, ConcurrentStmt, DecreasesClause, ExprStmt,
+    InvariantClause, LetBinding, LetStmt, ReturnStmt, Statement, Trivia, VarStmt, WhileClause,
+    WhileStmt,
 };
 use crate::lexer::{Token, TokenKind as T};
 use cpl_diag::Span;
@@ -70,6 +71,10 @@ impl<'a> Parser<'a> {
             T::KwAssert => self.parse_assert(),
             T::KwWhile => self.parse_while(),
             T::LowerIdent if self.nth_kind(1) == T::Eq => self.parse_assign(),
+            // Contextual, like `parallel`: `concurrent` followed by `{` begins a task block.
+            T::LowerIdent if self.at_word("concurrent") && self.nth_kind(1) == T::LBrace => {
+                self.parse_concurrent()
+            }
             T::KwPub
             | T::KwFn
             | T::KwStruct
@@ -83,6 +88,24 @@ impl<'a> Parser<'a> {
             }
             _ => self.parse_expr_stmt(),
         }
+    }
+
+    /// `concurrent_stmt = "concurrent" "{" lines(statement) "}"`; every line
+    /// is a task, so the body has no tail expression.
+    fn parse_concurrent(&mut self) -> PResult<Statement> {
+        let kw = self.bump();
+        let (span, statements, trailing_comments) =
+            self.parse_lines("task", |p| p.parse_statement())?;
+        Ok(Statement::Concurrent(ConcurrentStmt {
+            span: kw.span.join(span),
+            trivia: Trivia::default(),
+            body: Block {
+                span,
+                statements,
+                tail: None,
+                trailing_comments,
+            },
+        }))
     }
 
     /// `expr_stmt = expr`

@@ -138,6 +138,7 @@ fn visit_block<'a>(
                 }
                 visit_block(&w.body, clause, v);
             }
+            ast::Statement::Concurrent(c) => visit_block(&c.body, clause, v),
             ast::Statement::Expr(x) => visit_expr(&x.expr, clause, v),
         }
     }

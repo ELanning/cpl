@@ -1,10 +1,11 @@
 //! Structured parallel maps. Only flat owned values cross threads; capability hosts stay on their owner.
-use super::{Env, Interpreter};
+use super::{Binding, Env, Interpreter};
 use crate::interp::eval::{Eval, Flow};
 use crate::run::Portable;
-use crate::{Fault, Value};
-use cpl_hir::{Expr, LocalId};
+use crate::{CapabilityImpl, Fault, HandleId, HostContext, Value};
+use cpl_hir::{Expr, LocalId, Stmt, Task};
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Mutex;
 use std::sync::{Arc, OnceLock};
 
 static LIMIT: OnceLock<usize> = OnceLock::new();
@@ -202,5 +203,234 @@ impl<'p> Interpreter<'p> {
             }
         }
         Ok(Value::list(output))
+    }
+}
+
+/// A fork shared by the worker that calls it and the owner that joins it.
+type Shared = Arc<Mutex<Option<Box<dyn CapabilityImpl + Send>>>>;
+
+/// A worker's view of a forked handle, by its handle number.
+struct ForkedHandle(Shared, u32);
+impl CapabilityImpl for ForkedHandle {
+    fn call(
+        &mut self,
+        op: &str,
+        args: Vec<Value>,
+        ctx: &mut HostContext<'_>,
+    ) -> Result<Value, Fault> {
+        let mut slot = self.0.lock().unwrap_or_else(|e| e.into_inner());
+        match slot.as_mut() {
+            Some(imp) => imp.call(op, args, ctx),
+            None => Err(unbound(op, self.1)),
+        }
+    }
+}
+
+/// A handle outside a task's footprint, which the task therefore never calls: in the worker it
+/// is not bound.
+struct Unforked(u32);
+impl CapabilityImpl for Unforked {
+    fn call(
+        &mut self,
+        op: &str,
+        _args: Vec<Value>,
+        _ctx: &mut HostContext<'_>,
+    ) -> Result<Value, Fault> {
+        Err(unbound(op, self.0))
+    }
+}
+
+fn unbound(op: &str, handle: u32) -> Fault {
+    Fault::internal(
+        "unbound_capability",
+        cpl_rtspec::messages::render(
+            &cpl_rtspec::messages::DETAIL_UNBOUND_CAPABILITY,
+            &[("operation", op), ("handle", &handle.to_string())],
+        ),
+    )
+}
+
+impl<'p> Interpreter<'p> {
+    /// Overlap the tasks of a `concurrent` block on worker threads (`spec/concurrency.md`): when
+    /// at least two of them perform effects, no two reach one resource with an operation that is
+    /// not read-only on both sides, and every handle they use forks. `None`: run them in order.
+    /// Every task runs to its end; their effect records and forks join in task order, and the
+    /// lowest-index fault escapes, so the outcome is that of some schedule of independent tasks.
+    pub(super) fn exec_tasks_parallel(&mut self, tasks: &'p [Task]) -> Option<Eval<()>> {
+        if tasks.len() < 2 || self.parallel_depth > 0 || limit() < 2 {
+            return None;
+        }
+        let p = self.program;
+        // Each task's footprint as resources: a host identity when the host reports one.
+        let mut identities: Vec<Option<String>> = vec![None; self.handles.len()];
+        let mut asked = vec![false; self.handles.len()];
+        let mut prints: Vec<Vec<(HandleId, String, bool)>> = Vec::with_capacity(tasks.len());
+        for task in tasks {
+            let mut print = Vec::new();
+            for effect in p.footprint(&task.stmt) {
+                let handle = match self.env().values.get(effect.param.0 as usize) {
+                    Some(Some(Value::Capability(h))) => *h,
+                    _ => return None,
+                };
+                let index = handle.0 as usize;
+                let binding = self.handles.get_mut(index)?;
+                if !asked[index] {
+                    asked[index] = true;
+                    identities[index] = binding.imp.resource();
+                }
+                let key = identities[index]
+                    .clone()
+                    .unwrap_or_else(|| format!("handle {index}"));
+                print.push((handle, key, p.read_only(binding.capability, &effect.op)));
+            }
+            prints.push(print);
+        }
+        if prints.iter().filter(|f| !f.is_empty()).count() < 2 {
+            return None;
+        }
+        for (i, a) in prints.iter().enumerate() {
+            for b in &prints[i + 1..] {
+                if a.iter()
+                    .any(|x| b.iter().any(|y| x.1 == y.1 && !(x.2 && y.2)))
+                {
+                    return None;
+                }
+            }
+        }
+        let permits = Permits::acquire(tasks.len() - 1);
+        if permits.0 + 1 < tasks.len() {
+            return None;
+        }
+        let mut forks: Vec<Vec<(HandleId, Shared)>> = Vec::with_capacity(tasks.len());
+        for print in &prints {
+            let mut handles: Vec<HandleId> = print.iter().map(|(h, _, _)| *h).collect();
+            handles.sort_by_key(|h| h.0);
+            handles.dedup();
+            let mut task_forks = Vec::with_capacity(handles.len());
+            for h in handles {
+                let fork = self.handles[h.0 as usize].imp.fork()?;
+                task_forks.push((h, Arc::new(Mutex::new(Some(fork)))));
+            }
+            forks.push(task_forks);
+        }
+        let env = self.env();
+        let captures = Portable::from(&Value::list(
+            env.values
+                .iter()
+                .map(|v| v.clone().unwrap_or(Value::Bool(false)))
+                .collect(),
+        ));
+        let present: Vec<bool> = env.values.iter().map(Option::is_some).collect();
+        let table = env.table;
+        let scope = env.scope.clone();
+        let config = self.config.clone();
+        let frames = self.frames.clone();
+        let measures = self.measures.clone();
+        let calls = self.calls;
+        let deadline = self.deadline;
+        let bindings: Vec<(cpl_hir::DefId, String, bool)> = self
+            .handles
+            .iter()
+            .map(|b| (b.capability, b.label.clone(), b.validate))
+            .collect();
+        let run = |task: &'p Task, forks: &[(HandleId, Shared)]| {
+            let mut child = Interpreter::new(p, config.clone());
+            child.parallel_depth = 1;
+            child.frames = frames.clone();
+            child.measures = measures.clone();
+            child.calls = calls;
+            child.deadline = deadline;
+            child.handles = bindings
+                .iter()
+                .enumerate()
+                .map(|(i, (capability, label, validate))| Binding {
+                    capability: *capability,
+                    label: label.clone(),
+                    validate: *validate,
+                    imp: match forks.iter().find(|(h, _)| h.0 as usize == i) {
+                        Some((_, shared)) => Box::new(ForkedHandle(shared.clone(), i as u32)),
+                        None => Box::new(Unforked(i as u32)),
+                    },
+                })
+                .collect();
+            let values = Value::from(captures.clone());
+            let Value::List(values) = &values else {
+                unreachable!()
+            };
+            child.envs.push(Env {
+                table,
+                scope: scope.clone(),
+                values: values
+                    .iter()
+                    .zip(&present)
+                    .map(|(v, present)| present.then(|| v.clone()))
+                    .collect(),
+            });
+            let result = match &task.stmt {
+                Stmt::Let { value, .. } => child.eval_expr(value).map(|v| Some(Portable::from(&v))),
+                other => child.exec_stmt(other).map(|()| None),
+            }
+            .map_err(Flow::into_fault);
+            let effects = std::mem::take(&mut child.effects);
+            (result, child.attributed, child.violation, effects)
+        };
+        let results = std::thread::scope(|s| {
+            let jobs: Vec<_> = tasks
+                .iter()
+                .zip(&forks)
+                .map(|(task, forks)| {
+                    let run = &run;
+                    std::thread::Builder::new()
+                        .name("cpl-task".into())
+                        .stack_size(crate::stack::EVAL_STACK_SIZE)
+                        .spawn_scoped(s, move || {
+                            crate::stack::set_guard(crate::stack::EVAL_STACK_SIZE);
+                            run(task, forks)
+                        })
+                })
+                .collect();
+            jobs.into_iter()
+                .zip(tasks.iter().zip(&forks))
+                .map(|(job, (task, forks))| match job {
+                    Ok(handle) => handle
+                        .join()
+                        .unwrap_or_else(|panic| std::panic::resume_unwind(panic)),
+                    Err(_) => run(task, forks),
+                })
+                .collect::<Vec<_>>()
+        });
+        drop(permits);
+        let mut fault = None;
+        let mut bound = Vec::new();
+        for ((result, attributed, violation, effects), (task, task_forks)) in
+            results.into_iter().zip(tasks.iter().zip(&forks))
+        {
+            self.effects.extend(effects);
+            for (h, shared) in task_forks {
+                if let Some(f) = shared.lock().unwrap_or_else(|e| e.into_inner()).take() {
+                    self.handles[h.0 as usize].imp.join(f);
+                }
+            }
+            match result {
+                Ok(Some(value)) => {
+                    if let Stmt::Let { local, .. } = &task.stmt {
+                        bound.push((local, Value::from(value)));
+                    }
+                }
+                Ok(None) => {}
+                Err(f) => {
+                    fault.get_or_insert((f, attributed, violation));
+                }
+            }
+        }
+        if let Some((f, attributed, violation)) = fault {
+            self.attributed = attributed;
+            self.violation = violation;
+            return Some(Err(Flow::Fault(Box::new(f))));
+        }
+        for (local, value) in bound {
+            self.bind(*local, value);
+        }
+        Some(Ok(()))
     }
 }

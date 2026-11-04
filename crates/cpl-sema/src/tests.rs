@@ -191,6 +191,7 @@ impl Coverage<'_, '_> {
                     }
                     self.block(&w.body);
                 }
+                ast::Statement::Concurrent(c) => self.block(&c.body),
                 ast::Statement::Expr(x) => self.expr(&x.expr),
             }
         }

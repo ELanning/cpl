@@ -1,0 +1,31 @@
+[
+  {
+    "function": "concurrent.rows.pair",
+    "args": [
+      7,
+      -2
+    ]
+  },
+  {
+    "function": "concurrent.rows.nested",
+    "args": [
+      [
+        5,
+        0,
+        -3
+      ]
+    ]
+  },
+  {
+    "function": "concurrent.rows.failing",
+    "args": [
+      0
+    ]
+  },
+  {
+    "function": "concurrent.rows.failing",
+    "args": [
+      9
+    ]
+  }
+]

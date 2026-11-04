@@ -336,6 +336,7 @@ impl<'a> SyntaxVisitor<'a> for Syntax<'_, '_> {
             ast::Statement::Return(_) => "a `return`",
             ast::Statement::Assert(_) => "an `assert`",
             ast::Statement::While(_) => "a `while` loop",
+            ast::Statement::Concurrent(_) => "a `concurrent` block",
             ast::Statement::Expr(_) => "an expression statement",
         };
         let span = s.span();

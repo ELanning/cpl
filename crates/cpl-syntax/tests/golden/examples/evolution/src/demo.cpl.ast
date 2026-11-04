@@ -1,0 +1,149 @@
+(module demo
+  (pure fn price pub
+    (annotation id (text "fn_price"))
+    (annotation intent (text "Compute the price of a quantity of items"))
+    (annotation preserve (text "Nonnegative quantities retain their price"))
+    (params (param quantity (ty Int)))
+    (ret (ty Int))
+    (requires (>= (name quantity) (int 0)))
+    (ensures (>= (name result) (int 0)))
+    (block (tail (* (name quantity) (int 10))))
+    (trivia blank))
+  (test "price of three items"
+    (annotation id (text "test_price"))
+    (block (assert (== (call (name price) (int 3)) (int 30))))
+    (trivia blank))
+  (property "prices are additive"
+    (annotation id (text "prop_price"))
+    (for a (call (member (name gen) range) (int 0) (int 100)))
+    (for b (call (member (name gen) range) (int 0) (int 100)))
+    (block
+      (assert
+        (==
+          (call (name price) (+ (name a) (name b)))
+          (+ (call (name price) (name a)) (call (name price) (name b))))))
+    (trivia blank))
+  (type Closed pub
+    (annotation id (text "ty_closed"))
+    (annotation protocol (text "connection") (text "closed") (text "initial_terminal"))
+    (wrapper (ty Int))
+    (trivia
+      (lead-blank "// Distinct nominal types describe the legal API states. The graph must")
+      (lead "// have one initial state and a reachable completion from every state.")))
+  (type Open pub
+    (annotation id (text "ty_open"))
+    (annotation protocol (text "connection") (text "open") (text "state"))
+    (wrapper (ty Int))
+    (trivia blank))
+  (pure fn connect pub
+    (annotation id (text "fn_connect"))
+    (annotation transition (text "connection") (text "closed") (text "open"))
+    (annotation message (text "Client") (text "Server"))
+    (params (param state (ty Closed)))
+    (ret (ty Open))
+    (block
+      (tail
+        (match (name state) (arm (ctor Closed (bind session)) (call (name Open) (name session))))))
+    (trivia blank))
+  (pure fn close pub
+    (annotation id (text "fn_close"))
+    (annotation transition (text "connection") (text "open") (text "closed"))
+    (annotation message (text "Server") (text "Client"))
+    (params (param state (ty Open)))
+    (ret (ty Closed))
+    (block
+      (tail
+        (match (name state) (arm (ctor Open (bind session)) (call (name Closed) (name session))))))
+    (trivia blank))
+  (test "connection completes"
+    (annotation id (text "test_protocol"))
+    (block
+      (assert
+        (==
+          (call (name close) (call (name connect) (call (name Closed) (int 7))))
+          (call (name Closed) (int 7))))
+      (trailing-comments "// close(Closed(7)) fails typechecking: close requires Open."))
+    (trivia blank))
+  (struct UserV1 pub
+    (annotation id (text "ty_user_v1"))
+    (annotation schema (text "user") (text "1"))
+    (field name (ty Text))
+    (trivia (lead-blank "// Preserve the old version and introduce a separately identified type.")))
+  (struct UserV2 pub
+    (annotation id (text "ty_user_v2"))
+    (annotation schema (text "user") (text "2"))
+    (field name (ty Text))
+    (field active (ty Bool))
+    (trivia blank))
+  (pure fn upgrade_user pub
+    (annotation id (text "fn_upgrade_user"))
+    (annotation migration (text "user") (text "1") (text "2"))
+    (params (param old (ty UserV1)))
+    (ret (ty UserV2))
+    (block
+      (tail (struct-lit UserV2 (field name (member (name old) name)) (field active (bool true)))))
+    (trivia blank))
+  (test "migration preserves the user name"
+    (annotation id (text "test_migration"))
+    (block
+      (assert
+        (==
+          (call (name upgrade_user) (struct-lit UserV1 (field name (text "Ada"))))
+          (struct-lit UserV2 (field name (text "Ada")) (field active (bool true))))))
+    (trivia blank))
+  (program Counter
+    (annotation id (text "ty_counter"))
+    (field value (ty Int))
+    (where (and (>= (member (name self) value) (int 0)) (<= (member (name self) value) (int 3))))
+    (trivia blank))
+  (enum CounterEvent
+    (annotation id (text "ty_counter_event"))
+    (variant Increment)
+    (variant Reset)
+    (trivia blank))
+  (initial fn start_counter
+    (annotation id (text "fn_start_counter"))
+    (params)
+    (ret (ty Counter))
+    (block (tail (struct-lit Counter (field value (int 0)))))
+    (trivia blank))
+  (machine update_counter
+    (annotation id (text "fn_update_counter"))
+    (params (param state (ty Counter)) (param event (ty CounterEvent)))
+    (ret (ty Counter))
+    (block
+      (tail
+        (match
+          (name event)
+          (arm
+            (ctor Increment)
+            (struct-lit Counter
+              (field value
+                (call (member (paren (+ (member (name state) value) (int 1))) min) (int 3)))))
+          (arm (ctor Reset) (struct-lit Counter (field value (int 0)))))))
+    (trivia blank))
+  (pure fn counter_full
+    (docs "A reachability question for exploration: can the counter fill up?")
+    (annotation id (text "fn_counter_full"))
+    (params (param state (ty Counter)))
+    (ret (ty Bool))
+    (block (tail (== (member (name state) value) (int 3))))
+    (trivia blank))
+  (test "counter saturates"
+    (annotation id (text "test_counter"))
+    (block
+      (let one (call (name update_counter) (call (name start_counter)) (name Increment)))
+      (assert (== (member (name one) value) (int 1)))
+      (assert (== (member (call (name update_counter) (name one) (name Reset)) value) (int 0))))
+    (trivia blank))
+  (interface Store pub
+    (annotation id (text "cap_store"))
+    (op read (params) (ret (ty Int)))
+    (trivia blank))
+  (mutate fn fetch pub
+    (annotation id (text "fn_fetch"))
+    (params (using store (ty Store)))
+    (ret (ty Int))
+    (effects store.read)
+    (block (tail (call (member (name store) read))))
+    (trivia blank)))

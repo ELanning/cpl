@@ -188,6 +188,7 @@ dependencies = [
  "cpl-diag",
  "cpl-emit-c",
  "cpl-eval",
+ "cpl-evolve",
  "cpl-hir",
  "cpl-index",
  "cpl-project",
@@ -245,6 +246,24 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror",
+]
+
+[[package]]
+name = "cpl-evolve"
+version = "0.1.0"
+dependencies = [
+ "blake3",
+ "cpl-diag",
+ "cpl-eval",
+ "cpl-hir",
+ "cpl-index",
+ "cpl-project",
+ "cpl-sema",
+ "cpl-syntax",
+ "cpl-work",
+ "num-bigint",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

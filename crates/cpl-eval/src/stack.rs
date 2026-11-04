@@ -73,13 +73,24 @@ pub(crate) fn nearly_exhausted() -> bool {
 /// Run `f` on a fresh thread whose stack is [`EVAL_STACK_SIZE`] bytes and
 /// return its result; a panic in `f` resumes on the calling thread. When
 /// the host refuses every reservation (a hard address-space limit), `f`
-/// runs on the calling thread instead.
+/// runs on the calling thread instead. On a thread that is already an
+/// evaluation thread, `f` runs in place under that thread's guard.
 pub fn on_eval_stack<R, F>(f: F) -> R
 where
     F: FnOnce() -> R + Send,
     R: Send,
 {
+    // Already on an evaluation stack (a tool evaluating in a loop, a nested run): its guard
+    // protects this evaluation too, so a new thread and stack would only add their cost.
+    if on_evaluation_thread() {
+        return f();
+    }
     on_eval_stack_sized(EVAL_STACK_SIZE, f)
+}
+
+/// Whether the current thread is an evaluation thread with its stack guard set.
+pub fn on_evaluation_thread() -> bool {
+    FLOOR.with(|floor| floor.get() != 0)
 }
 
 /// [`on_eval_stack`] with a stack of `size` bytes (at least 1 MiB), for
@@ -152,6 +163,10 @@ where
     Q: Send,
     A: Send,
 {
+    if on_evaluation_thread() {
+        // The hosts already live on this evaluation thread: serve each request in place.
+        return f(&mut |request| serve(request));
+    }
     let slot = Mutex::new(Some(f));
     let slot = &slot;
     for size in stack_sizes(EVAL_STACK_SIZE) {

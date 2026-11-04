@@ -359,6 +359,19 @@ mutate fn welcome(name: Text, using log: Log) -> Unit
 // It does not grant a handle. These functions need a host binding to run.
 // A plain fn is also supported: an empty effect bound makes it pure.
 
+// concurrent runs independent tasks. Each line is a let or an expression;
+// tasks cannot read each other's bindings, which appear after the block.
+// Two tasks may not use one handle unless the capability declares both
+// operations @read_only, so the result never depends on the schedule.
+mutate fn welcome_both(a: Text, b: Text, using log: Log, using audit: Log) -> Unit
+    effects { log.write, audit.write }
+{
+    concurrent {
+        log.write(greet(a))
+        audit.write(greet(b))
+    }
+}
+
 // ================================================================
 // 10. Application roots, state machines, and commands
 // ================================================================
@@ -479,6 +492,17 @@ General automatic contract proving, Node.js bindings, and automatic work
 execution/integration remain future work. `@prove` and `cpl prove` expose
 proof requirements and status; an `unknown` result is not a proof. Runtime
 contract checks and passing tests are separate evidence.
+
+The [program-evolution tools](spec/evolution.md) add checked semantic edits
+and transactions, semantic merges that check and test the composition,
+generated differential testing of changed functions, facet permissions,
+evidence rechecking, `cpl query`, `cpl verify --changed`, bounded machine
+exploration with invariants and reachability goals, nominal protocol types,
+versioned data migrations, and effectful task scopes with recorded replay.
+[`concurrent` blocks](spec/concurrency.md) run independent effectful tasks
+whose effect footprints the checker proves cannot interfere.
+The [evolution walkthrough](examples/evolution/README.md) is executable on
+both language engines; effectful task scheduling currently uses the interpreter.
 
 Continue with the [standard library](spec/stdlib.md),
 [language specifications](spec/README.md),

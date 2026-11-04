@@ -96,6 +96,11 @@ fn stmt<'h>(s: &'h Stmt, v: &mut impl Visitor<'h>) {
             }
             block(body, v);
         }
+        Stmt::Concurrent(tasks) => {
+            for t in tasks {
+                stmt(&t.stmt, v);
+            }
+        }
     }
 }
 

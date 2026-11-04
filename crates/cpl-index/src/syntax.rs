@@ -117,6 +117,7 @@ fn block<'a>(b: &'a ast::Block, f: &mut dyn FnMut(Node<'a>)) {
                 }
                 block(&w.body, f);
             }
+            ast::Statement::Concurrent(c) => block(&c.body, f),
             ast::Statement::Expr(s) => expr(&s.expr, f),
         }
     }

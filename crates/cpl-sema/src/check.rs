@@ -98,6 +98,8 @@ pub fn check_with(project: &Project, config: &CheckConfig) -> CheckResult {
     imports::report_unused(&mut cx);
     effects::check_effects(&mut cx);
     crate::machines::check(&mut cx);
+    crate::concurrency::check(&mut cx);
+    crate::evolution::check(&mut cx);
     contracts::check_contracts(&mut cx);
     policy::apply_policy(&mut cx);
     let interop = c_target(&mut cx);

@@ -104,6 +104,23 @@ pub trait CapabilityImpl {
         args: Vec<Value>,
         ctx: &mut HostContext<'_>,
     ) -> Result<Value, Fault>;
+
+    /// A handle to the same resource that another evaluation thread may call while this one
+    /// exists, when the host is thread-safe (`spec/concurrency.md`). A `concurrent` block
+    /// overlaps its tasks only when every handle they use forks; otherwise they run in order.
+    fn fork(&mut self) -> Option<Box<dyn CapabilityImpl + Send>> {
+        None
+    }
+
+    /// Take back a fork after its task finished; forks are joined in task order, so a host that
+    /// records its calls can append each fork's record deterministically.
+    fn join(&mut self, _forked: Box<dyn CapabilityImpl + Send>) {}
+
+    /// The canonical identity of the resource behind this handle, when the host knows it.
+    /// Handles with one identity are aliases: tasks reaching them exclusively run in order.
+    fn resource(&mut self) -> Option<String> {
+        None
+    }
 }
 
 /// What a [`CapabilityImpl`] may see of the running program.

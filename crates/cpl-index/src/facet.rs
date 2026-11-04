@@ -188,7 +188,15 @@ pub fn facet_text(module_path: &[String], decl: &Declaration, facet: Facet) -> O
     Some(match facet {
         Facet::Identity => declaration_identity(module_path, decl).as_str().to_string(),
         Facet::Name => name_text(decl),
-        Facet::Signature => canonical(Fragment::Signature(decl)),
+        Facet::Signature => {
+            let mut text = canonical(Fragment::Signature(decl));
+            append_metadata(
+                &mut text,
+                decl,
+                &["protocol", "transition", "message", "schema", "migration"],
+            );
+            text
+        }
         Facet::Contract => canonical(Fragment::Contract(decl)),
         Facet::Effects => match &decl.kind {
             DeclKind::Fn(f) => {
@@ -279,7 +287,37 @@ fn docs_text(decl: &Declaration) -> String {
         text.push('\n');
         text.push_str(&fragment(docs));
     }
+    append_metadata(&mut text, decl, &["intent", "preserve"]);
     text
+}
+
+fn append_metadata(text: &mut String, decl: &Declaration, names: &[&str]) {
+    for name in names {
+        if let Some(a) = decl.annotation(name) {
+            let args: Vec<_> = a
+                .args
+                .iter()
+                .filter_map(|v| match &v.kind {
+                    LiteralKind::Text(t) => Some(t),
+                    _ => None,
+                })
+                .collect();
+            if !text.is_empty() {
+                text.push('\n');
+            }
+            text.push('@');
+            text.push_str(name);
+            text.push('(');
+            text.push_str(
+                &args
+                    .iter()
+                    .map(|arg| serde_json::to_string(arg).expect("text metadata serializes"))
+                    .collect::<Vec<_>>()
+                    .join(", "),
+            );
+            text.push(')');
+        }
+    }
 }
 
 /// The effect references of a `fn`'s bound as `param.op` strings
@@ -346,6 +384,40 @@ pub fn symbol_version(module_path: &[String], decl: &Declaration) -> SymbolVersi
         facets,
         definition,
     }
+}
+
+/// [`symbol_version`] memoized by the module path and the declaration's source text, which
+/// determine its syntax and so every facet. Process-wide and bounded, so that snapshots of one
+/// project that share most declarations (a base and its candidate, the sides of a merge) hash
+/// each unchanged declaration once.
+pub fn symbol_version_cached(
+    module_path: &[String],
+    decl: &Declaration,
+    source: &str,
+) -> SymbolVersion {
+    use std::sync::{Mutex, OnceLock};
+    static CACHE: OnceLock<Mutex<std::collections::HashMap<[u8; 32], SymbolVersion>>> =
+        OnceLock::new();
+    let mut h = blake3::Hasher::new();
+    h.update(b"cpl-symbol-version-v1\0");
+    for segment in module_path {
+        h.update(segment.as_bytes());
+        h.update(b".");
+    }
+    h.update(b"\0");
+    h.update(source.as_bytes());
+    let key = *h.finalize().as_bytes();
+    let cache = CACHE.get_or_init(Default::default);
+    if let Some(v) = cache.lock().unwrap_or_else(|e| e.into_inner()).get(&key) {
+        return v.clone();
+    }
+    let version = symbol_version(module_path, decl);
+    let mut cache = cache.lock().unwrap_or_else(|e| e.into_inner());
+    if cache.len() >= 200_000 {
+        cache.clear();
+    }
+    cache.insert(key, version.clone());
+    version
 }
 
 // ---------------------------------------------------------------------------
@@ -422,12 +494,31 @@ impl FacetMap {
 /// holds, is not part of it, and a file that failed to parse contributes no
 /// declarations.
 pub fn facet_map(project: &Project, revision: Revision) -> FacetMap {
+    facet_map_using(project, revision, &mut |module, decl| {
+        symbol_version(module, decl)
+    })
+}
+
+/// [`facet_map`] with each declaration's version supplied by `version_of`, so that a caller
+/// that already computed [`symbol_version`] of the same declarations reuses it.
+pub(crate) fn facet_map_using(
+    project: &Project,
+    revision: Revision,
+    version_of: &mut dyn FnMut(&[String], &Declaration) -> SymbolVersion,
+) -> FacetMap {
     let mut entries: BTreeMap<StableId, FacetEntry> = BTreeMap::new();
     let mut occurrences: BTreeMap<StableId, Vec<String>> = BTreeMap::new();
     for file in project_modules(project) {
         let module = module_path(file.module);
         for decl in &file.module.declarations {
-            let entry = FacetEntry::new(&module, decl, file.path);
+            let entry = FacetEntry {
+                version: version_of(&module, decl),
+                kind: IdKind::for_decl(&decl.kind),
+                module: module.join("."),
+                name: decl.display_name().to_string(),
+                file: file.path.to_string(),
+                effects: effect_set(decl),
+            };
             let id = entry.version.id.clone();
             occurrences
                 .entry(id.clone())
@@ -453,18 +544,43 @@ pub fn facet_map(project: &Project, revision: Revision) -> FacetMap {
 /// (a file that failed to parse, a `.work` file) and repeated ids are
 /// skipped. Milestone 1's stand-in for a dependency revision.
 pub fn module_content_hash(project: &Project, files: &[FileId]) -> Digest {
-    let mut texts: Vec<(&str, FileId, String)> = Vec::new();
+    use std::sync::{Mutex, OnceLock};
+    // The formatted text is a function of each file's source text, so the hash is memoized by
+    // the paths and texts (process-wide, bounded).
+    static CACHE: OnceLock<Mutex<std::collections::HashMap<[u8; 32], Digest>>> = OnceLock::new();
+    let mut modules: Vec<(&str, FileId, &std::sync::Arc<cpl_syntax::ast::Module>)> = Vec::new();
     for &id in files {
         let Some(index) = project.files.iter().position(|entry| entry.file == id) else {
             continue;
         };
         if let Some(ParsedFile::Module(module)) = project.parsed.get(index) {
             let path = project.source_map.file(id).path.as_str();
-            texts.push((path, id, format_module(module)));
+            modules.push((path, id, module));
         }
     }
-    texts.sort_by(|a, b| a.0.cmp(b.0).then(a.1.cmp(&b.1)));
-    texts.dedup_by_key(|text| text.1);
-    let joined: Vec<&str> = texts.iter().map(|(_, _, text)| text.as_str()).collect();
-    digest(joined.join("\n").as_bytes())
+    modules.sort_by(|a, b| a.0.cmp(b.0).then(a.1.cmp(&b.1)));
+    modules.dedup_by_key(|m| m.1);
+    let mut key = blake3::Hasher::new();
+    key.update(b"cpl-module-content-v1\0");
+    for (path, id, _) in &modules {
+        let text = project.source_map.file(*id).text();
+        key.update(&(path.len() as u64).to_le_bytes());
+        key.update(path.as_bytes());
+        key.update(&(text.len() as u64).to_le_bytes());
+        key.update(text.as_bytes());
+    }
+    let key = *key.finalize().as_bytes();
+    let cache = CACHE.get_or_init(Default::default);
+    if let Some(d) = cache.lock().unwrap_or_else(|e| e.into_inner()).get(&key) {
+        return d.clone();
+    }
+    let texts: Vec<String> = modules.iter().map(|(_, _, m)| format_module(m)).collect();
+    let joined: Vec<&str> = texts.iter().map(String::as_str).collect();
+    let d = digest(joined.join("\n").as_bytes());
+    let mut cache = cache.lock().unwrap_or_else(|e| e.into_inner());
+    if cache.len() >= 100_000 {
+        cache.clear();
+    }
+    cache.insert(key, d.clone());
+    d
 }

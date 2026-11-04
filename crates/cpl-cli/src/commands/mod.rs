@@ -10,6 +10,7 @@
 pub mod build;
 mod check;
 pub mod diff;
+mod evolution;
 pub mod fmt;
 pub mod id;
 pub mod inspect;
@@ -73,6 +74,18 @@ pub fn dispatch(cli: Cli) -> Exit {
             IdCommand::Assign(args) => finish(&ctx, name, id::run(&ctx, args)),
         },
         Command::Inspect(args) => finish(&ctx, name, inspect::run(&ctx, args)),
+        Command::Query(args) => finish(&ctx, name, evolution::query(&ctx, args)),
+        Command::Verify(args) => finish(&ctx, name, evolution::verify(&ctx, args)),
+        Command::Edit(args) => finish(&ctx, name, evolution::edit(&ctx, args)),
+        Command::Transaction(args) => finish(&ctx, name, evolution::transaction(&ctx, args)),
+        Command::Conflicts(args) => finish(&ctx, name, evolution::merge(&ctx, args, None)),
+        Command::Merge(args) => {
+            finish(&ctx, name, evolution::merge(&ctx, &args.inputs, Some(args)))
+        }
+        Command::Explore(args) => finish(&ctx, name, evolution::explore(&ctx, args)),
+        Command::Schema(args) => finish(&ctx, name, evolution::schema(&ctx, args)),
+        Command::Migrate(args) => finish(&ctx, name, evolution::migrate(&ctx, args)),
+        Command::Concurrent(args) => finish(&ctx, name, evolution::concurrent(&ctx, args)),
         Command::Prove(args) => finish(&ctx, name, prove::run(&ctx, args)),
         Command::Diff(args) => finish(&ctx, name, diff::run(&ctx, args)),
         Command::Work(w) => match &w.command {

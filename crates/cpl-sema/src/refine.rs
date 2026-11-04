@@ -427,6 +427,7 @@ pub(crate) enum SKey {
     Return(Option<PKey>),
     Assert(PKey),
     While(PKey, Vec<PKey>, BKey),
+    Concurrent(BKey),
     Expr(PKey),
 }
 
@@ -691,6 +692,7 @@ impl<'r, 'c> KeyBuilder<'r, 'c> {
                         .collect();
                     SKey::While(cond, clauses, self.block(&w.body))
                 }
+                ast::Statement::Concurrent(c) => SKey::Concurrent(self.block(&c.body)),
                 ast::Statement::Expr(x) => SKey::Expr(self.expr(&x.expr)),
             });
         }

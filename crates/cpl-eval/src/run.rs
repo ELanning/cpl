@@ -323,6 +323,12 @@ pub fn run_function_with_hosts(
                         .map(|v| Portable::from(&v)),
                 )
             }
+            HostRequest::Fork(host) => HostAnswer::Forked(impls[host].fork()),
+            HostRequest::Join(host, forked) => {
+                impls[host].join(forked);
+                HostAnswer::Joined
+            }
+            HostRequest::Resource(host) => HostAnswer::Resource(impls[host].resource()),
         }
     };
     let outcome = on_eval_stack_serving(
@@ -338,7 +344,7 @@ pub fn run_function_with_hosts(
                     HostAnswer::Created(Err(diagnostics)) => {
                         return Err(RunError::Bind(diagnostics))
                     }
-                    HostAnswer::Called(_) => unreachable!("a creation is answered as one"),
+                    _ => unreachable!("a creation is answered as one"),
                 };
                 let capability = match &param.ty {
                     Ty::Capability(c) => *c,
@@ -398,12 +404,21 @@ enum HostRequest {
         op: String,
         args: Vec<Portable>,
     },
+    /// Fork host `host` for a concurrent task ([`CapabilityImpl::fork`]).
+    Fork(usize),
+    /// Return a fork to host `host` ([`CapabilityImpl::join`]).
+    Join(usize, Box<dyn CapabilityImpl + Send>),
+    /// The resource identity of host `host` ([`CapabilityImpl::resource`]).
+    Resource(usize),
 }
 
 /// The calling thread's answer to a [`HostRequest`].
 enum HostAnswer {
     Created(Result<BindOptions, Vec<Diagnostic>>),
     Called(Result<Portable, Fault>),
+    Forked(Option<Box<dyn CapabilityImpl + Send>>),
+    Joined,
+    Resource(Option<String>),
 }
 
 /// The handle implementation the evaluation thread binds for a host that
@@ -427,7 +442,25 @@ impl CapabilityImpl for HostProxy<'_, '_> {
         };
         match (*self.link.borrow_mut())(request) {
             HostAnswer::Called(result) => result.map(Value::from),
-            HostAnswer::Created(_) => unreachable!("a call is answered as one"),
+            _ => unreachable!("a call is answered as one"),
+        }
+    }
+
+    fn fork(&mut self) -> Option<Box<dyn CapabilityImpl + Send>> {
+        match (*self.link.borrow_mut())(HostRequest::Fork(self.host)) {
+            HostAnswer::Forked(forked) => forked,
+            _ => unreachable!("a fork is answered as one"),
+        }
+    }
+
+    fn join(&mut self, forked: Box<dyn CapabilityImpl + Send>) {
+        (*self.link.borrow_mut())(HostRequest::Join(self.host, forked));
+    }
+
+    fn resource(&mut self) -> Option<String> {
+        match (*self.link.borrow_mut())(HostRequest::Resource(self.host)) {
+            HostAnswer::Resource(identity) => identity,
+            _ => unreachable!("a resource query is answered as one"),
         }
     }
 }

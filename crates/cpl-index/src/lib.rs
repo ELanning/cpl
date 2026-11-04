@@ -85,14 +85,14 @@ pub use diff::semantic_diff;
 pub use evidence::{test_check_configuration, test_environment, Proof};
 pub use facet::{
     applicable_facets, declaration_identity, definition_hash, facet_hash, facet_map, facet_text,
-    module_content_hash, symbol_path, symbol_version, FacetEntry, FacetMap,
+    module_content_hash, symbol_path, symbol_version, symbol_version_cached, FacetEntry, FacetMap,
 };
 pub use history::{changes_base, facet_map_at, git_error_diagnostic, DEFAULT_SINCE};
 pub use id::{
     apply_id_assignments, generate_id, is_generated_format, plan_id_assignments, IdAssignment,
     IdKind, StableId,
 };
-pub use query::{Dependency, Include, IncludeSet, Index, Target};
+pub use query::{Dependency, Include, IncludeSet, Index, IndexData, Target};
 pub use receipt::{
     receipt_digest, receipt_inputs, test_receipt, verification_receipt, ReceiptInputs,
 };

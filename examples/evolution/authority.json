@@ -1,0 +1,10 @@
+{
+  "grants": [
+    {
+      "actor": "optimizer",
+      "write": [{"symbol": "fn_price", "facets": ["body"]}],
+      "forbid": [{"symbol": "demo.*", "facets": ["contract", "signature", "effects", "docs"]}]
+    }
+  ],
+  "regions": [{"namespace": "demo", "owner": "optimizer"}]
+}

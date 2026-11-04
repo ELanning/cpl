@@ -28,6 +28,15 @@ macro_rules! codes {
 codes! {
     PARALLEL_RANGE_NOT_LIST = "parallel_range_not_list", Type, Error;
     PARALLEL_UNSAFE = "parallel_unsafe", Effect, Error;
+    // Concurrent task blocks (spec/concurrency.md).
+    /// A line of a `concurrent` block that is neither `let` nor an expression.
+    CONCURRENT_TASK_INVALID = "concurrent_task_invalid", Type, Error;
+    /// A task assigns an outer variable, returns, or propagates out of its block.
+    CONCURRENT_UNSAFE = "concurrent_unsafe", Effect, Error;
+    /// Two tasks may perform conflicting operations through one handle.
+    CONCURRENT_CONFLICT = "concurrent_conflict", Effect, Error;
+    /// An `@read_only` argument that names no operation of the capability.
+    READ_ONLY_UNKNOWN_OPERATION = "read_only_unknown_operation", Type, Error;
     // State machines and explicit function roles (spec/state-machines.md).
     PURE_CALLS_MUTATE = "pure_calls_mutate", Effect, Error;
     MUTATE_IN_CONTRACT = "mutate_in_contract", Effect, Error;

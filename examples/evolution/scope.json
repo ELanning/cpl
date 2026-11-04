@@ -1,0 +1,10 @@
+{
+  "tasks": [
+    {"id": "user", "function": "demo.fetch", "using": {"store": "users"}},
+    {"id": "settings", "function": "demo.fetch", "using": {"store": "settings"}}
+  ],
+  "resources": {
+    "users": {"identity": "database:users", "capability": "demo.Store", "operations": {"read": "read"}},
+    "settings": {"identity": "database:settings", "capability": "demo.Store", "operations": {"read": "read"}}
+  }
+}

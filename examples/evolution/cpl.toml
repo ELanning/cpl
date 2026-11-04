@@ -1,0 +1,6 @@
+[project]
+name = "evolution"
+edition = "0.1"
+
+[interop]
+targets = ["c"]

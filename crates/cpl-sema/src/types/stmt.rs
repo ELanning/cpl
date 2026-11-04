@@ -269,6 +269,26 @@ impl<'t, 'c, 'a> Typer<'t, 'c, 'a> {
                     false,
                 )
             }
+            ast::Statement::Concurrent(c) => {
+                let mut tasks = Vec::new();
+                for task in &c.body.statements {
+                    if !matches!(task, ast::Statement::Let(_) | ast::Statement::Expr(_)) {
+                        self.error(diag(
+                            codes::CONCURRENT_TASK_INVALID,
+                            Some(task.span()),
+                            "a `concurrent` task is a `let` or an expression statement; move other statements into a helper function",
+                        ));
+                    }
+                    self.push_frame();
+                    let (stmt, _) = self.stmt(task);
+                    self.pop_frame();
+                    tasks.push(cpl_hir::Task {
+                        stmt,
+                        span: task.span(),
+                    });
+                }
+                (Stmt::Concurrent(tasks), false)
+            }
             ast::Statement::Expr(x) => {
                 let unit = self.unit();
                 if is_branching(&x.expr) {

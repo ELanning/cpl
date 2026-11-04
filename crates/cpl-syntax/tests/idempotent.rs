@@ -778,6 +778,11 @@ impl StripLayout for Statement {
                 clauses.sort_by_key(|c| matches!(c, WhileClause::Decreases(_)));
                 body.strip();
             }
+            Statement::Concurrent(ConcurrentStmt { span, trivia, body }) => {
+                span.strip();
+                trivia.strip();
+                body.strip();
+            }
             Statement::Expr(e) => e.strip(),
         }
     }

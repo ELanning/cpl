@@ -132,7 +132,7 @@ pub(crate) struct Lowerer<'a, 'p> {
 
 /// Every HIR variant the coverage counters name (cabi.md 1.4), as `<enum>::<variant>`: what the coverage gate of
 /// toolchain 12.6 requires to occur.
-pub const COVERAGE_KINDS: [&str; 36] = [
+pub const COVERAGE_KINDS: [&str; 37] = [
     "ExprKind::Lit",
     "ExprKind::Local",
     "ExprKind::Ctor",
@@ -162,6 +162,7 @@ pub const COVERAGE_KINDS: [&str; 36] = [
     "Stmt::Assert",
     "Stmt::While",
     "Stmt::Expr",
+    "Stmt::Concurrent",
     "PatternKind::Wildcard",
     "PatternKind::Int",
     "PatternKind::Text",
@@ -207,6 +208,7 @@ fn stmt_kind(s: &Stmt) -> &'static str {
         Stmt::Assert { .. } => "Stmt::Assert",
         Stmt::While { .. } => "Stmt::While",
         Stmt::Expr(..) => "Stmt::Expr",
+        Stmt::Concurrent(..) => "Stmt::Concurrent",
     }
 }
 
@@ -491,6 +493,13 @@ impl<'a, 'p> Lowerer<'a, 'p> {
                         bound.insert(*local);
                     }
                     Stmt::While { body, .. } => bindings(body, bound),
+                    Stmt::Concurrent(tasks) => {
+                        for task in tasks {
+                            if let Stmt::Let { local, .. } = &task.stmt {
+                                bound.insert(*local);
+                            }
+                        }
+                    }
                     _ => {}
                 }
             }
@@ -1379,6 +1388,12 @@ impl<'a, 'p> Lowerer<'a, 'p> {
                 decreases,
                 body,
             } => self.lower_while(cond, invariants, decreases.as_ref(), body),
+            // The native engine runs tasks in order, a schedule the checker made equivalent to all.
+            Stmt::Concurrent(tasks) => {
+                for task in tasks {
+                    self.stmt(&task.stmt);
+                }
+            }
         }
     }
 

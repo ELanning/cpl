@@ -352,6 +352,7 @@ fn program() -> Program {
         }],
         source_map: Arc::new(sm),
         asts: vec![(std_file, prelude), (pages_file, pages)],
+        stable_ids: Default::default(),
     }
 }
 

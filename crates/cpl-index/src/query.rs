@@ -37,8 +37,7 @@
 use crate::codes;
 use crate::diff::semantic_diff;
 use crate::facet::{
-    definition_hash, facet_hash, facet_map, facet_text, module_content_hash, symbol_version,
-    FacetMap,
+    definition_hash, facet_hash, facet_text, module_content_hash, symbol_version, FacetMap,
 };
 use crate::obligations::{self, clause_text};
 use crate::receipt::{receipt_inputs, ReceiptInputs};
@@ -233,6 +232,19 @@ pub struct Dependency {
 #[derive(Clone, Debug)]
 pub struct Index<'p> {
     program: &'p Program,
+    /// Everything computed from the program and the project, owned or lent by a cache
+    /// ([`Index::with_data`]).
+    data: std::borrow::Cow<'p, IndexData>,
+    /// The facet map `changes` compares with.
+    changes_base: Option<FacetMap>,
+    /// The check's hole reports; `None` until [`Index::with_holes`].
+    holes: Option<&'p [HoleReport]>,
+}
+
+/// The part of an [`Index`] that borrows nothing: computed once per checked program
+/// ([`IndexData::build`], [`IndexData::from_check`]) and lent to any number of indexes.
+#[derive(Clone, Debug)]
+pub struct IndexData {
     revision: Revision,
     /// Per `DefId`: the definition's facet versions.
     versions: Vec<SymbolVersion>,
@@ -242,10 +254,6 @@ pub struct Index<'p> {
     module_hashes: BTreeMap<ModuleId, Digest>,
     /// The facet map of the revision (Section 5.4), for `changes`.
     facets: FacetMap,
-    /// The facet map `changes` compares with.
-    changes_base: Option<FacetMap>,
-    /// The check's hole reports; `None` until [`Index::with_holes`].
-    holes: Option<&'p [HoleReport]>,
     /// Some definition failed to check, so the reference graph may lack
     /// edges (`index_partial`).
     partial: bool,
@@ -258,22 +266,34 @@ pub struct Index<'p> {
     pub(crate) source_files: u32,
 }
 
-impl<'p> Index<'p> {
-    /// The index of `program`, which must have been checked from `project`
-    /// (they share the source map), at `revision` (Section 6.3), with the
-    /// version of every definition of the project and of std, the reverse
-    /// reference table, the content hash of every project module, the
-    /// revision's facet map, and the receipt inputs.
-    ///
-    /// Versions are `symbol_version` of each definition's syntax (Section
-    /// 5.4), except that the later occurrence of a duplicated `@id` has the
-    /// provisional identity the `Program` gives it (Section 4.5): its `id`,
-    /// `provisional` flag, and `identity` hash are those of that identity.
-    pub fn build(program: &'p Program, project: &Project, revision: Revision) -> Index<'p> {
+impl IndexData {
+    /// The owned part of [`Index::build`].
+    pub fn build(program: &Program, project: &Project, revision: Revision) -> IndexData {
+        // The facet map and the versions describe the same declarations (the program shares the
+        // project's parsed modules), so each declaration's canonical texts are hashed once.
+        let mut raw: std::collections::HashMap<*const Declaration, SymbolVersion> =
+            std::collections::HashMap::with_capacity(program.defs.len());
         let versions: Vec<SymbolVersion> = program
             .defs()
-            .map(|def| def_version(program, def))
+            .map(|def| {
+                let decl = program.ast(def.id);
+                let module = &program.module(def.module).path;
+                let text = program.source_map.file(decl.span.file).text();
+                let version = crate::facet::symbol_version_cached(
+                    module,
+                    decl,
+                    &text[decl.span.start as usize..decl.span.end as usize],
+                );
+                raw.insert(decl as *const Declaration, version.clone());
+                adjust_version(version, def)
+            })
             .collect();
+        let facets =
+            crate::facet::facet_map_using(project, revision.clone(), &mut |module, decl| {
+                raw.get(&(decl as *const Declaration))
+                    .cloned()
+                    .unwrap_or_else(|| symbol_version(module, decl))
+            });
         let mut incoming = vec![Vec::new(); program.defs.len()];
         for (i, r) in program.references.iter().enumerate() {
             if let Some(list) = incoming.get_mut(r.to.0 as usize) {
@@ -298,14 +318,11 @@ impl<'p> Index<'p> {
             .count() as u32;
         let partial =
             program.defs.is_empty() || program.defs().any(|d| d.status == DefStatus::HasErrors);
-        Index {
-            program,
+        IndexData {
             versions,
             incoming,
             module_hashes,
-            facets: facet_map(project, revision.clone()),
-            changes_base: None,
-            holes: None,
+            facets,
             partial,
             inputs: receipt_inputs(project, revision.clone()),
             proof_timeout_ms: verification.proof_timeout_ms,
@@ -315,16 +332,66 @@ impl<'p> Index<'p> {
         }
     }
 
+    /// The owned part of [`Index::from_check`]: partial when the check reported an error.
+    pub fn from_check(check: &CheckResult, project: &Project, revision: Revision) -> IndexData {
+        let mut data = IndexData::build(&check.program, project, revision);
+        data.partial |= check
+            .diagnostics
+            .iter()
+            .any(|d| d.severity == Severity::Error);
+        data
+    }
+}
+
+impl std::ops::Deref for Index<'_> {
+    type Target = IndexData;
+    fn deref(&self) -> &IndexData {
+        &self.data
+    }
+}
+
+impl<'p> Index<'p> {
+    /// The index of `program`, which must have been checked from `project`
+    /// (they share the source map), at `revision` (Section 6.3), with the
+    /// version of every definition of the project and of std, the reverse
+    /// reference table, the content hash of every project module, the
+    /// revision's facet map, and the receipt inputs.
+    ///
+    /// Versions are `symbol_version` of each definition's syntax (Section
+    /// 5.4), except that the later occurrence of a duplicated `@id` has the
+    /// provisional identity the `Program` gives it (Section 4.5): its `id`,
+    /// `provisional` flag, and `identity` hash are those of that identity.
+    pub fn build(program: &'p Program, project: &Project, revision: Revision) -> Index<'p> {
+        Index {
+            program,
+            data: std::borrow::Cow::Owned(IndexData::build(program, project, revision)),
+            changes_base: None,
+            holes: None,
+        }
+    }
+
     /// [`Index::build`] over a check's program, with its hole reports
     /// ([`Index::with_holes`]); the index is partial when the check
     /// reported an error.
     pub fn from_check(check: &'p CheckResult, project: &Project, revision: Revision) -> Index<'p> {
-        let mut index = Index::build(&check.program, project, revision).with_holes(&check.holes);
-        index.partial |= check
-            .diagnostics
-            .iter()
-            .any(|d| d.severity == Severity::Error);
-        index
+        Index {
+            program: &check.program,
+            data: std::borrow::Cow::Owned(IndexData::from_check(check, project, revision)),
+            changes_base: None,
+            holes: None,
+        }
+        .with_holes(&check.holes)
+    }
+
+    /// An index of `program` over data computed for it once ([`IndexData::build`] or
+    /// [`IndexData::from_check`] of the same program and project); nothing is recomputed.
+    pub fn with_data(program: &'p Program, data: &'p IndexData) -> Index<'p> {
+        Index {
+            program,
+            data: std::borrow::Cow::Borrowed(data),
+            changes_base: None,
+            holes: None,
+        }
     }
 
     /// The hole reports of the check (`CheckResult::holes`), which the
@@ -919,9 +986,9 @@ fn contains(outer: Span, inner: Span) -> bool {
 
 /// A definition's version (Section 5.4) under the `Program`'s identity
 /// (Section 4.5; [`Index::build`]).
-fn def_version(program: &Program, def: &Def) -> SymbolVersion {
-    let module = &program.module(def.module).path;
-    let mut version = symbol_version(module, program.ast(def.id));
+/// A definition's version from its declaration's: the later occurrence of a duplicated `@id`
+/// carries the provisional identity the program gives it (Section 4.5).
+fn adjust_version(mut version: SymbolVersion, def: &Def) -> SymbolVersion {
     if version.id != def.stable_id {
         version.id = def.stable_id.clone();
         version.provisional = def.stable_id.is_provisional();

@@ -491,6 +491,7 @@ fn statement(s: &Statement) -> S {
             p.push(block(&st.body));
             p
         }
+        Statement::Concurrent(st) => vec![a("concurrent"), block(&st.body)],
         Statement::Expr(st) => vec![a("expr"), expr(&st.expr)],
     };
     push_trivia(&mut parts, s.trivia());

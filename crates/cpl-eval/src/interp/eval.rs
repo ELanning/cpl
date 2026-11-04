@@ -573,7 +573,7 @@ impl<'p> Interpreter<'p> {
         outcome
     }
 
-    fn exec_stmt(&mut self, s: &'p Stmt) -> Eval<()> {
+    pub(super) fn exec_stmt(&mut self, s: &'p Stmt) -> Eval<()> {
         match s {
             Stmt::Let { local, value } => {
                 let v = self.eval_expr(value)?;
@@ -714,7 +714,25 @@ impl<'p> Interpreter<'p> {
                 decreases,
                 body,
             } => self.exec_while(cond, invariants, decreases.as_ref(), body),
+            Stmt::Concurrent(tasks) => self.exec_concurrent(tasks),
         }
+    }
+
+    /// The tasks of a `concurrent` block, in order: the checker made their footprints commute, so
+    /// this schedule is observationally every schedule. Like name resolution, a task does not see
+    /// its siblings' bindings; all of them become visible together after the block.
+    fn exec_concurrent(&mut self, tasks: &'p [cpl_hir::Task]) -> Eval<()> {
+        if let Some(outcome) = self.exec_tasks_parallel(tasks) {
+            return outcome;
+        }
+        let mark = self.scope_mark();
+        let mut bound = Vec::new();
+        for task in tasks {
+            self.exec_stmt(&task.stmt)?;
+            bound.extend(self.env_mut().scope.drain(mark..));
+        }
+        self.env_mut().scope.extend(bound);
+        Ok(())
     }
 
     /// Reuse a local integer's limbs for `x = x + y` (also subtraction and multiplication) only when

@@ -89,6 +89,40 @@ impl<'p> MachineContext<'p> {
         value_to_json_untyped(self.program, &self.state)
     }
 
+    /// The committed state, for tools that explore transitions from it without committing.
+    pub fn state(&self) -> &Value {
+        &self.state
+    }
+
+    /// Validate an event once, for repeated [`MachineContext::step`]s.
+    pub fn event(&self, event: &Json) -> Result<Value, Diagnostic> {
+        validate(self.program, event, &self.signature.event, &self.config)
+    }
+
+    /// The validated next state of one transition from `state`, which must be a state this
+    /// context committed or a previous `step` returned, on a validated `event`. Nothing is
+    /// committed and no record is built: bounded exploration calls this per transition.
+    pub fn step(
+        &self,
+        engine: &mut dyn RunEngine,
+        state: &Value,
+        event: &Value,
+    ) -> Result<Value, Diagnostic> {
+        let result = engine
+            .call_checked(self.machine, vec![state.clone(), event.clone()], vec![])
+            .map_err(|f| f.to_diagnostic(self.program))?;
+        let return_ty = &self.program.def(self.machine).kind.as_fn().unwrap().ret;
+        let result = validate_value(self.program, result, return_ty, &self.config)?;
+        match (self.signature.state_field, &result) {
+            (Some(si), Value::Struct { fields, .. }) => Ok(fields[si as usize].clone()),
+            (None, _) => Ok(result),
+            _ => Err(error(
+                "machine_result_invalid",
+                "the machine returned a value outside its protocol",
+            )),
+        }
+    }
+
     pub fn sequence(&self) -> u64 {
         self.sequence
     }

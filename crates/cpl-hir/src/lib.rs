@@ -91,6 +91,27 @@ pub struct Program {
     pub source_map: Arc<SourceMap>,
     /// The parsed files, in `FileId` order.
     pub asts: Vec<(FileId, Arc<ast::Module>)>,
+    /// [`Program::by_stable_id`]'s lookup table, built on first use.
+    pub stable_ids: StableIndex,
+}
+
+/// The stable identities of a program's definitions, first occurrence first, built on first
+/// use and rebuilt when definitions are added. A clone starts empty.
+#[derive(Default)]
+pub struct StableIndex(
+    std::sync::RwLock<Option<(usize, std::collections::HashMap<StableId, DefId>)>>,
+);
+
+impl Clone for StableIndex {
+    fn clone(&self) -> Self {
+        StableIndex::default()
+    }
+}
+
+impl std::fmt::Debug for StableIndex {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("StableIndex")
+    }
 }
 
 /// DefIds of the std declarations the checker and evaluator name directly
@@ -630,6 +651,17 @@ pub enum Stmt {
     },
     /// `Unit`-typed, non-tail.
     Expr(Expr),
+    /// `concurrent { tasks }`: independent tasks whose effect footprints commute
+    /// ([`Program::footprint`]). The result is that of running them in order;
+    /// a runtime may overlap tasks whose actual handles are disjoint.
+    Concurrent(Vec<Task>),
+}
+
+/// One task of a `concurrent` block: a `Let`, `Discard`, or `Expr` statement.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Task {
+    pub stmt: Stmt,
+    pub span: Span,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

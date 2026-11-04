@@ -18,6 +18,7 @@ impl Program {
             refinement_classes: Vec::new(),
             source_map,
             asts: Vec::new(),
+            stable_ids: StableIndex::default(),
         }
     }
 
@@ -62,7 +63,22 @@ impl Program {
     /// The definition with this identity (an `@id` value or a provisional
     /// identity).
     pub fn by_stable_id(&self, id: &StableId) -> Option<DefId> {
-        self.defs.iter().find(|d| &d.stable_id == id).map(|d| d.id)
+        {
+            let table = self.stable_ids.0.read().unwrap_or_else(|e| e.into_inner());
+            if let Some((len, map)) = table.as_ref() {
+                if *len == self.defs.len() {
+                    return map.get(id).copied();
+                }
+            }
+        }
+        let mut map = std::collections::HashMap::with_capacity(self.defs.len());
+        for d in &self.defs {
+            map.entry(d.stable_id.clone()).or_insert(d.id);
+        }
+        let found = map.get(id).copied();
+        *self.stable_ids.0.write().unwrap_or_else(|e| e.into_inner()) =
+            Some((self.defs.len(), map));
+        found
     }
 
     /// DefIds of Unit, Option, Result, ConstraintError, ForeignError, std.gen.Positive.
@@ -198,6 +214,75 @@ impl Program {
             )
         });
         &module.declarations[def.decl_index]
+    }
+
+    /// The capability operations a statement may perform, named by the `using` parameters of
+    /// the enclosing function: its operation calls and, for each call passing handles, the
+    /// callee's declared bound (or, without a clause, its inferred effects) substituted to the
+    /// caller's handles (semantics S28). Contract clauses perform no effects (4.4).
+    pub fn footprint(&self, stmt: &Stmt) -> std::collections::BTreeSet<EffectRef> {
+        let mut out = std::collections::BTreeSet::new();
+        stmt.walk(&mut |e| match &e.kind {
+            ExprKind::CapCall {
+                handle,
+                capability,
+                op,
+                ..
+            } => {
+                if let (ExprKind::Local(param), Some(cap)) =
+                    (&handle.kind, self.def(*capability).kind.as_capability())
+                {
+                    if let Some(o) = cap.ops.get(*op as usize) {
+                        out.insert(EffectRef {
+                            param: *param,
+                            op: o.name.clone(),
+                        });
+                    }
+                }
+            }
+            ExprKind::Call { callee, using, .. } if !using.is_empty() => {
+                if let Some(g) = self.def(*callee).kind.as_fn() {
+                    let bound = g.effects.declared.as_ref().unwrap_or(&g.effects.inferred);
+                    for effect in bound {
+                        let Some(i) = g.using.iter().position(|u| u.local == effect.param) else {
+                            continue;
+                        };
+                        if let Some(ExprKind::Local(param)) = using.get(i).map(|u| &u.kind) {
+                            out.insert(EffectRef {
+                                param: *param,
+                                op: effect.op.clone(),
+                            });
+                        }
+                    }
+                }
+            }
+            _ => {}
+        });
+        out
+    }
+
+    /// Whether `capability` declares `op` read-only (`@read_only("op", ...)`). Read-only
+    /// operations of one handle commute with each other; every other operation is exclusive.
+    pub fn read_only(&self, capability: DefId, op: &str) -> bool {
+        self.annotation_texts(capability, "read_only").contains(&op)
+    }
+
+    /// Text arguments of checked evolution metadata. Invalid or missing annotations return no arguments.
+    pub fn annotation_texts(&self, id: DefId, name: &str) -> Vec<&str> {
+        let def = self.def(id);
+        self.file_ast(def.file)
+            .and_then(|m| m.declarations.get(def.decl_index))
+            .and_then(|d| d.annotation(name))
+            .and_then(|a| {
+                a.args
+                    .iter()
+                    .map(|arg| match &arg.kind {
+                        ast::LiteralKind::Text(t) => Some(t.as_str()),
+                        _ => None,
+                    })
+                    .collect::<Option<Vec<_>>>()
+            })
+            .unwrap_or_default()
     }
 
     /// The source role, when present. Hand-built HIR and edition 0.1 functions retain effect-bound inference.

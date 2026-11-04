@@ -143,7 +143,56 @@ impl Stmt {
                 }
                 body.walk(f);
             }
+            Stmt::Concurrent(tasks) => {
+                for t in tasks {
+                    t.stmt.walk(f);
+                }
+            }
         }
+    }
+
+    /// Visit `self` and every statement nested in it: loop bodies and tasks, and the blocks of
+    /// `if` and `match` expressions at any depth.
+    pub fn walk_stmts<F: FnMut(&Stmt)>(&self, f: &mut F) {
+        fn shallow<F: FnMut(&Stmt)>(s: &Stmt, f: &mut F) {
+            f(s);
+            match s {
+                Stmt::While { body, .. } => {
+                    for x in &body.stmts {
+                        shallow(x, f);
+                    }
+                }
+                Stmt::Concurrent(tasks) => {
+                    for t in tasks {
+                        shallow(&t.stmt, f);
+                    }
+                }
+                _ => {}
+            }
+        }
+        shallow(self, f);
+        // `walk` reaches every expression, those of loop bodies and tasks included.
+        self.walk(&mut |e| match &e.kind {
+            ExprKind::If {
+                then_block,
+                else_block,
+                ..
+            } => {
+                for b in std::iter::once(then_block).chain(else_block) {
+                    for x in &b.stmts {
+                        shallow(x, f);
+                    }
+                }
+            }
+            ExprKind::Match { arms, .. } => {
+                for arm in arms {
+                    for x in &arm.body.stmts {
+                        shallow(x, f);
+                    }
+                }
+            }
+            _ => {}
+        });
     }
 
     /// [`Expr::structurally_eq`] for statements.
@@ -180,6 +229,12 @@ impl Stmt {
                         .all(|(a, b)| a.expr.structurally_eq(&b.expr))
                     && opt_eq(d1.as_ref().map(|c| &c.expr), d2.as_ref().map(|c| &c.expr))
                     && b1.structurally_eq(b2)
+            }
+            (Stmt::Concurrent(a), Stmt::Concurrent(b)) => {
+                a.len() == b.len()
+                    && a.iter()
+                        .zip(b)
+                        .all(|(x, y)| x.stmt.structurally_eq(&y.stmt))
             }
             _ => false,
         }

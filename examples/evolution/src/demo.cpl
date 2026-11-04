@@ -1,0 +1,133 @@
+module demo
+
+@id("fn_price")
+@intent("Compute the price of a quantity of items")
+@preserve("Nonnegative quantities retain their price")
+pub pure fn price(quantity: Int) -> Int
+    requires quantity >= 0
+    ensures result >= 0
+{
+    quantity * 10
+}
+
+@id("test_price")
+test "price of three items" {
+    assert price(3) == 30
+}
+
+@id("prop_price")
+property "prices are additive"
+    for a in gen.range(0, 100)
+    for b in gen.range(0, 100)
+{
+    assert price(a + b) == price(a) + price(b)
+}
+
+// Distinct nominal types describe the legal API states. The graph must
+// have one initial state and a reachable completion from every state.
+@id("ty_closed")
+@protocol("connection", "closed", "initial_terminal")
+pub type Closed(Int)
+
+@id("ty_open")
+@protocol("connection", "open", "state")
+pub type Open(Int)
+
+@id("fn_connect")
+@transition("connection", "closed", "open")
+@message("Client", "Server")
+pub pure fn connect(state: Closed) -> Open {
+    match state {
+        Closed(session) => Open(session)
+    }
+}
+
+@id("fn_close")
+@transition("connection", "open", "closed")
+@message("Server", "Client")
+pub pure fn close(state: Open) -> Closed {
+    match state {
+        Open(session) => Closed(session)
+    }
+}
+
+@id("test_protocol")
+test "connection completes" {
+    assert close(connect(Closed(7))) == Closed(7)
+    // close(Closed(7)) fails typechecking: close requires Open.
+}
+
+// Preserve the old version and introduce a separately identified type.
+@id("ty_user_v1")
+@schema("user", "1")
+pub struct UserV1 {
+    name: Text
+}
+
+@id("ty_user_v2")
+@schema("user", "2")
+pub struct UserV2 {
+    name: Text
+    active: Bool
+}
+
+@id("fn_upgrade_user")
+@migration("user", "1", "2")
+pub pure fn upgrade_user(old: UserV1) -> UserV2 {
+    UserV2 { name: old.name, active: true }
+}
+
+@id("test_migration")
+test "migration preserves the user name" {
+    assert upgrade_user(UserV1 { name: "Ada" }) == UserV2 { name: "Ada", active: true }
+}
+
+@id("ty_counter")
+program Counter {
+    value: Int
+}
+    where self.value >= 0 and self.value <= 3
+
+@id("ty_counter_event")
+enum CounterEvent {
+    Increment
+    Reset
+}
+
+@id("fn_start_counter")
+initial fn start_counter() -> Counter {
+    Counter { value: 0 }
+}
+
+@id("fn_update_counter")
+machine update_counter(state: Counter, event: CounterEvent) -> Counter {
+    match event {
+        Increment => Counter { value: (state.value + 1).min(3) }
+        Reset => Counter { value: 0 }
+    }
+}
+
+/// A reachability question for exploration: can the counter fill up?
+@id("fn_counter_full")
+pure fn counter_full(state: Counter) -> Bool {
+    state.value == 3
+}
+
+@id("test_counter")
+test "counter saturates" {
+    let one = update_counter(start_counter(), Increment)
+    assert one.value == 1
+    assert update_counter(one, Reset).value == 0
+}
+
+@id("cap_store")
+pub interface Store {
+    fn read() -> Int
+}
+
+@id("fn_fetch")
+pub mutate fn fetch(using store: Store) -> Int
+    effects { store.read }
+{
+    store.read()
+}

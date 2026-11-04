@@ -503,6 +503,17 @@ impl Render<'_> {
                 self.push(" ");
                 self.block(body);
             }
+            Stmt::Concurrent(tasks) => {
+                self.push("concurrent {");
+                self.indent += 1;
+                for t in tasks {
+                    self.newline();
+                    self.stmt(&t.stmt);
+                }
+                self.indent -= 1;
+                self.newline();
+                self.push("}");
+            }
             Stmt::Expr(e) => self.expr(e),
         }
     }

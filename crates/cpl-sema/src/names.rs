@@ -1110,6 +1110,61 @@ impl<'c, 'a> Walker<'c, 'a> {
                 }
                 self.block(&w.body);
             }
+            ast::Statement::Concurrent(c) => {
+                // Every task resolves in the scope before the block, so no task reads another's
+                // binding; the bindings are introduced together after the last task.
+                let siblings: Vec<&ast::Name> = c
+                    .body
+                    .statements
+                    .iter()
+                    .filter_map(|t| match t {
+                        ast::Statement::Let(ast::LetStmt {
+                            binding: ast::LetBinding::Name(n),
+                            ..
+                        }) => Some(n),
+                        _ => None,
+                    })
+                    .collect();
+                let first = self.diags.len();
+                let mut bindings = Vec::new();
+                for task in &c.body.statements {
+                    match task {
+                        ast::Statement::Let(l) => {
+                            let expect = if l.ty.is_some() {
+                                Expect::Maybe
+                            } else {
+                                Expect::No
+                            };
+                            self.expr(&l.value, expect);
+                            if let Some(t) = &l.ty {
+                                self.body_type(t);
+                            }
+                            if let ast::LetBinding::Name(n) = &l.binding {
+                                bindings.push(n);
+                            }
+                        }
+                        // `concurrent_task_invalid` is the typer's; resolve as written (S62).
+                        other => self.stmt(other),
+                    }
+                }
+                for d in &mut self.diags[first..] {
+                    if d.code != codes::UNRESOLVED_NAME || d.data.contains_key("module") {
+                        continue;
+                    }
+                    let name = d
+                        .data
+                        .get("name")
+                        .and_then(|n| n.as_str())
+                        .unwrap_or_default();
+                    if let Some(sibling) = siblings.iter().find(|n| n.text == name) {
+                        let note = format!("`{name}` is bound by another task of this `concurrent` block; tasks run independently, so use it after the block");
+                        *d = d.clone().with_note(note, Some(sibling.span));
+                    }
+                }
+                for n in bindings {
+                    self.bind(n, BindingKind::Let, false);
+                }
+            }
             ast::Statement::Expr(x) => self.expr(&x.expr, Expect::Maybe),
         }
     }

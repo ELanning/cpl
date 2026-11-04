@@ -1,0 +1,48 @@
+module concurrent.rows
+
+pure fn square(n: Int) -> Int {
+    n * n
+}
+
+// Pure tasks commute trivially; both engines run them in order and bind every result after the block.
+pure fn pair(a: Int, b: Int) -> Int {
+    concurrent {
+        let x = square(a)
+        let y = b + 1
+        let _ = a + 0
+    }
+    x + y
+}
+
+pure fn nested(items: List<Int>) -> List<Int> {
+    concurrent {
+        let doubled = parallel for n in items: n * 2
+        let total = if items.is_empty() {
+            0
+        } else {
+            let first = items.first().unwrap_or(0)
+            first + items.len
+        }
+    }
+    doubled.push(total)
+}
+
+pure fn divide(n: Int) -> Int {
+    100 / n
+}
+
+// A fault in a later task escapes after the earlier tasks ran, with that task's frames.
+pure fn failing(n: Int) -> Int {
+    concurrent {
+        let a = n + 1
+        let b = divide(n)
+    }
+    a + b
+}
+
+test "concurrent tasks bind their results after the block" {
+    assert pair(3, 4) == 14
+    assert nested([1, 2, 3]) == [2, 4, 6, 4]
+    assert nested([]) == [0]
+    assert failing(5) == 26
+}

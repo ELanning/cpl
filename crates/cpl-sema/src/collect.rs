@@ -466,11 +466,23 @@ fn annotations(decl: &ast::Declaration, is_std: bool, out: &mut Vec<Diagnostic>)
     for ann in &decl.annotations {
         let name = ann.name.text.as_str();
         let std_only = matches!(name, "builtin" | "method" | "property");
-        if !(matches!(name, "id" | "prove") || (std_only && is_std)) {
+        if !(matches!(
+            name,
+            "id" | "prove"
+                | "intent"
+                | "preserve"
+                | "protocol"
+                | "transition"
+                | "message"
+                | "schema"
+                | "migration"
+                | "read_only"
+        ) || (std_only && is_std))
+        {
             let message = if std_only {
                 format!("`@{name}`: builtin forms are permitted only in the standard library")
             } else {
-                format!("unknown annotation `@{name}`; the annotations of edition 0.1 are @id and @prove")
+                format!("unknown annotation `@{name}`")
             };
             out.push(
                 diag(codes::UNKNOWN_ANNOTATION, Some(ann.span), message)
@@ -504,6 +516,59 @@ fn annotations(decl: &ast::Declaration, is_std: bool, out: &mut Vec<Diagnostic>)
             .with_data("name", json!(name))
         };
         match name {
+            "read_only" => {
+                if ann.args.is_empty()
+                    || ann.args.iter().any(
+                        |a| !matches!(&a.kind, ast::LiteralKind::Text(t) if !t.trim().is_empty()),
+                    )
+                {
+                    out.push(invalid(
+                        "@read_only takes one or more operation names as text arguments".into(),
+                    ));
+                }
+                if !matches!(&decl.kind, DeclKind::Capability(_)) {
+                    out.push(misplaced(
+                        "read_only annotations require a capability or interface",
+                    ));
+                }
+            }
+            "intent" | "preserve" | "protocol" | "transition" | "message" | "schema"
+            | "migration" => {
+                let count = match name {
+                    "intent" | "preserve" => 1,
+                    "message" | "schema" => 2,
+                    _ => 3,
+                };
+                if ann.args.len() != count
+                    || ann.args.iter().any(
+                        |a| !matches!(&a.kind, ast::LiteralKind::Text(t) if !t.trim().is_empty()),
+                    )
+                {
+                    out.push(invalid(format!(
+                        "@{name} takes {count} nonempty text arguments"
+                    )));
+                }
+                if matches!(name, "transition" | "message" | "migration") && !is_fn {
+                    out.push(misplaced(
+                        "transition, message, and migration annotations require a function",
+                    ));
+                }
+                if matches!(name, "protocol" | "schema")
+                    && !matches!(
+                        &decl.kind,
+                        DeclKind::Struct(_)
+                            | DeclKind::Enum(_)
+                            | DeclKind::Type(ast::TypeDecl {
+                                kind: ast::TypeDeclKind::Wrapper(_),
+                                ..
+                            })
+                    )
+                {
+                    out.push(misplaced(
+                        "protocol and schema annotations require a nominal value type",
+                    ));
+                }
+            }
             "id" => match single_text(ann) {
                 None => out.push(invalid(
                     "@id takes exactly one text argument, such as @id(\"fn_k7w3qz2mb6ptx4ve\")"

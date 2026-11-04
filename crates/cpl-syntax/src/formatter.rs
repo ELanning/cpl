@@ -1409,6 +1409,10 @@ impl Printer {
                 self.expr(&a.condition);
             }
             Statement::While(w) => self.while_stmt(w, level),
+            Statement::Concurrent(c) => {
+                self.push("concurrent ");
+                self.block(&c.body, level);
+            }
             Statement::Expr(e) => self.expr(&e.expr),
         }
     }

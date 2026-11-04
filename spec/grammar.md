@@ -1126,7 +1126,8 @@ visibility would have no meaning for it. Rejected alternative: `"pub"?
 
 ```ebnf
 block        = "{" lines(statement) "}"
-statement    = let_stmt | var_stmt | assign_stmt | return_stmt | assert_stmt | while_stmt | expr_stmt
+statement    = let_stmt | var_stmt | assign_stmt | return_stmt | assert_stmt | while_stmt
+             | concurrent_stmt | expr_stmt
 let_stmt     = "let" ( LOWER_IDENT | "_" ) ( ":" type )? "=" expr
 var_stmt     = "var" LOWER_IDENT ( ":" type )? "=" expr
 assign_stmt  = LOWER_IDENT "=" expr
@@ -1136,8 +1137,16 @@ while_stmt   = "while" expr while_tail                      // condition parsed 
 while_tail   = NEWLINE? block
              | ( NEWLINE while_clause )+ NEWLINE block
 while_clause = "invariant" expr | decreases_clause
+concurrent_stmt = "concurrent" "{" lines(statement) "}"     // contextual: `concurrent` followed by `{`
 expr_stmt    = expr
 ```
+
+`concurrent` is contextual, like `parallel`: it begins a `concurrent_stmt`
+only at the start of a statement and only when the next token is `{`, so
+`fn concurrent()` and variables of that name keep working. Every line of
+its block is a task and the block has no tail expression (the parser keeps
+a final expression line as a statement); which statements may be tasks is
+the checker's rule (`spec/concurrency.md`), so the grammar accepts any.
 
 Block value: if the last statement of a block is an `expr_stmt`, the parser
 stores it as the block's *tail expression* (`Block { statements, tail:
@@ -2177,7 +2186,7 @@ Parser functions are named `parse_<nonterminal>`. Meta-productions
 | module and imports | `module_header` `module_path` `use_decl` `use_path` `use_item` |
 | declarations | `declaration` `decl_prefix` `annotation` `type_decl` `wrapper_decl` `refinement_decl` `opaque_decl` `struct_decl` `field_decl` `enum_decl` `variant_decl` `capability_decl` `op_decl` `fn_decl` `fn_tail` `fn_clause` `effects_clause` `effect_ref` `contract_clause` `decreases_clause` `params` `param` `using_param` `test_decl` `property_decl` `for_clause` |
 | types | `type` `type_path` `generic_args` `generic_params` |
-| statements | `block` `statement` `let_stmt` `var_stmt` `assign_stmt` `return_stmt` `assert_stmt` `while_stmt` `while_tail` `while_clause` `expr_stmt` |
+| statements | `block` `statement` `let_stmt` `var_stmt` `assign_stmt` `return_stmt` `assert_stmt` `while_stmt` `while_tail` `while_clause` `concurrent_stmt` `expr_stmt` |
 | expressions | `expr` `forall_expr` `or_expr` `and_expr` `cmp_expr` `cmp_op` `add_expr` `mul_expr` `unary_expr` `postfix_expr` `postfix` `member_name` `args` `using_arg` `primary` `name` `paren_expr` `list_literal` `struct_literal` `struct_entries` `field_init` `if_expr` `match_expr` `match_arm` `literal` |
 | patterns | `pattern` `ctor_path` |
 | lexical (Section 1, not parser functions) | `identifier` `ident_start` `ident_char` `int_literal` `digit` `text_literal` `text_char` `escape` `hex_digit` `bool_literal` |

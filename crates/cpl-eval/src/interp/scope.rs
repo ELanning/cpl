@@ -115,6 +115,16 @@ impl Walker {
                 self.expr(cond);
                 self.block(body);
             }
+            // Tasks see the scope before the block; their bindings appear after it.
+            Stmt::Concurrent(tasks) => {
+                let mark = self.scope.len();
+                let mut bound = Vec::new();
+                for task in tasks {
+                    self.stmt(&task.stmt);
+                    bound.extend(self.scope.drain(mark..));
+                }
+                self.scope.extend(bound);
+            }
         }
     }
 

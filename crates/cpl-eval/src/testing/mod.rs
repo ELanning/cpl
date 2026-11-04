@@ -572,6 +572,7 @@ impl ProgramBuilder {
             refinement_classes: self.classes,
             source_map: Arc::new(self.source_map),
             asts: self.asts,
+            stable_ids: Default::default(),
         };
         p.sort_references();
         p

@@ -11,6 +11,15 @@ open is recorded as a numbered decision.
 
 ## The documents
 
+The 2026-11-03 [concurrency amendment](concurrency.md) adds `concurrent`
+task blocks whose effect footprints are checked to commute, and
+`@read_only` capability operations.
+
+The [program-evolution amendment](evolution.md) adds semantic edit transactions,
+semantic merge with composed verification, change authority and evidence,
+differential testing, structured queries, incremental verification, bounded
+exploration, protocol/schema annotations, and effectful task scopes.
+
 The 2026-11-01 [state-machine amendment](state-machines.md) defines the
 new application model, function roles, constructor invariants, and replay
 tooling. It explicitly supersedes conflicting earlier rules while keeping
@@ -18,6 +27,8 @@ legacy source compatible. The later [parallelism and performance amendment](para
 
 | File | Covers | Owns |
 | - | - | - |
+| `concurrency.md` | `concurrent { }` task blocks, effect footprints, `@read_only` operations, execution and replay | effectful structured concurrency amendment |
+| `evolution.md` | checked transformations, semantic merge, grants, evidence, differential testing, queries, exploration, protocol types, migrations, effectful task scopes | program evolution amendment and `cpl-evolve` APIs |
 | `parallelism.md` | structured parallel expressions, task cancellation, bounded machine mailboxes, optimization passes | application concurrency and performance amendment |
 | `state-machines.md` | the 2026-11-01 language amendment: pure/mutate functions, program roots, scoped reducers, constructor invariants, context dispatch and replay | new syntax, checker rules, runtime guarantees and limits, replay CLI and receipts |
 | `grammar.md` | the lexer, the newline and layout rules, and the complete grammar of the three file forms (`.cpl` source, `.work` coordination declarations, `.patch` semantic patches), with a trace of every design-document code block through the productions (Section 6) and the token and nonterminal names the AST mirrors | what parses, the AST shape, the *message text* of every lexical and syntax diagnostic; decisions `D1`..`D74` |

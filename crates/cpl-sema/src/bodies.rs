@@ -146,35 +146,44 @@ fn visit_gen<'h>(g: &'h GenExpr, v: &mut impl Visitor<'h>) {
 
 fn visit_block<'h>(b: &'h Block, ctx: Ctx<'h>, v: &mut impl Visitor<'h>) {
     for s in &b.stmts {
-        v.stmt(s, ctx.site(Position::Value));
-        match s {
-            Stmt::Let { value, .. } | Stmt::Assign { value, .. } => {
-                visit_expr_in(value, ctx, Position::Value, v)
-            }
-            Stmt::Discard(e) | Stmt::Expr(e) | Stmt::Assert { expr: e, .. } => {
-                visit_expr_in(e, ctx, Position::Value, v)
-            }
-            Stmt::Return(e) => {
-                if let Some(e) = e {
-                    visit_expr_in(e, ctx, Position::Value, v);
-                }
-            }
-            Stmt::While {
-                cond,
-                invariants,
-                decreases,
-                body,
-            } => {
-                visit_expr_in(cond, ctx, Position::Value, v);
-                for c in invariants.iter().chain(decreases) {
-                    visit_clause(c, v);
-                }
-                visit_block(body, ctx, v);
-            }
-        }
+        visit_stmt(s, ctx, v);
     }
     if let Some(t) = &b.tail {
         visit_expr_in(t, ctx, Position::Value, v);
+    }
+}
+
+fn visit_stmt<'h>(s: &'h Stmt, ctx: Ctx<'h>, v: &mut impl Visitor<'h>) {
+    v.stmt(s, ctx.site(Position::Value));
+    match s {
+        Stmt::Let { value, .. } | Stmt::Assign { value, .. } => {
+            visit_expr_in(value, ctx, Position::Value, v)
+        }
+        Stmt::Discard(e) | Stmt::Expr(e) | Stmt::Assert { expr: e, .. } => {
+            visit_expr_in(e, ctx, Position::Value, v)
+        }
+        Stmt::Return(e) => {
+            if let Some(e) = e {
+                visit_expr_in(e, ctx, Position::Value, v);
+            }
+        }
+        Stmt::While {
+            cond,
+            invariants,
+            decreases,
+            body,
+        } => {
+            visit_expr_in(cond, ctx, Position::Value, v);
+            for c in invariants.iter().chain(decreases) {
+                visit_clause(c, v);
+            }
+            visit_block(body, ctx, v);
+        }
+        Stmt::Concurrent(tasks) => {
+            for t in tasks {
+                visit_stmt(&t.stmt, ctx, v);
+            }
+        }
     }
 }
 

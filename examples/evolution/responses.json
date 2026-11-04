@@ -1,0 +1,4 @@
+{
+  "database:users": {"read": 7},
+  "database:settings": {"read": 42}
+}

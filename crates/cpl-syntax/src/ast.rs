@@ -765,6 +765,8 @@ pub enum Statement {
     Return(ReturnStmt),
     Assert(AssertStmt),
     While(WhileStmt),
+    /// `concurrent { tasks }`: independent `let` and expression tasks.
+    Concurrent(ConcurrentStmt),
     /// A non-tail expression statement (must have type `Unit`).
     Expr(ExprStmt),
 }
@@ -778,6 +780,7 @@ impl Statement {
             Statement::Return(s) => s.span,
             Statement::Assert(s) => s.span,
             Statement::While(s) => s.span,
+            Statement::Concurrent(s) => s.span,
             Statement::Expr(s) => s.span,
         }
     }
@@ -790,6 +793,7 @@ impl Statement {
             Statement::Return(s) => &s.trivia,
             Statement::Assert(s) => &s.trivia,
             Statement::While(s) => &s.trivia,
+            Statement::Concurrent(s) => &s.trivia,
             Statement::Expr(s) => &s.trivia,
         }
     }
@@ -802,6 +806,7 @@ impl Statement {
             Statement::Return(s) => &mut s.trivia,
             Statement::Assert(s) => &mut s.trivia,
             Statement::While(s) => &mut s.trivia,
+            Statement::Concurrent(s) => &mut s.trivia,
             Statement::Expr(s) => &mut s.trivia,
         }
     }
@@ -878,6 +883,17 @@ impl WhileStmt {
             _ => None,
         })
     }
+}
+
+/// `concurrent { lines(statement) }`. Every line is a task: a `let` or an
+/// expression statement (other statements are checker errors). The body never
+/// has a tail: a final expression line is a task too. Tasks see the bindings
+/// before the block, never each other's; their bindings are visible after it.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct ConcurrentStmt {
+    pub span: Span,
+    pub trivia: Trivia,
+    pub body: Block,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]

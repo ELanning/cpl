@@ -953,35 +953,42 @@ impl<'t, 'c, 'a> Typer<'t, 'c, 'a> {
     fn zonk_block(&self, b: &mut Block) {
         b.ty = self.vars.zonk_final(&b.ty);
         for s in &mut b.stmts {
-            match s {
-                Stmt::Let { value, .. } | Stmt::Assign { value, .. } => self.zonk_expr(value),
-                Stmt::Discard(e) | Stmt::Expr(e) | Stmt::Assert { expr: e, .. } => {
-                    self.zonk_expr(e)
-                }
-                Stmt::Return(e) => {
-                    if let Some(e) = e {
-                        self.zonk_expr(e);
-                    }
-                }
-                Stmt::While {
-                    cond,
-                    invariants,
-                    decreases,
-                    body,
-                } => {
-                    self.zonk_expr(cond);
-                    for c in invariants.iter_mut() {
-                        self.zonk_expr(&mut c.expr);
-                    }
-                    if let Some(c) = decreases {
-                        self.zonk_expr(&mut c.expr);
-                    }
-                    self.zonk_block(body);
-                }
-            }
+            self.zonk_stmt(s);
         }
         if let Some(t) = &mut b.tail {
             self.zonk_expr(t);
+        }
+    }
+
+    fn zonk_stmt(&self, s: &mut Stmt) {
+        match s {
+            Stmt::Let { value, .. } | Stmt::Assign { value, .. } => self.zonk_expr(value),
+            Stmt::Discard(e) | Stmt::Expr(e) | Stmt::Assert { expr: e, .. } => self.zonk_expr(e),
+            Stmt::Return(e) => {
+                if let Some(e) = e {
+                    self.zonk_expr(e);
+                }
+            }
+            Stmt::While {
+                cond,
+                invariants,
+                decreases,
+                body,
+            } => {
+                self.zonk_expr(cond);
+                for c in invariants.iter_mut() {
+                    self.zonk_expr(&mut c.expr);
+                }
+                if let Some(c) = decreases {
+                    self.zonk_expr(&mut c.expr);
+                }
+                self.zonk_block(body);
+            }
+            Stmt::Concurrent(tasks) => {
+                for t in tasks {
+                    self.zonk_stmt(&mut t.stmt);
+                }
+            }
         }
     }
 

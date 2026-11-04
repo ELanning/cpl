@@ -51,6 +51,26 @@ pub enum Command {
     Test(TestArgs),
     /// query the semantic index
     Inspect(InspectArgs),
+    /// query resolved symbols, types, dependencies, effects, and obligations
+    Query(QueryArgs),
+    /// verify a snapshot or declarations affected since a revision
+    Verify(VerifyArgs),
+    /// prepare or apply a checked semantic edit
+    Edit(EditArgs),
+    /// validate, apply, publish, or recover a transactional change
+    Transaction(TransactionArgs),
+    /// merge two revisions by stable identity and test the composition, without writing it
+    Conflicts(ConflictsArgs),
+    /// merge two revisions by stable identity; apply over the worktree or publish a merge commit
+    Merge(MergeArgs),
+    /// explore a state machine over a finite event alphabet
+    Explore(ExploreArgs),
+    /// inspect a versioned schema or validate and pack a persisted value
+    Schema(SchemaArgs),
+    /// migrate a versioned value through a checked pure function
+    Migrate(MigrateArgs),
+    /// plan effectful tasks, run with fixture hosts, or replay recorded effects
+    Concurrent(ConcurrentArgs),
     /// report verification status for one symbol
     Prove(ProveArgs),
     /// semantic diff between two revisions
@@ -112,6 +132,16 @@ impl Command {
             Command::Build(_) => "build",
             Command::Test(_) => "test",
             Command::Inspect(_) => "inspect",
+            Command::Query(_) => "query",
+            Command::Verify(_) => "verify",
+            Command::Edit(_) => "edit",
+            Command::Transaction(_) => "transaction",
+            Command::Conflicts(_) => "conflicts",
+            Command::Merge(_) => "merge",
+            Command::Explore(_) => "explore",
+            Command::Schema(_) => "schema",
+            Command::Migrate(_) => "migrate",
+            Command::Concurrent(_) => "concurrent",
             Command::Prove(_) => "prove",
             Command::Diff(_) => "diff",
             Command::Id(id) => match id.command {
@@ -323,6 +353,207 @@ pub struct InspectArgs {
     pub since: Option<String>,
 }
 
+#[derive(Args, Debug, Clone)]
+pub struct QueryArgs {
+    pub expression: String,
+    #[arg(long)]
+    pub since: Option<String>,
+    /// Authority policy for `writable by ACTOR`; defaults to .cpl/authority.json
+    #[arg(long)]
+    pub policy: Option<PathBuf>,
+}
+#[derive(Args, Debug, Clone)]
+pub struct VerifyArgs {
+    #[arg(long)]
+    pub changed: bool,
+    #[arg(long, default_value = "HEAD")]
+    pub since: String,
+    #[arg(long, default_value = "1")]
+    pub seed: u64,
+    #[arg(long, default_value="100", value_parser=clap::value_parser!(u32).range(1..))]
+    pub cases: u32,
+    #[arg(long, default_value="5000", value_parser=clap::value_parser!(u64).range(1..))]
+    pub timeout_ms: u64,
+    #[arg(long)]
+    pub require_proofs: bool,
+    /// Report persisted-schema incompatibilities without failing verification
+    #[arg(long)]
+    pub allow_schema_changes: bool,
+    /// Independently recompute an existing evidence file
+    #[arg(long)]
+    pub evidence: Option<PathBuf>,
+    #[arg(long)]
+    pub receipt: Option<PathBuf>,
+}
+#[derive(Args, Debug, Clone)]
+pub struct EditArgs {
+    #[command(subcommand)]
+    pub command: EditCommand,
+}
+#[derive(Subcommand, Debug, Clone)]
+pub enum EditCommand {
+    ReplaceBody(EditFileArgs),
+    ReplaceDeclaration(EditFileArgs),
+    Rename(RenameArgs),
+    /// Replace one typed hole of a declaration with an expression
+    FillHole(FillHoleArgs),
+    /// Remove a declaration; the candidate must still check
+    Remove(RemoveArgs),
+}
+#[derive(Args, Debug, Clone)]
+pub struct RemoveArgs {
+    #[arg(long)]
+    pub symbol: String,
+    #[command(flatten)]
+    pub flags: EditFlags,
+}
+#[derive(Args, Debug, Clone)]
+pub struct FillHoleArgs {
+    #[arg(long)]
+    pub symbol: String,
+    /// The hole's name, without `?`
+    #[arg(long)]
+    pub hole: String,
+    #[arg(long)]
+    pub expression: String,
+    #[command(flatten)]
+    pub flags: EditFlags,
+}
+#[derive(Args, Debug, Clone)]
+pub struct EditFileArgs {
+    #[arg(long)]
+    pub symbol: String,
+    #[arg(long)]
+    pub input: PathBuf,
+    #[command(flatten)]
+    pub flags: EditFlags,
+}
+#[derive(Args, Debug, Clone)]
+pub struct RenameArgs {
+    #[arg(long)]
+    pub symbol: String,
+    #[arg(long)]
+    pub name: String,
+    #[command(flatten)]
+    pub flags: EditFlags,
+}
+#[derive(Args, Debug, Clone)]
+pub struct EditFlags {
+    #[arg(long)]
+    pub apply: bool,
+    /// Save the generated transaction for review or later submission
+    #[arg(long)]
+    pub patch: Option<PathBuf>,
+    /// Add this edit to the existing --patch change; every staged edit is validated together
+    #[arg(long, requires = "patch")]
+    pub append: bool,
+    /// Attest that the change keeps this @preserve statement of the target (repeatable)
+    #[arg(long)]
+    pub acknowledge: Vec<String>,
+    #[arg(long)]
+    pub policy: Option<PathBuf>,
+    #[arg(long, default_value = "local")]
+    pub actor: String,
+}
+#[derive(Args, Debug, Clone)]
+pub struct TransactionArgs {
+    #[arg(required_unless_present = "recover", conflicts_with = "recover")]
+    pub file: Option<PathBuf>,
+    #[arg(long, conflicts_with_all=["apply","publish"])]
+    pub recover: bool,
+    #[arg(long, conflicts_with = "publish")]
+    pub apply: bool,
+    /// Atomically publish to refs/cpl/changes/NAME
+    #[arg(long)]
+    pub publish: Option<String>,
+    #[arg(long)]
+    pub policy: Option<PathBuf>,
+    /// Caller identity; must match the submitted change's actor
+    #[arg(long)]
+    pub actor: Option<String>,
+}
+#[derive(Args, Debug, Clone)]
+pub struct ConflictsArgs {
+    /// A Git revision or `worktree`
+    pub left: String,
+    /// A Git revision or `worktree`
+    pub right: String,
+    /// The common ancestor; defaults to the merge base of two revisions, else HEAD
+    #[arg(long)]
+    pub base: Option<String>,
+    #[arg(long, default_value = "1")]
+    pub seed: u64,
+    #[arg(long, default_value="100", value_parser=clap::value_parser!(u32).range(1..))]
+    pub cases: u32,
+    #[arg(long, default_value="5000", value_parser=clap::value_parser!(u64).range(1..))]
+    pub timeout_ms: u64,
+}
+#[derive(Args, Debug, Clone)]
+pub struct MergeArgs {
+    #[command(flatten)]
+    pub inputs: ConflictsArgs,
+    /// Install the accepted composition over the worktree, which must be the left side
+    #[arg(long, conflicts_with = "publish")]
+    pub apply: bool,
+    /// Publish the accepted composition as a commit with both revisions as parents
+    #[arg(long)]
+    pub publish: Option<String>,
+}
+#[derive(Args, Debug, Clone)]
+pub struct ExploreArgs {
+    pub machine: String,
+    /// Initial state JSON; defaults to the program's unique parameterless initializer
+    #[arg(long)]
+    pub state: Option<String>,
+    /// JSON array containing the finite event alphabet; derived when the event type is finite
+    #[arg(long)]
+    pub events: Option<String>,
+    /// A pure Bool function of the state checked at every reachable state (repeatable)
+    #[arg(long = "invariant")]
+    pub invariants: Vec<String>,
+    /// A pure Bool function of the state; report a shortest trace reaching it
+    #[arg(long)]
+    pub goal: Option<String>,
+    #[arg(long, default_value = "20")]
+    pub depth: u32,
+    #[arg(long, default_value = "10000")]
+    pub max_states: usize,
+    #[arg(long, default_value = "100000")]
+    pub max_transitions: usize,
+    #[arg(long, default_value="5000", value_parser=clap::value_parser!(u64).range(1..))]
+    pub timeout_ms: u64,
+}
+#[derive(Args, Debug, Clone)]
+pub struct SchemaArgs {
+    pub symbol: String,
+    #[arg(long)]
+    pub value: Option<String>,
+}
+#[derive(Args, Debug, Clone)]
+pub struct MigrateArgs {
+    /// One migration function; or use --to for the shortest declared path
+    #[arg(required_unless_present = "to", conflicts_with = "to")]
+    pub function: Option<String>,
+    #[arg(long)]
+    pub input: PathBuf,
+    /// Target schema version, reached through the shortest chain of migrations
+    #[arg(long)]
+    pub to: Option<String>,
+}
+#[derive(Args, Debug, Clone)]
+pub struct ConcurrentArgs {
+    pub file: PathBuf,
+    /// JSON map of canonical resource identity -> operation -> fixture result
+    #[arg(long, conflicts_with = "replay")]
+    pub responses: Option<PathBuf>,
+    #[arg(long)]
+    pub replay: Option<PathBuf>,
+    #[arg(long)]
+    pub receipt: Option<PathBuf>,
+    #[arg(long, default_value = "4")]
+    pub workers: usize,
+}
+
 /// `cpl prove <symbol> [--json]`
 #[derive(Args, Debug, Default, Clone)]
 pub struct ProveArgs {
@@ -478,7 +709,26 @@ pub fn guess(argv: &[OsString]) -> (String, bool, bool) {
         ["work", sub @ ("check" | "run" | "integrate"), ..] => format!("work {sub}"),
         [first, ..]
             if [
-                "check", "fmt", "run", "replay", "test", "inspect", "prove", "diff", "id", "work",
+                "check",
+                "fmt",
+                "run",
+                "replay",
+                "test",
+                "inspect",
+                "prove",
+                "diff",
+                "id",
+                "work",
+                "query",
+                "verify",
+                "edit",
+                "transaction",
+                "conflicts",
+                "merge",
+                "explore",
+                "schema",
+                "migrate",
+                "concurrent",
             ]
             .contains(first) =>
         {

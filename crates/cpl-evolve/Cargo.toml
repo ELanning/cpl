@@ -1,0 +1,21 @@
+[package]
+name = "cpl-evolve"
+version.workspace = true
+edition.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+cpl-diag.workspace = true
+cpl-syntax.workspace = true
+cpl-hir.workspace = true
+cpl-project.workspace = true
+cpl-sema.workspace = true
+cpl-index.workspace = true
+cpl-eval.workspace = true
+cpl-work.workspace = true
+blake3.workspace = true
+num-bigint.workspace = true
+serde.workspace = true
+serde_json.workspace = true

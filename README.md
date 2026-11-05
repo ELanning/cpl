@@ -36,6 +36,12 @@ an annotated tour whose examples are executable tests.
 - **Two engines.** A reference interpreter and a C11 backend, tested
   against each other; [C](spec/cabi.md) and [Python](spec/python.md)
   packages and C libraries as capability implementations.
+- **Rust, Go, Java, and Kotlin hosts.** `cpl build --target rust|go|java`
+  compiles a program to the [host's own source](spec/hosts.md), so the host
+  calls CPL the way Kotlin calls Java: CPL functions, structs, and enums are
+  the host's, capabilities are its traits and interfaces, and no call
+  crosses a foreign-function boundary. Every backend is tested against the
+  interpreter.
 - **Tools for change.** Stable `@id` identities, a semantic index
   (`cpl inspect`, `cpl query`), semantic diffs and merges keyed by identity,
   checked edits and transactions, differential testing of changed
@@ -119,6 +125,9 @@ Native execution (`--engine native`) and `cpl build --target c` also need a C
 compiler: gcc 9 or later or clang 12 or later, on Linux
 ([platform matrix](spec/cabi.md#17-target-abi-and-platform-matrix-for-edition-01)).
 `cpl build --target python` needs CPython 3.10 or later with its headers.
+`cpl build --target rust|go|java` writes source and needs nothing; the host
+compiles it with its own toolchain (Rust, Go 1.21 or later, Java 17 or
+later; Kotlin through Java).
 
 ## Quick start
 
@@ -150,7 +159,7 @@ lists a command's options.
 | `run` | run one function on constant arguments, on the interpreter, natively, or on both |
 | `test` | run tests and properties |
 | `fmt` | format `.cpl`, `.work`, and `.patch` files |
-| `build` | build a C package (`--target c`) or a Python package (`--target python`) |
+| `build` | build a C package (`--target c`) or a Python package (`--target python`), or write a Rust, Go, or Java package (`--target rust\|go\|java`) |
 | `prove` | report the verification status of one function |
 | `inspect`, `query` | query the semantic index: symbols, types, dependencies, effects, obligations |
 | `diff` | semantic diff between two revisions |
@@ -168,8 +177,9 @@ lists a command's options.
 - [Learn CPL in Y Minutes](docs/learn-cpl-in-y-minutes.md): an executable
   tour of the language and the toolchain.
 - [Specifications](spec/README.md): the grammar, semantics, toolchain,
-  standard library, C and Python interop, and the amendments for state
-  machines, parallelism, program evolution, concurrency, and verification.
+  standard library, C, Python, Rust, Go, and Java interop, and the
+  amendments for state machines, parallelism, program evolution,
+  concurrency, and verification.
 - [Design document](design-doc.md): the original statement of intent.
 - Examples:
   - [`examples/reader`](examples/reader): contracts, capabilities, and a
@@ -181,6 +191,8 @@ lists a command's options.
   - [`examples/evolution`](examples/evolution/README.md): checked program
     evolution, end to end.
   - [`examples/holes`](examples/holes): typed holes.
+  - [`examples/hosts`](examples/hosts/README.md): one module called from
+    Rust, Go, Java, and Kotlin.
 
 ## Repository layout
 
@@ -198,6 +210,7 @@ lists a command's options.
 | `crates/cpl-project` | project loading: `cpl.toml` and `cpl.lock` |
 | `crates/cpl-diag` | source positions and diagnostics |
 | `crates/cpl-emit-c`, `crates/cpl-rt`, `crates/cpl-rtspec`, `crates/cpl-cabi` | the C11 backend, its runtime, the tables both engines share, and the C boundary |
+| `crates/cpl-emit-host` | the Rust, Go, and Java backends and their runtimes |
 | `std/` | the standard library's declarations |
 | `spec/` | the specifications |
 | `examples/` | example projects |
@@ -215,7 +228,10 @@ cargo fmt --all
 The native differential suites (`cargo test -p cpl-cabi --test differential`)
 compare the C backend with the interpreter and take several minutes. Tests
 that need a C compiler are skipped without one; set `CPL_REQUIRE_CC=1` to
-make that a failure. Golden files regenerate with `UPDATE_GOLDEN=1`.
+make that a failure. Golden files regenerate with `UPDATE_GOLDEN=1`. The host
+backends' tests (`cargo test -p cpl-emit-host --test hosts`) run each host
+whose toolchain is installed: Go and Java from `PATH` (or `JAVAC` and `JAVA`),
+Kotlin from `PATH` or `KOTLINC`.
 
 Fuzzers for deeper runs:
 
@@ -224,6 +240,7 @@ cargo run --release -p cpl-prove --example prove_fuzz    # verifier verdicts aga
 cargo run --release -p cpl-cabi --example native_fuzz    # C backend against the interpreter
 cargo run --release -p cpl-cli --example robust_fuzz     # mutated sources: no panics, stable formatting
 cargo run --release -p cpl-evolve --example merge_fuzz   # semantic merges against the expected program
+cargo run --release -p cpl-emit-host --example host_diff -- go 200   # a host backend against the interpreter
 ```
 
 ## License

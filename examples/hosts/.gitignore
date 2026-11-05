@@ -1,0 +1,6 @@
+# Written by `cpl build` and by the host programs' own builds.
+/.cpl/
+/rust/target/
+/rust/Cargo.lock
+/classes/
+/main.jar

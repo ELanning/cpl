@@ -23,6 +23,7 @@ cpl-evolve.workspace = true
 cpl-prove.workspace = true
 cpl-cabi.workspace = true
 cpl-emit-c.workspace = true
+cpl-emit-host.workspace = true
 cpl-rt.workspace = true
 cpl-rtspec.workspace = true
 blake3.workspace = true

@@ -1,0 +1,12 @@
+[package]
+name = "pricing-host"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+# A standalone package, outside the CPL workspace.
+[workspace]
+
+[dependencies]
+# Written by `cpl --project .. build --target rust`.
+pricing = { path = "../.cpl/build/rust" }

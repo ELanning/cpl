@@ -1,0 +1,1773 @@
+//// FILE: Value.java
+package __PKG__.cpl;
+
+/** What every CPL value supports beyond {@code equals} and {@code hashCode}: value text and value JSON. */
+public interface Value {
+    /** Writes CPL literal syntax for this value (semantics S40). */
+    void writeText(java.lang.StringBuilder sb);
+
+    /** The value JSON of this value (toolchain 7.3), as {@link Json} values. */
+    java.lang.Object toJson();
+}
+//// FILE: Int.java
+package __PKG__.cpl;
+
+import java.math.BigInteger;
+
+/**
+ * A CPL {@code Int}: an arbitrary-precision integer, held as a {@code long} while the value fits.
+ * Kotlin's operators apply: {@code a + b}, {@code a - b}, {@code a * b}, {@code -a}, {@code a < b}.
+ */
+public final class Int implements java.lang.Comparable<Int>, Value {
+    private final long s;
+    /** Non-null exactly when the value does not fit in a long. */
+    private final BigInteger b;
+
+    private static final Int[] CACHE = new Int[1152];
+
+    static {
+        for (int i = 0; i < CACHE.length; i++) {
+            CACHE[i] = new Int(i - 128, null);
+        }
+    }
+
+    private Int(long s, BigInteger b) {
+        this.s = s;
+        this.b = b;
+    }
+
+    public static Int of(long v) {
+        if (v >= -128 && v < 1024) {
+            return CACHE[(int) v + 128];
+        }
+        return new Int(v, null);
+    }
+
+    public static Int of(BigInteger v) {
+        if (v.bitLength() < 64) {
+            return of(v.longValue());
+        }
+        return new Int(0, v);
+    }
+
+    /** An integer literal of the program. */
+    public static Int lit(java.lang.String t) {
+        Int v = parse(t);
+        if (v == null) {
+            throw new java.lang.IllegalArgumentException(t);
+        }
+        return v;
+    }
+
+    /** The decimal grammar of parse_int, {@code ("+" | "-")? ASCII_DIGIT+}; null when t is not one. */
+    public static Int parse(java.lang.String t) {
+        int i = 0;
+        int n = t.length();
+        if (n > 0 && (t.charAt(0) == '+' || t.charAt(0) == '-')) {
+            i = 1;
+        }
+        if (i == n) {
+            return null;
+        }
+        for (int k = i; k < n; k++) {
+            char c = t.charAt(k);
+            if (c < '0' || c > '9') {
+                return null;
+            }
+        }
+        if (n - i <= 18) {
+            return of(java.lang.Long.parseLong(t));
+        }
+        return of(new BigInteger(t));
+    }
+
+    public boolean fitsLong() {
+        return b == null;
+    }
+
+    /** The value as a long; an ArithmeticException when it does not fit. */
+    public long toLong() {
+        if (b != null) {
+            throw new java.lang.ArithmeticException(this + " does not fit in a long");
+        }
+        return s;
+    }
+
+    public BigInteger toBigInteger() {
+        return b != null ? b : BigInteger.valueOf(s);
+    }
+
+    public int signum() {
+        return b != null ? b.signum() : java.lang.Long.signum(s);
+    }
+
+    public Int plus(Int o) {
+        if (b == null && o.b == null) {
+            long r = s + o.s;
+            if (((s ^ r) & (o.s ^ r)) >= 0) {
+                return of(r);
+            }
+        }
+        return of(toBigInteger().add(o.toBigInteger()));
+    }
+
+    public Int minus(Int o) {
+        if (b == null && o.b == null) {
+            long r = s - o.s;
+            if (((s ^ o.s) & (s ^ r)) >= 0) {
+                return of(r);
+            }
+        }
+        return of(toBigInteger().subtract(o.toBigInteger()));
+    }
+
+    public Int times(Int o) {
+        if (b == null && o.b == null) {
+            long hi = java.lang.Math.multiplyHigh(s, o.s);
+            long lo = s * o.s;
+            if (hi == (lo >> 63)) {
+                return of(lo);
+            }
+        }
+        return of(toBigInteger().multiply(o.toBigInteger()));
+    }
+
+    public Int unaryMinus() {
+        if (b == null && s != java.lang.Long.MIN_VALUE) {
+            return of(-s);
+        }
+        return of(toBigInteger().negate());
+    }
+
+    public Int abs() {
+        return signum() < 0 ? unaryMinus() : this;
+    }
+
+    /** Truncating division (semantics 6.3). */
+    public Int div(Int o) {
+        return div(o, "");
+    }
+
+    /** The remainder of truncating division: it has the dividend's sign. */
+    public Int rem(Int o) {
+        return rem(o, "");
+    }
+
+    /** Truncating division; division by zero faults, blamed on {@code symbol}. */
+    public Int div(Int o, java.lang.String symbol) {
+        if (b == null && o.b == null && o.s != 0 && !(s == java.lang.Long.MIN_VALUE && o.s == -1)) {
+            return of(s / o.s);
+        }
+        if (o.signum() == 0) {
+            throw Fault.divisionByZero(symbol);
+        }
+        return of(toBigInteger().divide(o.toBigInteger()));
+    }
+
+    public Int rem(Int o, java.lang.String symbol) {
+        if (b == null && o.b == null && o.s != 0 && !(s == java.lang.Long.MIN_VALUE && o.s == -1)) {
+            return of(s % o.s);
+        }
+        if (o.signum() == 0) {
+            throw Fault.divisionByZero(symbol);
+        }
+        return of(toBigInteger().remainder(o.toBigInteger()));
+    }
+
+    @Override
+    public int compareTo(Int o) {
+        if (b == null && o.b == null) {
+            return java.lang.Long.compare(s, o.s);
+        }
+        return toBigInteger().compareTo(o.toBigInteger());
+    }
+
+    public boolean lt(Int o) {
+        return compareTo(o) < 0;
+    }
+
+    public boolean le(Int o) {
+        return compareTo(o) <= 0;
+    }
+
+    public boolean gt(Int o) {
+        return compareTo(o) > 0;
+    }
+
+    public boolean ge(Int o) {
+        return compareTo(o) >= 0;
+    }
+
+    /** The value as a list index or count, or -1 when it is not one. */
+    int index() {
+        return b == null && s >= 0 && s <= java.lang.Integer.MAX_VALUE ? (int) s : -1;
+    }
+
+    @Override
+    public boolean equals(java.lang.Object x) {
+        if (!(x instanceof Int o)) {
+            return false;
+        }
+        if (b == null) {
+            return o.b == null && s == o.s;
+        }
+        return o.b != null && b.equals(o.b);
+    }
+
+    @Override
+    public int hashCode() {
+        return b != null ? b.hashCode() : java.lang.Long.hashCode(s);
+    }
+
+    @Override
+    public java.lang.String toString() {
+        return b != null ? b.toString() : java.lang.Long.toString(s);
+    }
+
+    @Override
+    public void writeText(java.lang.StringBuilder sb) {
+        sb.append(toString());
+    }
+
+    @Override
+    public java.lang.Object toJson() {
+        return toBigInteger();
+    }
+}
+//// FILE: Bytes.java
+package __PKG__.cpl;
+
+/** A CPL {@code Bytes}: an immutable byte string. */
+public final class Bytes implements Value {
+    private final byte[] data;
+
+    private Bytes(byte[] data) {
+        this.data = data;
+    }
+
+    /** The Bytes of an array, which it copies. */
+    public static Bytes of(byte[] data) {
+        return new Bytes(data.clone());
+    }
+
+    static Bytes wrap(byte[] data) {
+        return new Bytes(data);
+    }
+
+    byte[] raw() {
+        return data;
+    }
+
+    /** A copy of the bytes. */
+    public byte[] toArray() {
+        return data.clone();
+    }
+
+    public int length() {
+        return data.length;
+    }
+
+    public Bytes concat(Bytes o) {
+        if (o.data.length == 0) {
+            return this;
+        }
+        if (data.length == 0) {
+            return o;
+        }
+        byte[] r = java.util.Arrays.copyOf(data, data.length + o.data.length);
+        java.lang.System.arraycopy(o.data, 0, r, data.length, o.data.length);
+        return new Bytes(r);
+    }
+
+    java.lang.String hex() {
+        java.lang.StringBuilder sb = new java.lang.StringBuilder(data.length * 2);
+        for (byte x : data) {
+            sb.append(java.lang.Character.forDigit((x >> 4) & 0xF, 16)).append(java.lang.Character.forDigit(x & 0xF, 16));
+        }
+        return sb.toString();
+    }
+
+    @Override
+    public boolean equals(java.lang.Object x) {
+        return x instanceof Bytes o && java.util.Arrays.equals(data, o.data);
+    }
+
+    @Override
+    public int hashCode() {
+        return java.util.Arrays.hashCode(data);
+    }
+
+    @Override
+    public java.lang.String toString() {
+        return "Bytes(\"" + hex() + "\")";
+    }
+
+    @Override
+    public void writeText(java.lang.StringBuilder sb) {
+        sb.append("Bytes(\"").append(hex()).append("\")");
+    }
+
+    @Override
+    public java.lang.Object toJson() {
+        java.util.Map<java.lang.String, java.lang.Object> m = new java.util.TreeMap<>();
+        m.put("$type", "Bytes");
+        m.put("hex", hex());
+        return m;
+    }
+}
+//// FILE: List.java
+package __PKG__.cpl;
+
+import java.util.concurrent.atomic.AtomicInteger;
+
+/**
+ * A CPL {@code List}: an immutable sequence, a view of a shared array. {@code take}, {@code drop},
+ * and {@code drop_last} are views, so they cost nothing; appending to a list that ends where its
+ * array's claimed elements end happens in place, so building a list in a loop is linear.
+ */
+public final class List<T> implements java.lang.Iterable<T>, Value {
+    private final java.lang.Object[] a;
+    private final int off;
+    private final int n;
+    /** How many elements of {@code a} are claimed, when lists of it may grow in place. */
+    private final AtomicInteger hw;
+
+    private static final List<?> EMPTY = new List<>(new java.lang.Object[0], 0, 0, null);
+
+    private List(java.lang.Object[] a, int off, int n, AtomicInteger hw) {
+        this.a = a;
+        this.off = off;
+        this.n = n;
+        this.hw = hw;
+    }
+
+    @SuppressWarnings("unchecked")
+    public static <T> List<T> empty() {
+        return (List<T>) EMPTY;
+    }
+
+    /** The list of the given elements, which it copies. */
+    @SafeVarargs
+    public static <T> List<T> of(T... items) {
+        return new List<>(items.clone(), 0, items.length, null);
+    }
+
+    /** A list literal of the program: it keeps the argument array. */
+    @SafeVarargs
+    public static <T> List<T> lit(T... items) {
+        return new List<>(items, 0, items.length, null);
+    }
+
+    public static <T> List<T> copyOf(java.util.Collection<? extends T> items) {
+        java.lang.Object[] a = items.toArray();
+        return new List<>(a, 0, a.length, null);
+    }
+
+    static <T> List<T> wrap(java.lang.Object[] a, int n) {
+        return new List<>(a, 0, n, null);
+    }
+
+    public int size() {
+        return n;
+    }
+
+    public boolean isEmpty() {
+        return n == 0;
+    }
+
+    @SuppressWarnings("unchecked")
+    public T get(int i) {
+        if (i < 0 || i >= n) {
+            throw new java.lang.IndexOutOfBoundsException(i);
+        }
+        return (T) a[off + i];
+    }
+
+    /** The elements {@code from} to {@code to} of this list, sharing its array. */
+    public List<T> slice(int from, int to) {
+        if (from < 0 || from > to || to > n) {
+            throw new java.lang.IndexOutOfBoundsException(from);
+        }
+        return new List<>(a, off + from, to - from, hw);
+    }
+
+    /** Copies the elements into {@code dst} at {@code at}. */
+    void copyTo(java.lang.Object[] dst, int at) {
+        java.lang.System.arraycopy(a, off, dst, at, n);
+    }
+
+    /**
+     * A copy with room to grow. It is an {@code Object[]} whatever the array of {@code l} is (a
+     * literal keeps its call site's {@code T[]}), so that writing any element into it is safe.
+     */
+    private static <T> List<T> grown(List<T> l, int extra) {
+        java.lang.Object[] b = java.util.Arrays.copyOfRange(l.a, l.off, l.off + java.lang.Math.max(4, 2 * (l.n + extra)), java.lang.Object[].class);
+        return new List<>(b, 0, l.n + extra, new AtomicInteger(l.n + extra));
+    }
+
+    /** This list with {@code v} appended, in place when no other list has grown its array past it. */
+    public List<T> push(T v) {
+        int end = off + n;
+        if (hw != null && end < a.length && hw.compareAndSet(end, end + 1)) {
+            a[end] = v;
+            return new List<>(a, off, n + 1, hw);
+        }
+        List<T> g = grown(this, 1);
+        g.a[n] = v;
+        return g;
+    }
+
+    /** {@code x ++ y}, in place when no other list has grown the array of {@code x} past it. */
+    public static <T> List<T> concat(List<T> x, List<T> y) {
+        if (y.n == 0) {
+            return x;
+        }
+        if (x.n == 0) {
+            return y;
+        }
+        int end = x.off + x.n;
+        if (x.hw != null && end + y.n <= x.a.length && x.hw.compareAndSet(end, end + y.n)) {
+            java.lang.System.arraycopy(y.a, y.off, x.a, end, y.n);
+            return new List<>(x.a, x.off, x.n + y.n, x.hw);
+        }
+        List<T> g = grown(x, y.n);
+        java.lang.System.arraycopy(y.a, y.off, g.a, x.n, y.n);
+        return g;
+    }
+
+    /** A copy of the elements as a Java list. */
+    @SuppressWarnings("unchecked")
+    public java.util.List<T> toJavaList() {
+        return (java.util.List<T>) java.util.List.of(java.util.Arrays.copyOfRange(a, off, off + n));
+    }
+
+    @Override
+    public java.util.Iterator<T> iterator() {
+        return new java.util.Iterator<T>() {
+            private int i;
+
+            @Override
+            public boolean hasNext() {
+                return i < n;
+            }
+
+            @Override
+            @SuppressWarnings("unchecked")
+            public T next() {
+                if (i >= n) {
+                    throw new java.util.NoSuchElementException();
+                }
+                return (T) a[off + i++];
+            }
+        };
+    }
+
+    @Override
+    public boolean equals(java.lang.Object x) {
+        if (!(x instanceof List<?> o) || o.n != n) {
+            return false;
+        }
+        for (int i = 0; i < n; i++) {
+            if (!a[off + i].equals(o.a[o.off + i])) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    @Override
+    public int hashCode() {
+        int h = 1;
+        for (int i = 0; i < n; i++) {
+            h = 31 * h + a[off + i].hashCode();
+        }
+        return h;
+    }
+
+    @Override
+    public java.lang.String toString() {
+        return Rt.valueText(this);
+    }
+
+    @Override
+    public void writeText(java.lang.StringBuilder sb) {
+        sb.append('[');
+        for (int i = 0; i < n; i++) {
+            if (i > 0) {
+                sb.append(", ");
+            }
+            Rt.writeText(sb, a[off + i]);
+        }
+        sb.append(']');
+    }
+
+    @Override
+    public java.lang.Object toJson() {
+        java.util.List<java.lang.Object> out = new java.util.ArrayList<>(n);
+        for (int i = 0; i < n; i++) {
+            out.add(Rt.toJson(a[off + i]));
+        }
+        return out;
+    }
+}
+//// FILE: Option.java
+package __PKG__.cpl;
+
+/** A CPL {@code Option}: {@code Some(value)} or {@code None}. */
+public sealed interface Option<T> extends Value {
+    record Some<T>(T value) implements Option<T> {
+        @Override
+        public java.lang.String toString() {
+            return Rt.valueText(this);
+        }
+
+        @Override
+        public void writeText(java.lang.StringBuilder sb) {
+            sb.append("Some(");
+            Rt.writeText(sb, value);
+            sb.append(')');
+        }
+
+        @Override
+        public java.lang.Object toJson() {
+            return Json.tagged("Option", "Some", java.util.List.of(Rt.toJson(value)));
+        }
+    }
+
+    record None<T>() implements Option<T> {
+        @Override
+        public java.lang.String toString() {
+            return Rt.valueText(this);
+        }
+
+        @Override
+        public void writeText(java.lang.StringBuilder sb) {
+            sb.append("None");
+        }
+
+        @Override
+        public java.lang.Object toJson() {
+            return Json.tagged("Option", "None", null);
+        }
+    }
+
+    None<?> NONE = new None<>();
+
+    static <T> Option<T> some(T value) {
+        return new Some<>(value);
+    }
+
+    @SuppressWarnings("unchecked")
+    static <T> Option<T> none() {
+        return (Option<T>) NONE;
+    }
+
+    default boolean isSome() {
+        return this instanceof Some;
+    }
+
+    default boolean isNone() {
+        return this instanceof None;
+    }
+
+    /** The value of a Some; a NoSuchElementException for None. */
+    default T get() {
+        if (this instanceof Some<T> s) {
+            return s.value();
+        }
+        throw new java.util.NoSuchElementException("None");
+    }
+
+    default java.util.Optional<T> toOptional() {
+        return this instanceof Some<T> s ? java.util.Optional.of(s.value()) : java.util.Optional.empty();
+    }
+}
+//// FILE: Result.java
+package __PKG__.cpl;
+
+/** A CPL {@code Result}: {@code Ok(value)} or {@code Err(error)}. */
+public sealed interface Result<T, E> extends Value {
+    record Ok<T, E>(T value) implements Result<T, E> {
+        @Override
+        public java.lang.String toString() {
+            return Rt.valueText(this);
+        }
+
+        @Override
+        public void writeText(java.lang.StringBuilder sb) {
+            sb.append("Ok(");
+            Rt.writeText(sb, value);
+            sb.append(')');
+        }
+
+        @Override
+        public java.lang.Object toJson() {
+            return Json.tagged("Result", "Ok", java.util.List.of(Rt.toJson(value)));
+        }
+    }
+
+    record Err<T, E>(E error) implements Result<T, E> {
+        @Override
+        public java.lang.String toString() {
+            return Rt.valueText(this);
+        }
+
+        @Override
+        public void writeText(java.lang.StringBuilder sb) {
+            sb.append("Err(");
+            Rt.writeText(sb, error);
+            sb.append(')');
+        }
+
+        @Override
+        public java.lang.Object toJson() {
+            return Json.tagged("Result", "Err", java.util.List.of(Rt.toJson(error)));
+        }
+    }
+
+    static <T, E> Result<T, E> ok(T value) {
+        return new Ok<>(value);
+    }
+
+    static <T, E> Result<T, E> err(E error) {
+        return new Err<>(error);
+    }
+
+    default boolean isOk() {
+        return this instanceof Ok;
+    }
+
+    default boolean isErr() {
+        return this instanceof Err;
+    }
+}
+//// FILE: Unit.java
+package __PKG__.cpl;
+
+/** The CPL {@code Unit}. */
+public enum Unit implements Value {
+    UNIT;
+
+    @Override
+    public java.lang.String toString() {
+        return Rt.valueText(this);
+    }
+
+    @Override
+    public void writeText(java.lang.StringBuilder sb) {
+        sb.append("Unit");
+    }
+
+    @Override
+    public java.lang.Object toJson() {
+        return Json.tagged("Unit", null, null);
+    }
+}
+//// FILE: ConstraintError.java
+package __PKG__.cpl;
+
+/** The error of {@code check<R>} and of the standard parsers (stdlib 1.5). */
+public record ConstraintError(java.lang.String typeName, java.lang.String message) implements Value {
+    @Override
+    public java.lang.String toString() {
+        return Rt.valueText(this);
+    }
+
+    @Override
+    public void writeText(java.lang.StringBuilder sb) {
+        sb.append("ConstraintError { type_name: ").append(Rt.quoteText(typeName)).append(", message: ").append(Rt.quoteText(message)).append(" }");
+    }
+
+    @Override
+    public java.lang.Object toJson() {
+        java.util.Map<java.lang.String, java.lang.Object> m = new java.util.TreeMap<>();
+        m.put("$type", "ConstraintError");
+        m.put("type_name", typeName);
+        m.put("message", message);
+        return m;
+    }
+}
+//// FILE: ForeignErrorKind.java
+package __PKG__.cpl;
+
+/** {@code std.foreign.ForeignErrorKind}. */
+public enum ForeignErrorKind implements Value {
+    Exception, InvalidArgument, InvalidResult, Transport, Timeout, Cancelled, Unavailable;
+
+    @Override
+    public void writeText(java.lang.StringBuilder sb) {
+        sb.append(name());
+    }
+
+    @Override
+    public java.lang.Object toJson() {
+        return Json.tagged("std.foreign.ForeignErrorKind", name(), null);
+    }
+}
+//// FILE: ForeignDetail.java
+package __PKG__.cpl;
+
+/** {@code std.foreign.ForeignDetail}. */
+public record ForeignDetail(java.lang.String key, java.lang.String value) implements Value {
+    @Override
+    public java.lang.String toString() {
+        return Rt.valueText(this);
+    }
+
+    @Override
+    public void writeText(java.lang.StringBuilder sb) {
+        sb.append("ForeignDetail { key: ").append(Rt.quoteText(key)).append(", value: ").append(Rt.quoteText(value)).append(" }");
+    }
+
+    @Override
+    public java.lang.Object toJson() {
+        java.util.Map<java.lang.String, java.lang.Object> m = new java.util.TreeMap<>();
+        m.put("$type", "std.foreign.ForeignDetail");
+        m.put("key", key);
+        m.put("value", value);
+        return m;
+    }
+}
+//// FILE: ForeignError.java
+package __PKG__.cpl;
+
+/** {@code std.foreign.ForeignError}: a foreign failure as a typed CPL error. */
+public record ForeignError(ForeignErrorKind kind, java.lang.String message, List<ForeignDetail> details) implements Value {
+    @Override
+    public java.lang.String toString() {
+        return Rt.valueText(this);
+    }
+
+    @Override
+    public void writeText(java.lang.StringBuilder sb) {
+        sb.append("ForeignError { kind: ");
+        kind.writeText(sb);
+        sb.append(", message: ").append(Rt.quoteText(message)).append(", details: ");
+        details.writeText(sb);
+        sb.append(" }");
+    }
+
+    @Override
+    public java.lang.Object toJson() {
+        java.util.Map<java.lang.String, java.lang.Object> m = new java.util.TreeMap<>();
+        m.put("$type", "std.foreign.ForeignError");
+        m.put("kind", kind.toJson());
+        m.put("message", message);
+        m.put("details", details.toJson());
+        return m;
+    }
+}
+//// FILE: Fault.java
+package __PKG__.cpl;
+
+/**
+ * A fault (semantics 6.7): an execution that cannot continue. It is an error of the program, not
+ * a value: a contract that failed, an assertion, a division by zero, a hole, an exhausted resource.
+ */
+public final class Fault extends java.lang.RuntimeException {
+    private static final long serialVersionUID = 1L;
+
+    /** The diagnostic code: contract_violation, assertion_failed, division_by_zero, ... */
+    public final java.lang.String code;
+    /** For a contract violation: requires, ensures, invariant, or decreases; else null. */
+    public final java.lang.String clauseKind;
+    /** The failing clause's text (an assertion's expression, a hole's name). */
+    public final java.lang.String clause;
+    /** The stable identity of the blamed declaration. */
+    public final java.lang.String symbol;
+
+    public Fault(java.lang.String code, java.lang.String clauseKind, java.lang.String clause, java.lang.String symbol, java.lang.String message) {
+        super(message, null, false, false);
+        this.code = code;
+        this.clauseKind = clauseKind;
+        this.clause = clause;
+        this.symbol = symbol;
+    }
+
+    static Fault divisionByZero(java.lang.String symbol) {
+        return new Fault("division_by_zero", null, "", symbol, "division by zero");
+    }
+
+    static Fault requires(java.lang.String clause, java.lang.String symbol) {
+        return new Fault("contract_violation", "requires", clause, symbol, "requires clause failed: " + clause);
+    }
+
+    /** The fault of an argument that does not satisfy its type (S39). */
+    public static Fault refinement(java.lang.String expected, java.lang.String symbol) {
+        return new Fault("refinement_violation", null, "", symbol, "the value does not satisfy " + expected);
+    }
+
+    /** The fault of a call that exhausted the native stack. */
+    public static Fault stack() {
+        return new Fault("resource_exhaustion", null, "", "", "the stack is exhausted");
+    }
+
+    @Override
+    public java.lang.String toString() {
+        return code + ": " + getMessage();
+    }
+}
+//// FILE: Cx.java
+package __PKG__.cpl;
+
+/**
+ * The context of one call from the host: the call depth and the measures of the active recursive
+ * functions (S35). Generated functions take it last.
+ */
+public final class Cx {
+    /** The default call-depth limit (semantics S38). */
+    public static final int MAX_CALL_DEPTH = 10000;
+
+    private int depth;
+    private final int limit;
+    private static final int[] NO_FNS = new int[0];
+    private static final Int[] NO_MEASURES = new Int[0];
+    private static final java.lang.String[] NO_CLAUSES = new java.lang.String[0];
+
+    private int[] fns = NO_FNS;
+    private Int[] measures = NO_MEASURES;
+    private int top;
+    /** The owners of the contract expressions being evaluated, innermost last (S34). */
+    private java.lang.String[] clauses = NO_CLAUSES;
+    private int open;
+
+    public Cx() {
+        this(MAX_CALL_DEPTH);
+    }
+
+    public Cx(int limit) {
+        this.limit = limit;
+    }
+
+    /** A function activation (S38). */
+    public void enter() {
+        if (++depth > limit) {
+            throw new Fault("resource_exhaustion", null, "", "", "the call depth limit of " + limit + " activations was exceeded");
+        }
+    }
+
+    public void leave() {
+        depth--;
+    }
+
+    /** The activation of function {@code f}, which has a decreases clause, begins. */
+    public void measurePush(int f) {
+        if (top == fns.length) {
+            fns = java.util.Arrays.copyOf(fns, java.lang.Math.max(8, top * 2));
+            measures = java.util.Arrays.copyOf(measures, java.lang.Math.max(8, top * 2));
+        }
+        fns[top] = f;
+        measures[top] = null;
+        top++;
+    }
+
+    /**
+     * S35: the measure of the current activation of {@code f} is {@code >= 0} and below the measure
+     * the nearest enclosing activation of {@code f} recorded, if any.
+     */
+    public void measureSet(int f, Int m, java.lang.String clause, java.lang.String symbol) {
+        for (int i = top - 2; i >= 0; i--) {
+            if (fns[i] == f) {
+                if (measures[i] != null && m.compareTo(measures[i]) >= 0) {
+                    throw new Fault("contract_violation", "decreases", clause, symbol, "decreases clause failed: " + clause);
+                }
+                break;
+            }
+        }
+        if (m.signum() < 0) {
+            throw new Fault("contract_violation", "decreases", clause, symbol, "decreases clause failed: " + clause);
+        }
+        measures[top - 1] = m;
+    }
+
+    /** The activation that began with the last measurePush ends, after its ensures. */
+    public void measurePop() {
+        top--;
+    }
+
+    /** The evaluation of a contract expression of {@code owner} begins (S34). */
+    public void clauseEnter(java.lang.String owner) {
+        if (open == clauses.length) {
+            clauses = java.util.Arrays.copyOf(clauses, java.lang.Math.max(8, open * 2));
+        }
+        clauses[open++] = owner;
+    }
+
+    public void clauseLeave() {
+        open--;
+    }
+
+    /**
+     * S34: a fault that escaped a contract expression is its owner's. A fault ends the call, so the
+     * innermost expression still being evaluated when it arrives is the one it escaped.
+     */
+    public Fault attribute(Fault f) {
+        if (open == 0) {
+            return f;
+        }
+        return new Fault(f.code, f.clauseKind, f.clause, clauses[open - 1], f.getMessage());
+    }
+}
+//// FILE: Json.java
+package __PKG__.cpl;
+
+/**
+ * Value JSON (toolchain 7.3): a JSON value is a {@code java.util.Map} (object), {@code java.util.List}
+ * (array), {@code String}, {@code Boolean}, {@code BigInteger} or {@code BigDecimal} (number), or null.
+ */
+public final class Json {
+    private Json() {
+    }
+
+    /** A value JSON document that does not fit the expected type. */
+    public static final class DecodeError extends java.lang.RuntimeException {
+        private static final long serialVersionUID = 1L;
+
+        public DecodeError(java.lang.String message) {
+            super(message, null, false, false);
+        }
+    }
+
+    public static java.util.Map<java.lang.String, java.lang.Object> tagged(java.lang.String type, java.lang.String variant, java.util.List<java.lang.Object> payload) {
+        java.util.Map<java.lang.String, java.lang.Object> m = new java.util.TreeMap<>();
+        m.put("$type", type);
+        if (variant != null) {
+            m.put("$variant", variant);
+        }
+        if (payload != null) {
+            m.put("$payload", payload);
+        }
+        return m;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static java.util.Map<java.lang.String, java.lang.Object> object(java.lang.Object j) {
+        if (j instanceof java.util.Map<?, ?> m) {
+            return (java.util.Map<java.lang.String, java.lang.Object>) m;
+        }
+        throw new DecodeError("expected an object");
+    }
+
+    public static void expectType(java.lang.Object j, java.lang.String type) {
+        if (!type.equals(object(j).get("$type"))) {
+            throw new DecodeError("expected a " + type);
+        }
+    }
+
+    /** The $variant of a tagged value of {@code type} ("" for a wrapper). */
+    public static java.lang.String variant(java.lang.Object j, java.lang.String type) {
+        expectType(j, type);
+        return object(j).get("$variant") instanceof java.lang.String v ? v : "";
+    }
+
+    @SuppressWarnings("unchecked")
+    public static java.util.List<java.lang.Object> payload(java.lang.Object j) {
+        return object(j).get("$payload") instanceof java.util.List<?> p ? (java.util.List<java.lang.Object>) p : java.util.List.of();
+    }
+
+    public static java.lang.Object field(java.lang.Object j, java.lang.String name) {
+        java.util.Map<java.lang.String, java.lang.Object> m = object(j);
+        if (!m.containsKey(name)) {
+            throw new DecodeError("missing field " + name);
+        }
+        return m.get(name);
+    }
+
+    public static Int decInt(java.lang.Object j) {
+        if (j instanceof java.math.BigInteger b) {
+            return Int.of(b);
+        }
+        throw new DecodeError("expected an integer");
+    }
+
+    public static boolean decBool(java.lang.Object j) {
+        if (j instanceof java.lang.Boolean b) {
+            return b;
+        }
+        throw new DecodeError("expected a boolean");
+    }
+
+    public static java.lang.String decText(java.lang.Object j) {
+        if (j instanceof java.lang.String s) {
+            return s;
+        }
+        throw new DecodeError("expected a text");
+    }
+
+    public static Bytes decBytes(java.lang.Object j) {
+        expectType(j, "Bytes");
+        java.lang.String h = decText(field(j, "hex"));
+        if (h.length() % 2 != 0) {
+            throw new DecodeError("expected Bytes");
+        }
+        byte[] b = new byte[h.length() / 2];
+        for (int i = 0; i < b.length; i++) {
+            int hi = java.lang.Character.digit(h.charAt(2 * i), 16);
+            int lo = java.lang.Character.digit(h.charAt(2 * i + 1), 16);
+            if (hi < 0 || lo < 0) {
+                throw new DecodeError("expected Bytes");
+            }
+            b[i] = (byte) (hi * 16 + lo);
+        }
+        return Bytes.wrap(b);
+    }
+
+    public static Unit decUnit(java.lang.Object j) {
+        expectType(j, "Unit");
+        return Unit.UNIT;
+    }
+
+    public static <T> List<T> decList(java.lang.Object j, java.util.function.Function<java.lang.Object, T> dec) {
+        if (!(j instanceof java.util.List<?> a)) {
+            throw new DecodeError("expected a list");
+        }
+        java.lang.Object[] out = new java.lang.Object[a.size()];
+        for (int i = 0; i < out.length; i++) {
+            out[i] = dec.apply(a.get(i));
+        }
+        return List.wrap(out, out.length);
+    }
+
+    public static <T> Option<T> decOption(java.lang.Object j, java.util.function.Function<java.lang.Object, T> dec) {
+        java.lang.String v = variant(j, "Option");
+        java.util.List<java.lang.Object> p = payload(j);
+        if (v.equals("Some") && p.size() == 1) {
+            return Option.some(dec.apply(p.get(0)));
+        }
+        if (v.equals("None") && p.isEmpty()) {
+            return Option.none();
+        }
+        throw new DecodeError("expected an Option");
+    }
+
+    public static <T, E> Result<T, E> decResult(java.lang.Object j, java.util.function.Function<java.lang.Object, T> dt, java.util.function.Function<java.lang.Object, E> de) {
+        java.lang.String v = variant(j, "Result");
+        java.util.List<java.lang.Object> p = payload(j);
+        if (v.equals("Ok") && p.size() == 1) {
+            return Result.ok(dt.apply(p.get(0)));
+        }
+        if (v.equals("Err") && p.size() == 1) {
+            return Result.err(de.apply(p.get(0)));
+        }
+        throw new DecodeError("expected a Result");
+    }
+
+    public static ConstraintError decConstraintError(java.lang.Object j) {
+        expectType(j, "ConstraintError");
+        return new ConstraintError(decText(field(j, "type_name")), decText(field(j, "message")));
+    }
+
+    public static ForeignErrorKind decForeignErrorKind(java.lang.Object j) {
+        java.lang.String v = variant(j, "std.foreign.ForeignErrorKind");
+        for (ForeignErrorKind k : ForeignErrorKind.values()) {
+            if (k.name().equals(v)) {
+                return k;
+            }
+        }
+        throw new DecodeError("expected a ForeignErrorKind");
+    }
+
+    public static ForeignDetail decForeignDetail(java.lang.Object j) {
+        expectType(j, "std.foreign.ForeignDetail");
+        return new ForeignDetail(decText(field(j, "key")), decText(field(j, "value")));
+    }
+
+    public static ForeignError decForeignError(java.lang.Object j) {
+        expectType(j, "std.foreign.ForeignError");
+        return new ForeignError(decForeignErrorKind(field(j, "kind")), decText(field(j, "message")), decList(field(j, "details"), Json::decForeignDetail));
+    }
+
+    // ---- text -------------------------------------------------------------------------
+
+    /** Reads a JSON document. */
+    public static java.lang.Object parse(java.lang.String text) {
+        Parser p = new Parser(text);
+        java.lang.Object v = p.value(0);
+        p.ws();
+        if (p.i != text.length()) {
+            throw new DecodeError("trailing characters at " + p.i);
+        }
+        return v;
+    }
+
+    /** Writes a JSON document in ASCII: every other character is escaped. */
+    public static java.lang.String write(java.lang.Object v) {
+        java.lang.StringBuilder sb = new java.lang.StringBuilder();
+        write(v, sb);
+        return sb.toString();
+    }
+
+    private static void write(java.lang.Object v, java.lang.StringBuilder sb) {
+        if (v == null) {
+            sb.append("null");
+        } else if (v instanceof java.lang.Boolean b) {
+            sb.append(b ? "true" : "false");
+        } else if (v instanceof java.lang.Number n) {
+            sb.append(n.toString());
+        } else if (v instanceof java.lang.String s) {
+            sb.append('"');
+            for (int i = 0; i < s.length(); i++) {
+                char c = s.charAt(i);
+                if (c == '"') {
+                    sb.append("\\\"");
+                } else if (c == '\\') {
+                    sb.append("\\\\");
+                } else if (c == '\n') {
+                    sb.append("\\n");
+                } else if (c < 0x20 || c > 0x7e) {
+                    sb.append(java.lang.String.format("\\u%04x", (int) c));
+                } else {
+                    sb.append(c);
+                }
+            }
+            sb.append('"');
+        } else if (v instanceof java.util.Map<?, ?> m) {
+            sb.append('{');
+            boolean first = true;
+            for (java.util.Map.Entry<?, ?> e : m.entrySet()) {
+                if (!first) {
+                    sb.append(',');
+                }
+                first = false;
+                write(e.getKey(), sb);
+                sb.append(':');
+                write(e.getValue(), sb);
+            }
+            sb.append('}');
+        } else if (v instanceof java.util.List<?> l) {
+            sb.append('[');
+            for (int i = 0; i < l.size(); i++) {
+                if (i > 0) {
+                    sb.append(',');
+                }
+                write(l.get(i), sb);
+            }
+            sb.append(']');
+        } else {
+            throw new java.lang.IllegalArgumentException("not JSON: " + v.getClass());
+        }
+    }
+
+    private static final class Parser {
+        final java.lang.String s;
+        int i;
+
+        Parser(java.lang.String s) {
+            this.s = s;
+        }
+
+        void ws() {
+            while (i < s.length() && " \t\n\r".indexOf(s.charAt(i)) >= 0) {
+                i++;
+            }
+        }
+
+        java.lang.Object value(int depth) {
+            if (depth > 512) {
+                throw new DecodeError("JSON nested too deeply");
+            }
+            ws();
+            if (i >= s.length()) {
+                throw new DecodeError("unexpected end of JSON");
+            }
+            char c = s.charAt(i);
+            if (c == '{') {
+                i++;
+                java.util.Map<java.lang.String, java.lang.Object> m = new java.util.TreeMap<>();
+                ws();
+                if (i < s.length() && s.charAt(i) == '}') {
+                    i++;
+                    return m;
+                }
+                while (true) {
+                    ws();
+                    java.lang.String k = string();
+                    ws();
+                    expect(':');
+                    m.put(k, value(depth + 1));
+                    ws();
+                    if (i < s.length() && s.charAt(i) == ',') {
+                        i++;
+                    } else {
+                        expect('}');
+                        return m;
+                    }
+                }
+            }
+            if (c == '[') {
+                i++;
+                java.util.List<java.lang.Object> l = new java.util.ArrayList<>();
+                ws();
+                if (i < s.length() && s.charAt(i) == ']') {
+                    i++;
+                    return l;
+                }
+                while (true) {
+                    l.add(value(depth + 1));
+                    ws();
+                    if (i < s.length() && s.charAt(i) == ',') {
+                        i++;
+                    } else {
+                        expect(']');
+                        return l;
+                    }
+                }
+            }
+            if (c == '"') {
+                return string();
+            }
+            if (s.startsWith("true", i)) {
+                i += 4;
+                return java.lang.Boolean.TRUE;
+            }
+            if (s.startsWith("false", i)) {
+                i += 5;
+                return java.lang.Boolean.FALSE;
+            }
+            if (s.startsWith("null", i)) {
+                i += 4;
+                return null;
+            }
+            int start = i;
+            while (i < s.length() && "+-0123456789.eE".indexOf(s.charAt(i)) >= 0) {
+                i++;
+            }
+            java.lang.String t = s.substring(start, i);
+            if (t.isEmpty()) {
+                throw new DecodeError("unexpected character at " + start);
+            }
+            try {
+                return new java.math.BigInteger(t);
+            } catch (java.lang.NumberFormatException e) {
+                return new java.math.BigDecimal(t);
+            }
+        }
+
+        void expect(char c) {
+            if (i >= s.length() || s.charAt(i) != c) {
+                throw new DecodeError("expected " + c + " at " + i);
+            }
+            i++;
+        }
+
+        java.lang.String string() {
+            expect('"');
+            java.lang.StringBuilder sb = new java.lang.StringBuilder();
+            while (true) {
+                if (i >= s.length()) {
+                    throw new DecodeError("unterminated string");
+                }
+                char c = s.charAt(i++);
+                if (c == '"') {
+                    return sb.toString();
+                }
+                if (c != '\\') {
+                    sb.append(c);
+                    continue;
+                }
+                char e = s.charAt(i++);
+                switch (e) {
+                    case '"' -> sb.append('"');
+                    case '\\' -> sb.append('\\');
+                    case '/' -> sb.append('/');
+                    case 'b' -> sb.append('\b');
+                    case 'f' -> sb.append('\f');
+                    case 'n' -> sb.append('\n');
+                    case 'r' -> sb.append('\r');
+                    case 't' -> sb.append('\t');
+                    case 'u' -> {
+                        sb.append((char) java.lang.Integer.parseInt(s.substring(i, i + 4), 16));
+                        i += 4;
+                    }
+                    default -> throw new DecodeError("unknown escape");
+                }
+            }
+        }
+    }
+}
+//// FILE: Rt.java
+package __PKG__.cpl;
+
+/** The runtime's helpers and the builtins of the standard library (stdlib 1.4-7). */
+public final class Rt {
+    private Rt() {
+    }
+
+    public static boolean eqBool(boolean a, boolean b) {
+        return a == b;
+    }
+
+    /** Evaluates an expression for its effects. */
+    public static void discard(java.lang.Object v) {
+    }
+
+    /** Writes the value text (semantics S40) of {@code v}. */
+    public static void writeText(java.lang.StringBuilder sb, java.lang.Object v) {
+        if (v instanceof java.lang.Boolean b) {
+            sb.append(b ? "true" : "false");
+        } else if (v instanceof java.lang.String s) {
+            sb.append(quoteText(s));
+        } else {
+            ((Value) v).writeText(sb);
+        }
+    }
+
+    /** CPL literal syntax for {@code v}: what check<R> quotes in its error message. */
+    public static java.lang.String valueText(java.lang.Object v) {
+        java.lang.StringBuilder sb = new java.lang.StringBuilder();
+        writeText(sb, v);
+        return sb.toString();
+    }
+
+    /** A text as a CPL literal, with the grammar's escapes. */
+    public static java.lang.String quoteText(java.lang.String s) {
+        java.lang.StringBuilder sb = new java.lang.StringBuilder(s.length() + 2);
+        sb.append('"');
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            switch (c) {
+                case '\\' -> sb.append("\\\\");
+                case '"' -> sb.append("\\\"");
+                case '\n' -> sb.append("\\n");
+                case '\r' -> sb.append("\\r");
+                case '\t' -> sb.append("\\t");
+                default -> {
+                    if (c < 0x20 || c == 0x7f) {
+                        sb.append("\\u{").append(java.lang.Integer.toHexString(c)).append('}');
+                    } else {
+                        sb.append(c);
+                    }
+                }
+            }
+        }
+        return sb.append('"').toString();
+    }
+
+    /** The value JSON of {@code v}. */
+    public static java.lang.Object toJson(java.lang.Object v) {
+        if (v instanceof java.lang.Boolean || v instanceof java.lang.String) {
+            return v;
+        }
+        return ((Value) v).toJson();
+    }
+
+    /** check<R>'s error when the predicate of {@code typeName} fails on {@code value} (6.10). */
+    public static <U> Result<U, ConstraintError> checkFailure(java.lang.Object value, java.lang.String typeName, java.lang.String predicate) {
+        return Result.err(new ConstraintError(typeName, valueText(value) + " does not satisfy " + predicate));
+    }
+
+    /** Whether a string from the host is a CPL Text: no unpaired surrogate. */
+    public static boolean validText(java.lang.String s) {
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            if (java.lang.Character.isHighSurrogate(c)) {
+                if (i + 1 >= s.length() || !java.lang.Character.isLowSurrogate(s.charAt(i + 1))) {
+                    return false;
+                }
+                i++;
+            } else if (java.lang.Character.isLowSurrogate(c)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    // ---- the JSON driver (spec/hosts.md 4) --------------------------------------------
+
+    public static java.lang.Object outside(java.lang.String why) {
+        return java.util.Map.of("outside", why);
+    }
+
+    public static java.lang.Object answer(java.lang.Object v) {
+        return java.util.Map.of("value", toJson(v));
+    }
+
+    static java.lang.Object faultAnswer(Fault f) {
+        java.util.Map<java.lang.String, java.lang.Object> m = new java.util.TreeMap<>();
+        m.put("code", f.code);
+        m.put("symbol", f.symbol);
+        if (f.clauseKind != null) {
+            m.put("clause_kind", f.clauseKind);
+        }
+        return java.util.Map.of("fault", m);
+    }
+
+    /** Answers the driver's requests, one JSON object per line, until the input ends. */
+    @SuppressWarnings("unchecked")
+    public static void serve(java.util.function.BiFunction<java.lang.String, java.util.List<java.lang.Object>, java.lang.Object> call) {
+        try {
+            java.io.BufferedReader in = new java.io.BufferedReader(new java.io.InputStreamReader(java.lang.System.in, java.nio.charset.StandardCharsets.UTF_8));
+            java.io.PrintStream out = new java.io.PrintStream(new java.io.FileOutputStream(java.io.FileDescriptor.out), false, java.nio.charset.StandardCharsets.UTF_8);
+            java.lang.String line;
+            while ((line = in.readLine()) != null) {
+                if (line.isBlank()) {
+                    continue;
+                }
+                java.lang.Object answer;
+                try {
+                    java.util.Map<java.lang.String, java.lang.Object> request = (java.util.Map<java.lang.String, java.lang.Object>) Json.parse(line);
+                    java.lang.String function = request.get("function") instanceof java.lang.String f ? f : "";
+                    java.util.List<java.lang.Object> args = request.get("args") instanceof java.util.List<?> a ? (java.util.List<java.lang.Object>) a : java.util.List.of();
+                    answer = call.apply(function, args);
+                } catch (Json.DecodeError e) {
+                    answer = outside(java.lang.String.valueOf(e.getMessage()));
+                } catch (Fault f) {
+                    answer = faultAnswer(f);
+                } catch (java.lang.StackOverflowError e) {
+                    answer = faultAnswer(Fault.stack());
+                } catch (java.lang.RuntimeException e) {
+                    answer = java.util.Map.of("panic", java.lang.String.valueOf(e));
+                }
+                out.println(Json.write(answer));
+                out.flush();
+            }
+        } catch (java.io.IOException e) {
+            throw new java.io.UncheckedIOException(e);
+        }
+    }
+
+    // ---- builtins ---------------------------------------------------------------------
+
+    static boolean isWhiteSpace(char c) {
+        return (c >= 0x9 && c <= 0xD) || c == 0x20 || c == 0x85 || c == 0xA0 || c == 0x1680
+            || (c >= 0x2000 && c <= 0x200A) || c == 0x2028 || c == 0x2029 || c == 0x202F || c == 0x205F || c == 0x3000;
+    }
+
+    public static <T> List<T> flatten(List<List<T>> lists) {
+        int n = 0;
+        for (List<T> l : lists) {
+            n += l.size();
+        }
+        java.lang.Object[] out = new java.lang.Object[n];
+        int k = 0;
+        for (List<T> l : lists) {
+            l.copyTo(out, k);
+            k += l.size();
+        }
+        return List.wrap(out, n);
+    }
+
+    public static java.lang.String intToText(Int v) {
+        return v.toString();
+    }
+
+    public static Int intAbs(Int v) {
+        return v.abs();
+    }
+
+    public static Int intMin(Int a, Int b) {
+        return b.lt(a) ? b : a;
+    }
+
+    public static Int intMax(Int a, Int b) {
+        return b.gt(a) ? b : a;
+    }
+
+    public static Int textLen(java.lang.String t) {
+        return Int.of(t.codePointCount(0, t.length()));
+    }
+
+    public static boolean textIsEmpty(java.lang.String t) {
+        return t.isEmpty();
+    }
+
+    public static Int bytesLen(Bytes b) {
+        return Int.of(b.length());
+    }
+
+    public static boolean bytesIsEmpty(Bytes b) {
+        return b.length() == 0;
+    }
+
+    public static <T> Int listLen(List<T> l) {
+        return Int.of(l.size());
+    }
+
+    public static <T> boolean listIsEmpty(List<T> l) {
+        return l.isEmpty();
+    }
+
+    private static int count(Int n, int length) {
+        int k = n.index();
+        return k >= 0 && k < length ? k : length;
+    }
+
+    public static <T> List<T> listTake(List<T> l, Int n) {
+        if (n.signum() < 0) {
+            throw Fault.requires("n >= 0", "std.prelude.List.take");
+        }
+        int k = count(n, l.size());
+        return k == l.size() ? l : l.slice(0, k);
+    }
+
+    public static <T> List<T> listDrop(List<T> l, Int n) {
+        if (n.signum() < 0) {
+            throw Fault.requires("n >= 0", "std.prelude.List.drop");
+        }
+        int k = count(n, l.size());
+        return k == 0 ? l : l.slice(k, l.size());
+    }
+
+    public static <T> List<T> listDropLast(List<T> l) {
+        return l.isEmpty() ? l : l.slice(0, l.size() - 1);
+    }
+
+    public static <T> List<T> listPush(List<T> l, T v) {
+        return l.push(v);
+    }
+
+    public static <T> Option<T> listGet(List<T> l, Int i) {
+        int k = i.index();
+        return k >= 0 && k < l.size() ? Option.some(l.get(k)) : Option.none();
+    }
+
+    public static <T> Option<T> listFirst(List<T> l) {
+        return l.isEmpty() ? Option.none() : Option.some(l.get(0));
+    }
+
+    public static <T> Option<T> listLast(List<T> l) {
+        return l.isEmpty() ? Option.none() : Option.some(l.get(l.size() - 1));
+    }
+
+    public static <T> List<T> listReverse(List<T> l) {
+        int n = l.size();
+        java.lang.Object[] out = new java.lang.Object[n];
+        for (int i = 0; i < n; i++) {
+            out[n - 1 - i] = l.get(i);
+        }
+        return List.wrap(out, n);
+    }
+
+    public static <T> boolean listContains(List<T> l, T v) {
+        for (T x : l) {
+            if (x.equals(v)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public static <T> boolean optionIsSome(Option<T> o) {
+        return o.isSome();
+    }
+
+    public static <T> boolean optionIsNone(Option<T> o) {
+        return o.isNone();
+    }
+
+    public static <T> T optionUnwrapOr(Option<T> o, T d) {
+        return o instanceof Option.Some<T> s ? s.value() : d;
+    }
+
+    public static <T, E> Result<T, E> optionOkOr(Option<T> o, E e) {
+        return o instanceof Option.Some<T> s ? Result.ok(s.value()) : Result.err(e);
+    }
+
+    public static <T, E> boolean resultIsOk(Result<T, E> r) {
+        return r.isOk();
+    }
+
+    public static <T, E> boolean resultIsErr(Result<T, E> r) {
+        return r.isErr();
+    }
+
+    public static <T, E> T resultUnwrapOr(Result<T, E> r, T d) {
+        return r instanceof Result.Ok<T, E> o ? o.value() : d;
+    }
+
+    public static <T, E> Option<T> resultOk(Result<T, E> r) {
+        return r instanceof Result.Ok<T, E> o ? Option.some(o.value()) : Option.none();
+    }
+
+    public static <T, E> Option<E> resultErr(Result<T, E> r) {
+        return r instanceof Result.Err<T, E> e ? Option.some(e.error()) : Option.none();
+    }
+
+    public static java.lang.String textTrim(java.lang.String t) {
+        return textTrimEnd(textTrimStart(t));
+    }
+
+    public static java.lang.String textTrimStart(java.lang.String t) {
+        int i = 0;
+        while (i < t.length() && isWhiteSpace(t.charAt(i))) {
+            i++;
+        }
+        return i == 0 ? t : t.substring(i);
+    }
+
+    public static java.lang.String textTrimEnd(java.lang.String t) {
+        int j = t.length();
+        while (j > 0 && isWhiteSpace(t.charAt(j - 1))) {
+            j--;
+        }
+        return j == t.length() ? t : t.substring(0, j);
+    }
+
+    public static boolean textStartsWith(java.lang.String t, java.lang.String p) {
+        return t.startsWith(p);
+    }
+
+    public static boolean textEndsWith(java.lang.String t, java.lang.String s) {
+        return t.endsWith(s);
+    }
+
+    public static boolean textContains(java.lang.String t, java.lang.String n) {
+        return t.contains(n);
+    }
+
+    public static List<java.lang.String> textSplit(java.lang.String t, java.lang.String sep) {
+        if (sep.isEmpty()) {
+            throw Fault.requires("not sep.is_empty()", "std.text.split");
+        }
+        java.util.ArrayList<java.lang.Object> out = new java.util.ArrayList<>();
+        int from = 0;
+        while (true) {
+            int at = t.indexOf(sep, from);
+            if (at < 0) {
+                out.add(t.substring(from));
+                break;
+            }
+            out.add(t.substring(from, at));
+            from = at + sep.length();
+        }
+        return List.wrap(out.toArray(), out.size());
+    }
+
+    public static java.lang.String textJoin(List<java.lang.String> parts, java.lang.String sep) {
+        java.lang.StringBuilder sb = new java.lang.StringBuilder();
+        boolean first = true;
+        for (java.lang.String p : parts) {
+            if (!first) {
+                sb.append(sep);
+            }
+            first = false;
+            sb.append(p);
+        }
+        return sb.toString();
+    }
+
+    public static java.lang.String textToUpper(java.lang.String t) {
+        char[] c = null;
+        for (int i = 0; i < t.length(); i++) {
+            char x = t.charAt(i);
+            if (x >= 'a' && x <= 'z') {
+                if (c == null) {
+                    c = t.toCharArray();
+                }
+                c[i] = (char) (x - 32);
+            }
+        }
+        return c == null ? t : new java.lang.String(c);
+    }
+
+    public static java.lang.String textToLower(java.lang.String t) {
+        char[] c = null;
+        for (int i = 0; i < t.length(); i++) {
+            char x = t.charAt(i);
+            if (x >= 'A' && x <= 'Z') {
+                if (c == null) {
+                    c = t.toCharArray();
+                }
+                c[i] = (char) (x + 32);
+            }
+        }
+        return c == null ? t : new java.lang.String(c);
+    }
+
+    public static Result<Int, ConstraintError> textParseInt(java.lang.String t) {
+        Int v = Int.parse(t);
+        if (v != null) {
+            return Result.ok(v);
+        }
+        return Result.err(new ConstraintError("Int", quoteText(t) + " is not a decimal integer"));
+    }
+
+    public static java.lang.String textFromInt(Int v) {
+        return v.toString();
+    }
+
+    public static List<java.lang.String> textChars(java.lang.String t) {
+        java.util.ArrayList<java.lang.Object> out = new java.util.ArrayList<>(t.length());
+        for (int i = 0; i < t.length(); ) {
+            int n = java.lang.Character.charCount(t.codePointAt(i));
+            out.add(t.substring(i, i + n));
+            i += n;
+        }
+        return List.wrap(out.toArray(), out.size());
+    }
+
+    public static Bytes bytesFromList(List<Int> values) {
+        byte[] b = new byte[values.size()];
+        int i = 0;
+        for (Int v : values) {
+            int x = v.index();
+            if (x < 0 || x > 255) {
+                throw Fault.requires("forall v in values: v >= 0 and v <= 255", "std.bytes.from_list");
+            }
+            b[i++] = (byte) x;
+        }
+        return Bytes.wrap(b);
+    }
+
+    public static List<Int> bytesToList(Bytes b) {
+        byte[] d = b.raw();
+        java.lang.Object[] out = new java.lang.Object[d.length];
+        for (int i = 0; i < d.length; i++) {
+            out[i] = Int.of(d[i] & 0xFF);
+        }
+        return List.wrap(out, d.length);
+    }
+
+    public static Bytes bytesFromText(java.lang.String t) {
+        return Bytes.wrap(t.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+    }
+
+    /** The offset of the first byte that does not begin a valid UTF-8 sequence, or -1. */
+    private static int invalidUtf8(byte[] d) {
+        int i = 0;
+        while (i < d.length) {
+            int c = d[i] & 0xFF;
+            int n;
+            int min;
+            if (c < 0x80) {
+                i++;
+                continue;
+            } else if (c >= 0xC2 && c <= 0xDF) {
+                n = 1;
+                min = 0x80;
+            } else if (c >= 0xE0 && c <= 0xEF) {
+                n = 2;
+                min = 0x800;
+            } else if (c >= 0xF0 && c <= 0xF4) {
+                n = 3;
+                min = 0x10000;
+            } else {
+                return i;
+            }
+            int cp = c & (0x3F >> n);
+            for (int k = 1; k <= n; k++) {
+                if (i + k >= d.length) {
+                    return i;
+                }
+                int x = d[i + k] & 0xFF;
+                if ((x & 0xC0) != 0x80) {
+                    return i;
+                }
+                cp = (cp << 6) | (x & 0x3F);
+            }
+            if (cp < min || cp > 0x10FFFF || (cp >= 0xD800 && cp <= 0xDFFF)) {
+                return i;
+            }
+            i += n + 1;
+        }
+        return -1;
+    }
+
+    public static Result<java.lang.String, ConstraintError> bytesToText(Bytes b) {
+        int bad = invalidUtf8(b.raw());
+        if (bad >= 0) {
+            return Result.err(new ConstraintError("Text", "invalid UTF-8 at byte " + bad));
+        }
+        return Result.ok(new java.lang.String(b.raw(), java.nio.charset.StandardCharsets.UTF_8));
+    }
+}

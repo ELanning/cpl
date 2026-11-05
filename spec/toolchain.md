@@ -5245,7 +5245,7 @@ the integrator authority the host supplies with the invocation (Section
 authority belongs to the coordinator or an authorized actor, not to every
 worker (design line 365).
 
-#### `cpl build [--target c|python] [--release] [--profile optimized|debug] [--sanitize LIST] [--artifact KIND]... [--out DIR] [--lock] [--cc PATH] [--python PATH] [--jobs N] [--json]`
+#### `cpl build [--target c|python|rust|go|java] [--release] [--profile optimized|debug] [--sanitize LIST] [--artifact KIND]... [--out DIR] [--lock] [--cc PATH] [--python PATH] [--jobs N] [--json]`
 
 Milestone 2. Builds the project's C package: checks the project, plans
 its C surface (`CheckResult::interop`, Section 1.6), and runs
@@ -5258,7 +5258,7 @@ the compile and link steps, the artifacts, and the version script are
 
 | Flag | Effect |
 | - | - |
-| `--target c\|python` | `c` (the default) builds the C package; from Milestone 3 `python` builds the Python package of `spec/python.md` Section 1 (default output root `<project>/.cpl/build/python`); `node` is `usage_not_implemented` (exit 2, a note naming Milestone 4) until Milestone 4, and any other value `usage_bad_argument`; a project without the target in `[interop] targets` is `build_target_not_enabled` (exit 1, with `targets`) |
+| `--target c\|python\|rust\|go\|java` | `c` (the default) builds the C package; from Milestone 3 `python` builds the Python package of `spec/python.md` Section 1 (default output root `<project>/.cpl/build/python`); `rust`, `go`, and `java` (`kotlin` and `jvm` name `java`) write the host package of `spec/hosts.md` Section 1 (default output root `<project>/.cpl/build/<target>`), compile nothing, and refuse `--artifact`, `--sanitize`, and `--lock` as `usage_bad_argument`; `node` is `usage_not_implemented` (exit 2, a note naming Milestone 4) until Milestone 4, and any other value `usage_bad_argument`; a project without the target in `[interop] targets` is `build_target_not_enabled` (exit 1, with `targets`) |
 | `--release` | the release check of `cpl check --release` (semantics S47: `hole_in_release`, `verification_unsatisfied`, `project_lock_stale`, T37 and T75), with `build_lock_missing` (error) in place of its warning `project_lock_missing`, decided with the check and so reported beside its errors; after a successful build, the comparisons of Section 11.2 (`build_lock_mismatch`, `build_abi_changed`); the library records `release = 1`. It is release policy, never an optimization switch |
 | `--profile optimized\|debug` | the flag sets of cabi.md Section 1; default `optimized` |
 | `--sanitize LIST` | comma-separated `address` and `undefined` (together or alone), or `thread` alone; any other name or combination is `usage_bad_argument`: the sanitizer flag sets of cabi.md Section 1, at compile and link time; one that the compiler cannot link (`Compiler::supports`) is `build_sanitizer_unavailable` (exit 2, with `sanitizer`) |
@@ -6309,7 +6309,7 @@ description = "..."             # optional
 sources = ["src"]               # optional; default ["src"]; project-relative directories, '/' separators ("." is the project root; one trailing '/' is accepted)
 
 [interop]
-targets = ["python", "node", "c"]   # optional; default []; each in {python, node, c}; inert in Milestone 1; "c" active from Milestone 2 (T74), "python" and "node" from Milestones 3 and 4
+targets = ["python", "node", "c"]   # optional; default []; each in {python, node, c, rust, go, java, kotlin}; inert in Milestone 1; "c" active from Milestone 2 (T74), "python" and "node" from Milestones 3 and 4; "rust", "go", "java" (and "kotlin", which enables "java") are the source hosts of spec/hosts.md
 
 [interop.c]                     # optional; Milestone 2; requires "c", "python", or "node" in targets (the Python and Node
 prefix = "reader"               # packages contain the C package); its keys are in the table below

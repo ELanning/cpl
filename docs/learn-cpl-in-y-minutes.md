@@ -9,6 +9,7 @@ This is an annotated tour in the spirit of
 [Learn X in Y Minutes](https://learnxinyminutes.com/python/). The main code
 block is one complete module: its examples are executable tests. CPL 0.1
 has a reference interpreter, a native C11 backend, C and Python interop,
+Rust, Go, Java, and Kotlin hosts that call CPL as their own code,
 structured parallel expressions and concurrent tasks, application state
 machines, an automatic verifier, typestate protocols, versioned data, and
 tools that edit, verify, and merge programs by stable identity.
@@ -729,6 +730,22 @@ for these examples. Add `--json` for structured results and diagnostics.
 Native packages and Python bindings are configured in `cpl.toml` and built
 with `cpl build --target c` or `cpl build --target python`.
 
+Rust, Go, Java, and Kotlin call CPL without a foreign-function boundary.
+List the host in `[interop] targets`, and `cpl build --target rust`, `go`,
+or `java` writes the module as that language's source: a Cargo crate, a Go
+module, or Java packages, which Kotlin uses through its Java interop. A CPL
+function becomes a host function, a struct a struct or record, an enum a
+Rust enum or a sealed interface, and a capability a trait or interface the
+host implements; contracts are checked, and a fault is the host's error.
+The [hosts example](../examples/hosts/README.md) calls one module from all
+four.
+
+```sh
+cpl build --target rust      # .cpl/build/rust: depend on it by path
+cpl build --target go        # .cpl/build/go: require it with a replace directive
+cpl build --target java      # .cpl/build/java/src: compile with javac 17 or later
+```
+
 CPL is early software. Its current core types are `Int`, `Bool`, `Text`,
 `Bytes`, `Unit`, `List`, `Option`, `Result`, and user-defined value types.
 Node.js bindings and automatic work execution/integration remain future
@@ -754,4 +771,5 @@ Continue with the [standard library](../spec/stdlib.md),
 [language specifications](../spec/README.md),
 [state-machine example and replay walkthrough](../examples/state_machine/README.md),
 [parallel examples and benchmarks](../examples/parallel/README.md),
-[C interop](../spec/cabi.md), and [Python interop](../spec/python.md).
+[C interop](../spec/cabi.md), [Python interop](../spec/python.md), and
+[Rust, Go, Java, and Kotlin hosts](../spec/hosts.md).

@@ -1,0 +1,177 @@
+(module shop.pricing
+  (use std.text (items trim parse_int) (trivia blank))
+  (type Cents pub
+    (docs "An amount of money in cents.")
+    (refinement (ty Int) (where (>= (name self) (int 0))))
+    (trivia blank))
+  (type Percent pub
+    (docs "A percentage from 0 to 100.")
+    (refinement (ty Int) (where (and (>= (name self) (int 0)) (<= (name self) (int 100)))))
+    (trivia blank))
+  (type Quantity pub
+    (docs "A quantity: at least one.")
+    (refinement (ty Int) (where (> (name self) (int 0))))
+    (trivia blank))
+  (struct Line pub
+    (docs "One line of an order.")
+    (field sku (ty Text))
+    (field unit_price (ty Cents))
+    (field quantity (ty Int))
+    (where (> (member (name self) quantity) (int 0)))
+    (trivia blank))
+  (enum Discount pub
+    (docs "How a line is discounted.")
+    (variant NoDiscount)
+    (variant PercentOff (ty Percent))
+    (variant BuyNGetOneFree (ty Int))
+    (trivia blank))
+  (struct Entry pub
+    (docs "A line and its discount.")
+    (field line (ty Line))
+    (field discount (ty Discount))
+    (trivia blank))
+  (interface TaxTable pub
+    (docs "The tax rates of the place of sale: the host implements it.")
+    (op rate_for (params (param sku (ty Text))) (ret (ty Percent)))
+    (trivia blank))
+  (interface AuditLog pub
+    (docs "Where a checkout records what it charged: the host implements it.")
+    (op record (params (param message (ty Text))) (ret (ty Unit)))
+    (trivia blank))
+  (pure fn line_total pub
+    (docs "The total of one line after its discount.")
+    (params (param line (ty Line)) (param discount (ty Discount)))
+    (ret (ty Int))
+    (ensures (>= (name result) (int 0)))
+    (ensures (<= (name result) (* (member (name line) unit_price) (member (name line) quantity))))
+    (block
+      (let gross (* (member (name line) unit_price) (member (name line) quantity)))
+      (tail
+        (match
+          (name discount)
+          (arm (ctor NoDiscount) (name gross))
+          (arm (ctor PercentOff (bind p)) (- (name gross) (/ (* (name gross) (name p)) (int 100))))
+          (arm
+            (ctor BuyNGetOneFree (bind n))
+            (if
+              (<= (name n) (int 0))
+              (block (tail (name gross)))
+              (else
+                (block
+                  (tail
+                    (-
+                      (name gross)
+                      (*
+                        (/ (member (name line) quantity) (paren (+ (name n) (int 1))))
+                        (member (name line) unit_price)))))))))))
+    (trivia blank))
+  (pure fn subtotal pub
+    (docs "The subtotal of an order: every line at its discount.")
+    (params (param entries (ty List (ty Entry))))
+    (ret (ty Int))
+    (ensures (>= (name result) (int 0)))
+    (decreases (member (name entries) len))
+    (block
+      (tail
+        (match
+          (call (member (name entries) first))
+          (arm (ctor None) (int 0))
+          (arm
+            (ctor Some (bind e))
+            (+
+              (call (name line_total) (member (name e) line) (member (name e) discount))
+              (call (name subtotal) (call (member (name entries) drop) (int 1))))))))
+    (trivia blank))
+  (mutate fn total_with_tax pub
+    (docs "The order total with tax, at the rates of the host's table.")
+    (params (param entries (ty List (ty Entry))) (using taxes (ty TaxTable)))
+    (ret (ty Int))
+    (effects taxes.rate_for)
+    (block
+      (var total (int 0))
+      (var rest (name entries))
+      (while
+        (not (call (member (name rest) is_empty)))
+        (decreases (member (name rest) len))
+        (block
+          (expr
+            (match
+              (call (member (name rest) first))
+              (arm (ctor None) (block))
+              (arm
+                (ctor Some (bind e))
+                (block
+                  (let net
+                    (call (name line_total) (member (name e) line) (member (name e) discount)))
+                  (assign total
+                    (+
+                      (+ (name total) (name net))
+                      (/
+                        (*
+                          (name net)
+                          (call (member (name taxes) rate_for) (member (member (name e) line) sku)))
+                        (int 100))))))))
+          (assign rest (call (member (name rest) drop) (int 1)))))
+      (tail (name total)))
+    (trivia blank))
+  (mutate fn checkout pub
+    (docs "Charge an order: its total with tax, recorded in the host's log.")
+    (params
+      (param entries (ty List (ty Entry)))
+      (using taxes (ty TaxTable))
+      (using log (ty AuditLog)))
+    (ret (ty Int))
+    (effects taxes.rate_for log.record)
+    (block
+      (let total (call (name total_with_tax) (name entries) (using (name taxes))))
+      (expr
+        (call
+          (member (name log) record)
+          (++
+            (++
+              (++ (++ (text "charged ") (call (name dollars) (name total))) (text " for "))
+              (call (member (member (name entries) len) to_text)))
+            (text " lines"))))
+      (tail (name total)))
+    (trivia blank))
+  (pure fn dollars pub
+    (docs "An amount in dollars: \"$12.05\".")
+    (params (param cents (ty Int)))
+    (ret (ty Text))
+    (requires (>= (name cents) (int 0)))
+    (block
+      (let rest (% (name cents) (int 100)))
+      (tail
+        (++
+          (++
+            (++
+              (++ (text "$") (call (member (paren (/ (name cents) (int 100))) to_text)))
+              (text "."))
+            (paren
+              (if
+                (< (name rest) (int 10))
+                (block (tail (text "0")))
+                (else (block (tail (text "")))))))
+          (call (member (name rest) to_text)))))
+    (trivia blank))
+  (pure fn parse_quantity pub
+    (docs "A quantity from text such as \" 12 \".")
+    (params (param text (ty Text)))
+    (ret (ty Result (ty Quantity) (ty ConstraintError)))
+    (block
+      (let n (propagate (call (name parse_int) (call (name trim) (name text)))))
+      (tail (call (name check) (generics (ty Quantity)) (name n))))
+    (trivia blank))
+  (pure fn factorial pub
+    (docs "n!, which leaves 64 bits behind at 21.")
+    (params (param n (ty Int)))
+    (ret (ty Int))
+    (requires (>= (name n) (int 0)))
+    (decreases (name n))
+    (block
+      (tail
+        (if
+          (== (name n) (int 0))
+          (block (tail (int 1)))
+          (else (block (tail (* (name n) (call (name factorial) (- (name n) (int 1))))))))))
+    (trivia blank)))

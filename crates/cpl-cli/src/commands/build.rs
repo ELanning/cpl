@@ -1,13 +1,15 @@
-//! `cpl build [--target c|python] [--release] [--profile optimized|debug] [--sanitize LIST] [--artifact KIND]...
-//! [--out DIR] [--lock] [--cc PATH] [--python PATH] [--jobs N] [--json]` (`spec/toolchain.md` 7.2, T72;
-//! `spec/cabi.md` Section 1; `spec/python.md` Section 1).
+//! `cpl build [--target c|python|rust|go|java] [--release] [--profile optimized|debug] [--sanitize LIST]
+//! [--artifact KIND]... [--out DIR] [--lock] [--cc PATH] [--python PATH] [--jobs N] [--json]` (`spec/toolchain.md`
+//! 7.2, T72; `spec/cabi.md` Section 1; `spec/python.md` Section 1; `spec/hosts.md`).
 //!
 //! Checks the project (any error: exit 1, nothing is built; under `--release` the release check, with
 //! `build_lock_missing` in place of the warning `project_lock_missing`), refuses a project without the target in
 //! `[interop] targets` (`build_target_not_enabled`, exit 1), reports the interop plan's
 //! `project_export_skipped_generic` infos, and runs `cpl_emit_c::package::build` (C) or `build_python` (Python, with
-//! the interpreter of `--python`, else `CPL_PYTHON`, else `python3`). An environment that cannot do what was asked (no
-//! or an unsupported compiler, target, sanitizer, or Python) exits 2; a failure of the project's own inputs exits 1.
+//! the interpreter of `--python`, else `CPL_PYTHON`, else `python3`). The source targets `rust`, `go`, and `java`
+//! (`kotlin` and `jvm` name `java`) write the host package of `cpl_emit_host` (`spec/hosts.md`) and compile nothing.
+//! An environment that cannot do what was asked (no or an unsupported compiler, target, sanitizer, or Python) exits
+//! 2; a failure of the project's own inputs exits 1.
 
 use super::Ctx;
 use crate::cli::BuildArgs;
@@ -42,6 +44,9 @@ pub fn run(ctx: &Ctx, args: &BuildArgs) -> Result<Report<BuildOutput>, Failure> 
     let target = match args.target.as_str() {
         "c" | "" => "c",
         "python" => "python",
+        "rust" => "rust",
+        "go" => "go",
+        "java" | "jvm" | "kotlin" => "java",
         "node" => {
             let d = codes::usage(
                 codes::USAGE_NOT_IMPLEMENTED,
@@ -52,8 +57,10 @@ pub fn run(ctx: &Ctx, args: &BuildArgs) -> Result<Report<BuildOutput>, Failure> 
         }
         other => {
             return Err(ctx.session.refuse(
-                codes::bad_argument(format!("--target {other}: the target is c or python"))
-                    .with_data("target", json!(other)),
+                codes::bad_argument(format!(
+                    "--target {other}: the target is c, python, rust, go, or java"
+                ))
+                .with_data("target", json!(other)),
             ))
         }
     };
@@ -61,6 +68,23 @@ pub fn run(ctx: &Ctx, args: &BuildArgs) -> Result<Report<BuildOutput>, Failure> 
         return Err(ctx.session.refuse(codes::bad_argument(
             "--artifact applies to --target c: the Python target builds its package and wheel",
         )));
+    }
+    let source = matches!(target, "rust" | "go" | "java");
+    if source {
+        let flag = if !args.artifact.is_empty() {
+            Some("--artifact")
+        } else if args.sanitize.as_deref().is_some_and(|s| !s.is_empty()) {
+            Some("--sanitize")
+        } else if args.lock {
+            Some("--lock")
+        } else {
+            None
+        };
+        if let Some(flag) = flag {
+            return Err(ctx.session.refuse(codes::bad_argument(format!(
+                "{flag} does not apply to --target {target}: the build writes the {target} package, which the host's own toolchain compiles"
+            ))));
+        }
     }
     let sanitize: Vec<Sanitizer> = match args.sanitize.as_deref() {
         None | Some("") => Vec::new(),
@@ -114,6 +138,7 @@ pub fn run(ctx: &Ctx, args: &BuildArgs) -> Result<Report<BuildOutput>, Failure> 
         diagnostics.push(d.clone());
     }
     if args.release
+        && !source
         && project.lock.as_ref().is_some_and(|l| {
             if target == "c" {
                 l.target_c().is_none()
@@ -143,7 +168,8 @@ pub fn run(ctx: &Ctx, args: &BuildArgs) -> Result<Report<BuildOutput>, Failure> 
         ));
     }
     let targets = &project.manifest.interop.targets;
-    if !targets.iter().any(|t| t == target) {
+    let enabled = |t: &String| t == target || (target == "java" && t == "kotlin");
+    if !targets.iter().any(enabled) {
         diagnostics.push(
             Diagnostic::error(
                 cpl_emit_c::codes::BUILD_TARGET_NOT_ENABLED,
@@ -174,6 +200,18 @@ pub fn run(ctx: &Ctx, args: &BuildArgs) -> Result<Report<BuildOutput>, Failure> 
         Some(o) => ctx.session.cwd.join(o),
         None => root.join(".cpl").join("build").join(target),
     };
+    if source {
+        return build_source(
+            target,
+            args,
+            project,
+            program,
+            &out_dir,
+            diagnostics,
+            revision,
+            sm,
+        );
+    }
     let artifacts: Vec<ArtifactKind> = if args.artifact.is_empty() {
         project
             .manifest
@@ -294,4 +332,154 @@ pub fn run(ctx: &Ctx, args: &BuildArgs) -> Result<Report<BuildOutput>, Failure> 
             Err(Failure::new(status, revision, &diagnostics, Some(sm)))
         }
     }
+}
+
+/// `--target rust|go|java`: the host package of `spec/hosts.md`, written under `out_dir`.
+#[allow(clippy::too_many_arguments)]
+fn build_source(
+    target: &str,
+    args: &BuildArgs,
+    project: &cpl_project::Project,
+    program: &cpl_hir::Program,
+    out_dir: &std::path::Path,
+    mut diagnostics: Vec<Diagnostic>,
+    revision: Option<cpl_diag::json::Revision>,
+    sm: std::sync::Arc<cpl_diag::SourceMap>,
+) -> Result<Report<BuildOutput>, Failure> {
+    use cpl_diag::json::{
+        BuildArtifact, BuildExport, BuildLock, CompilerInfo, Digest, RuntimeInfo,
+    };
+    let started = std::time::Instant::now();
+    let host = cpl_emit_host::Target::parse(target).expect("a source target");
+    let name = project.manifest.project.name.clone();
+    let package = match cpl_emit_host::emit(
+        program,
+        host,
+        &cpl_emit_host::Options {
+            name: name.clone(),
+            driver: false,
+        },
+    ) {
+        Ok(p) => p,
+        Err(e) => {
+            diagnostics.push(Diagnostic::error(
+                cpl_emit_c::codes::BUILD_TARGET_UNSUPPORTED,
+                Category::Build,
+                e,
+            ));
+            return Err(Failure::new(
+                Status::Unsuccessful,
+                revision,
+                &diagnostics,
+                Some(sm),
+            ));
+        }
+    };
+    if let Err(e) = package.write(out_dir) {
+        diagnostics.push(
+            Diagnostic::error(
+                cpl_emit_c::codes::BUILD_TARGET_UNSUPPORTED,
+                Category::Build,
+                format!(
+                    "cannot write the {target} package to {}: {e}",
+                    out_dir.display()
+                ),
+            )
+            .with_data("out_dir", json!(out_dir.display().to_string())),
+        );
+        return Err(Failure::new(
+            Status::Error,
+            revision,
+            &diagnostics,
+            Some(sm),
+        ));
+    }
+    let digest = |text: &str| Digest(blake3::hash(text.as_bytes()).to_hex()[..32].to_string());
+    let shown = |path: &std::path::Path| match &project.root {
+        Some(root) => path
+            .strip_prefix(root)
+            .map(|p| p.display().to_string())
+            .unwrap_or_else(|_| path.display().to_string()),
+        None => path.display().to_string(),
+    };
+    let artifacts: Vec<BuildArtifact> = package
+        .files
+        .iter()
+        .map(|(path, text)| BuildArtifact {
+            kind: "source".into(),
+            path: shown(&out_dir.join(path)),
+            digest: digest(text),
+        })
+        .collect();
+    let exports: Vec<BuildExport> = package
+        .exports
+        .iter()
+        .filter_map(|f| {
+            let d = program.defs().find(|d| program.display_path(d.id) == *f)?;
+            Some(BuildExport {
+                symbol: f.clone(),
+                function: f.clone(),
+                id: d.stable_id.clone(),
+                signature: digest(&program.display_ty(&cpl_hir::Ty::Error)),
+                int: "bigint".into(),
+                effects: Vec::new(),
+            })
+        })
+        .collect();
+    let all: String = package.files.values().map(String::as_str).collect();
+    let output = BuildOutput {
+        target: target.to_string(),
+        release: args.release,
+        profile: "source".into(),
+        sanitize: Vec::new(),
+        out_dir: shown(out_dir),
+        compiler: CompilerInfo {
+            path: String::new(),
+            family: "cpl-emit-host".into(),
+            version: env!("CARGO_PKG_VERSION").into(),
+            target: target.to_string(),
+            digest: digest(""),
+        },
+        runtime: RuntimeInfo {
+            version: env!("CARGO_PKG_VERSION").into(),
+            api: String::new(),
+            source: "embedded".into(),
+            digest: digest(target),
+        },
+        program_digest: digest(&all),
+        exports_digest: digest(&package.exports.join("\n")),
+        exports,
+        bindings: Vec::new(),
+        artifacts,
+        inputs: Vec::new(),
+        holes: 0,
+        lock: BuildLock::default(),
+        cached: false,
+        duration_ms: started.elapsed().as_millis() as u64,
+        python: None,
+    };
+    let next = match target {
+        "rust" => format!(
+            "add it to a Cargo.toml as {name} = {{ path = \"{}\" }}",
+            output.out_dir
+        ),
+        "go" => format!(
+            "require {name} with replace {name} => {} in a go.mod",
+            output.out_dir
+        ),
+        _ => format!(
+            "compile {}/src with javac 17 or later (Kotlin calls it as Java)",
+            output.out_dir
+        ),
+    };
+    let stdout = format!(
+        "build: {name} ({target} source): {} exports, {} files in {}; {next}\n",
+        output.exports.len(),
+        output.artifacts.len(),
+        output.out_dir
+    );
+    let json = diagnostics.iter().map(|d| d.to_json(&sm)).collect();
+    Ok(Report::new("build", revision, Status::Ok, json, output)
+        .with_stdout(stdout)
+        .with_sources(sm))
 }

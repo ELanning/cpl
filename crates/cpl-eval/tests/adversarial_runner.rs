@@ -2973,11 +2973,20 @@ fn the_time_budget_does_not_cover_the_range_setup() {
     // [the toolchain] defines one". The ranges are evaluated once per
     // property before case 0 (stdlib 8.2), which is none of the three, so a
     // slow but finite bound is not cut off; every case body is instant.
-    let (p, prop) = slow_bound_property(300_000);
-    let start = std::time::Instant::now();
-    let unbudgeted = run_test(&p, prop, &TestConfig { cases: 3, ..cfg(1) });
-    let setup = start.elapsed();
-    assert_eq!(unbudgeted.status, TestStatus::Tested, "{unbudgeted:?}");
+    // The bound's loop grows until its setup takes long enough to matter,
+    // whatever the build's speed (a release build is several times faster).
+    let mut n = 300_000;
+    let (p, prop, setup) = loop {
+        let (p, prop) = slow_bound_property(n);
+        let start = std::time::Instant::now();
+        let unbudgeted = run_test(&p, prop, &TestConfig { cases: 3, ..cfg(1) });
+        let setup = start.elapsed();
+        assert_eq!(unbudgeted.status, TestStatus::Tested, "{unbudgeted:?}");
+        if setup >= Duration::from_millis(40) || n >= 64_000_000 {
+            break (p, prop, setup);
+        }
+        n *= 2;
+    };
     assert!(
         setup >= Duration::from_millis(40),
         "the bound is too fast to matter: {setup:?}"

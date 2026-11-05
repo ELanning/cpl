@@ -1,0 +1,8 @@
+subtotal: 2119
+total: 2467 ($24.67)
+log: charged $24.67 for 2 lines
+parse_quantity(" 12 "): Ok(12)
+parse_quantity("0"): Err(ConstraintError { type_name: "shop.pricing.Quantity", message: "0 does not satisfy self > 0" })
+factorial(25): 15511210043330985984000000
+line_total(unit_price -1): refinement_violation
+dollars(-5): contract_violation requires

@@ -1,0 +1,131 @@
+module shop.pricing
+
+use std.text.{trim, parse_int}
+
+/// An amount of money in cents.
+pub type Cents = Int where self >= 0
+
+/// A percentage from 0 to 100.
+pub type Percent = Int where self >= 0 and self <= 100
+
+/// A quantity: at least one.
+pub type Quantity = Int where self > 0
+
+/// One line of an order.
+pub struct Line {
+    sku: Text
+    unit_price: Cents
+    quantity: Int
+}
+    where self.quantity > 0
+
+/// How a line is discounted.
+pub enum Discount {
+    NoDiscount
+    PercentOff(Percent)
+    BuyNGetOneFree(Int)
+}
+
+/// A line and its discount.
+pub struct Entry {
+    line: Line
+    discount: Discount
+}
+
+/// The tax rates of the place of sale: the host implements it.
+pub interface TaxTable {
+    fn rate_for(sku: Text) -> Percent
+}
+
+/// Where a checkout records what it charged: the host implements it.
+pub interface AuditLog {
+    fn record(message: Text) -> Unit
+}
+
+/// The total of one line after its discount.
+pub pure fn line_total(line: Line, discount: Discount) -> Int
+    ensures result >= 0
+    ensures result <= line.unit_price * line.quantity
+{
+    let gross = line.unit_price * line.quantity
+    match discount {
+        NoDiscount => gross
+        PercentOff(p) => gross - gross * p / 100
+        BuyNGetOneFree(n) => if n <= 0 {
+            gross
+        } else {
+            gross - line.quantity / (n + 1) * line.unit_price
+        }
+    }
+}
+
+/// The subtotal of an order: every line at its discount.
+pub pure fn subtotal(entries: List<Entry>) -> Int
+    ensures result >= 0
+    decreases entries.len
+{
+    match entries.first() {
+        None => 0
+        Some(e) => line_total(e.line, e.discount) + subtotal(entries.drop(1))
+    }
+}
+
+/// The order total with tax, at the rates of the host's table.
+pub mutate fn total_with_tax(entries: List<Entry>, using taxes: TaxTable) -> Int
+    effects { taxes.rate_for }
+{
+    var total = 0
+    var rest = entries
+    while not rest.is_empty()
+        decreases rest.len
+    {
+        match rest.first() {
+            None => {}
+            Some(e) => {
+                let net = line_total(e.line, e.discount)
+                total = total + net + net * taxes.rate_for(e.line.sku) / 100
+            }
+        }
+        rest = rest.drop(1)
+    }
+    total
+}
+
+/// Charge an order: its total with tax, recorded in the host's log.
+pub mutate fn checkout(entries: List<Entry>, using taxes: TaxTable, using log: AuditLog) -> Int
+    effects { taxes.rate_for, log.record }
+{
+    let total = total_with_tax(entries, using taxes)
+    log.record("charged " ++ dollars(total) ++ " for " ++ entries.len.to_text() ++ " lines")
+    total
+}
+
+/// An amount in dollars: "$12.05".
+pub pure fn dollars(cents: Int) -> Text
+    requires cents >= 0
+{
+    let rest = cents % 100
+    "$" ++ (cents / 100).to_text() ++ "." ++ (if rest < 10 {
+        "0"
+    } else {
+        ""
+    }) ++ rest.to_text()
+}
+
+/// A quantity from text such as " 12 ".
+pub pure fn parse_quantity(text: Text) -> Result<Quantity, ConstraintError> {
+    let n = parse_int(trim(text))?
+    check<Quantity>(n)
+}
+
+/// n!, which leaves 64 bits behind at 21.
+pub pure fn factorial(n: Int) -> Int
+    requires n >= 0
+    decreases n
+{
+    if n == 0 {
+        1
+    } else {
+        n * factorial(n - 1)
+    }
+}

@@ -1,0 +1,6 @@
+[project]
+name = "pricing"
+edition = "0.1"
+
+[interop]
+targets = ["rust", "go", "java", "kotlin"]

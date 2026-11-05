@@ -22,8 +22,12 @@ use std::ops::Range;
 use toml::de::{DeTable, DeValue};
 use toml::Spanned;
 
-/// The backends of `[interop] targets` and `[bindings.*] backend`.
+/// The backends of `[bindings.*] backend`.
 const BACKENDS: [&str; 3] = ["python", "node", "c"];
+
+/// The targets of `[interop] targets`: the backends, and the source-level hosts of
+/// `spec/hosts.md` (`kotlin` is `java`: Kotlin uses the Java sources).
+const TARGETS: [&str; 7] = ["python", "node", "c", "rust", "go", "java", "kotlin"];
 /// The values of `[bindings.*] isolation`.
 const ISOLATIONS: [&str; 2] = ["worker", "in_process"];
 /// The tables of edition 0.1; any other top-level key is unknown (T35).
@@ -963,11 +967,11 @@ impl Parser<'_> {
             .strings(table, "targets", "interop.targets")?
             .unwrap_or_default()
         {
-            if !BACKENDS.contains(&target.as_str()) {
+            if !TARGETS.contains(&target.as_str()) {
                 return Err(self.invalid(
                     format!(
                         "`interop.targets` entries must be {}, found {target:?}",
-                        one_of(BACKENDS)
+                        one_of(TARGETS)
                     ),
                     Some(&at),
                 ));

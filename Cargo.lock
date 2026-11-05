@@ -187,6 +187,7 @@ dependencies = [
  "cpl-cabi",
  "cpl-diag",
  "cpl-emit-c",
+ "cpl-emit-host",
  "cpl-eval",
  "cpl-evolve",
  "cpl-hir",
@@ -227,6 +228,21 @@ dependencies = [
  "cpl-syntax",
  "num-bigint",
  "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "cpl-emit-host"
+version = "0.1.0"
+dependencies = [
+ "cpl-diag",
+ "cpl-eval",
+ "cpl-hir",
+ "cpl-project",
+ "cpl-sema",
+ "cpl-syntax",
+ "num-bigint",
+ "num-traits",
  "serde_json",
 ]
 

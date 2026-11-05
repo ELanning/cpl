@@ -428,7 +428,7 @@ fn values_outside_their_domain_are_manifest_invalid() {
     let e = fails(&with("[interop]\ntargets = [\"python\", \"ruby\"]\n"));
     assert_eq!(
         e.message,
-        "`interop.targets` entries must be \"python\", \"node\", or \"c\", found \"ruby\""
+        "`interop.targets` entries must be \"python\", \"node\", \"c\", \"rust\", \"go\", \"java\", or \"kotlin\", found \"ruby\""
     );
 
     let e = fails(&with("[verification]\nadmit = [\"not an id\"]\n"));

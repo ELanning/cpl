@@ -1,0 +1,24 @@
+[package]
+name = "cpl-emit-host"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+# Source-level host backends (spec/hosts.md): CPL compiled to Rust, Go, and Java source, so that a
+# host program calls CPL functions as its own functions and implements capabilities as its own
+# traits and interfaces, with no foreign-function boundary. It reads the typed HIR alone.
+[dependencies]
+cpl-diag.workspace = true
+cpl-hir.workspace = true
+cpl-syntax.workspace = true
+num-bigint.workspace = true
+num-traits.workspace = true
+
+[dev-dependencies]
+cpl-eval.workspace = true
+cpl-project.workspace = true
+cpl-sema.workspace = true
+serde_json.workspace = true

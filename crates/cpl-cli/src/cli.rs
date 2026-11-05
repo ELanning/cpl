@@ -84,11 +84,11 @@ pub enum Command {
     Build(BuildArgs),
 }
 
-/// `cpl build [--target c|python] [--release] [--profile optimized|debug] [--sanitize LIST] [--artifact KIND]...
-/// [--out DIR] [--lock] [--cc PATH] [--python PATH] [--jobs N] [--json]`
+/// `cpl build [--target c|python|rust|go|java] [--release] [--profile optimized|debug] [--sanitize LIST]
+/// [--artifact KIND]... [--out DIR] [--lock] [--cc PATH] [--python PATH] [--jobs N] [--json]`
 #[derive(Args, Debug, Default, Clone)]
 pub struct BuildArgs {
-    /// The target: c or python (Milestone 3); node is Milestone 4
+    /// The target: c, python, or the source of rust, go, or java (kotlin uses java); node is Milestone 4
     #[arg(long, value_name = "TARGET", default_value = "c")]
     pub target: String,
     /// Apply the release policy (holes, verification, the lock)

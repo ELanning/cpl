@@ -480,6 +480,25 @@ static int int_small_result(cplrt_runtime *rt, int64_t r, cplrt_w *out)
     return CPLRT(int_from_i64)(rt, r, out);
 }
 
+/* The slow path of cplrt_add_w .. cplrt_rem_w (cpl_rt.h): the result word, or 0 with the fault raised. */
+cplrt_w cplrt_arith_slow(cplrt_cx *cx, uint32_t site, int op, cplrt_w a, cplrt_w b)
+{
+    cplrt_w out = 0;
+    int st;
+    switch (op) {
+    case 0: st = cplrt_int_add(cx, site, a, b, &out); break;
+    case 1: st = cplrt_int_sub(cx, site, a, b, &out); break;
+    case 2: st = cplrt_int_mul(cx, site, a, b, &out); break;
+    case 3: st = cplrt_int_div(cx, site, a, b, &out); break;
+    default: st = cplrt_int_rem(cx, site, a, b, &out); break;
+    }
+    if (st != CPLRT_OK) {
+        cplrt_release(out);
+        return 0;
+    }
+    return out;
+}
+
 /* mirrors cpl_eval::arith::binary (BinOp::Add) */
 int cplrt_int_add(cplrt_cx *cx, uint32_t site, cplrt_w a, cplrt_w b, cplrt_w *out)
 {

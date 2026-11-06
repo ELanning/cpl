@@ -352,10 +352,11 @@ public final class List<T> implements java.lang.Iterable<T>, Value {
         return new List<>(items.clone(), 0, items.length, null);
     }
 
-    /** A list literal of the program: it keeps the argument array. */
+    /** A list literal of the program. It copies its arguments like {@link #of}: a host that passes
+     *  an array it keeps must not be able to change a list CPL holds by changing the array. */
     @SafeVarargs
     public static <T> List<T> lit(T... items) {
-        return new List<>(items, 0, items.length, null);
+        return new List<>(items.clone(), 0, items.length, null);
     }
 
     public static <T> List<T> copyOf(java.util.Collection<? extends T> items) {
@@ -795,6 +796,12 @@ public final class Fault extends java.lang.RuntimeException {
     /** The fault of an argument that does not satisfy its type (S39). */
     public static Fault refinement(java.lang.String expected, java.lang.String symbol) {
         return new Fault("refinement_violation", null, "", symbol, "the value does not satisfy " + expected);
+    }
+
+    /** The fault of an argument that holds null, read where CPL has a value: CPL has no null, so
+     *  generated code reads one only when a host passed it (the argument is outside its type). */
+    public static Fault nullValue() {
+        return new Fault("refinement_violation", null, "", "", "an argument holds null, which is no CPL value");
     }
 
     /** The fault of a call that exhausted the native stack. */

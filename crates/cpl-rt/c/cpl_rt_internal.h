@@ -153,6 +153,12 @@ struct cplrt_runtime {                   /* declared in cpl_rt.h; what <prefix>_
                                             CPL_PYTHON, else python3; guarded by lock */
     char **worker_env;                   /* "KEY=VALUE" entries set in every Python worker's environment */
     uint32_t nworker_env;
+    /* the small-object cache of cpl_rt_value.c: one thread at a time owns it, for its outermost evaluation of this
+       runtime; only the owner reads or writes the members after cache_owner */
+    _Atomic uintptr_t cache_owner;       /* (uintptr_t)pthread_self() of the owner; 0: none */
+    uint32_t cache_depth;                /* the owner's evaluations in progress */
+    uint32_t cache_n[4];
+    cplrt_obj *cache_head[4];            /* the cached blocks of each 16-byte size class, linked through u.next */
 };
 
 /* ---- a growable text buffer, the target of every writer --------------------------------------------------------- */
@@ -226,6 +232,9 @@ int CPLRT(bytes_make)(cplrt_runtime *rt, const uint8_t *data, size_t len, cplrt_
    forms, nothing above U+10FFFF), then *scalars its scalar count; 0 otherwise, then *valid_up_to the offset of the
    first invalid sequence (Utf8Error::valid_up_to). Either output may be NULL. */
 int CPLRT(utf8_valid)(const char *s, size_t len, size_t *valid_up_to, size_t *scalars);
+/* The length of s cut back to its last whole UTF-8 sequence: a string truncated at a byte count (snprintf into a
+   fixed buffer) may end inside one. NUL-terminates s at the new length. */
+size_t CPLRT(utf8_clip)(char *s, size_t len);
 
 /* Int (2.5): conversions with machine integers and words, the one decimal reader, the canonical decimal writer. */
 int CPLRT(int_from_i64)(cplrt_runtime *rt, int64_t v, cplrt_w *out);                 /* CPLRT_OK or CPLRT_NOMEM */
@@ -358,6 +367,9 @@ void CPLRT(sbuf_hex)(cplrt_sbuf *b, const uint8_t *data, size_t len);
 int CPLRT(cx_begin)(cplrt_cx *cx, cplrt_runtime *rt, cplrt_memory_record *memory, uint32_t max_call_depth,
                     int check_contracts, uint64_t budget_ms, uint64_t stack_bytes, const _Atomic uint32_t *cancel);
 void CPLRT(cx_end)(cplrt_cx *cx);
+/* The small-object cache of cpl_rt_value.c, entered by cx_begin and left by cx_end. */
+void CPLRT(value_cache_enter)(cplrt_runtime *rt);
+void CPLRT(value_cache_leave)(cplrt_runtime *rt);
 
 /* Raising (3.3.1). CPLRT(fault_raise) makes a new record cx->fault (which is NULL then) of kind, clause_kind, and
    resource, with the message (copied), the span site (CPLRT_NONE: none), and the static symbol and qualified_name
@@ -408,6 +420,10 @@ typedef struct cplrt_shape_failure {     /* the first position whose value is no
    in declaration order, list elements by index, payloads by position): 1 when w is of the type; else 0 with *failure
    written (its pointer initialized by the callee with rt). CPLRT_NOMEM is reported through failure->pointer.status. */
 int CPLRT(shape_check)(cplrt_runtime *rt, uint32_t type, cplrt_w w, cplrt_shape_failure *failure);
+/* n values against expected declared types (a type id of 0, a type parameter, admits any value): CPLRT_OK when there
+   are as many as types and each is of its type; CPLRT_INVALID when not; CPLRT_NOMEM. A request from another process
+   (the driver's, a worker's) is checked so before any code reads it. */
+int CPLRT(values_typed)(cplrt_runtime *rt, const uint32_t *types, uint32_t expected, const cplrt_w *v, uint32_t n);
 typedef struct cplrt_refined_failure {   /* the first refined position whose chain does not hold */
     uint32_t refinement;                 /* CPL_R of the first false predicate's refinement, root first; CPLRT_NONE: all hold */
     uint32_t declared;                   /* CPL_R of the refinement named at the position: its declared_name is the

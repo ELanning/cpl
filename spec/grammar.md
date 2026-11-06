@@ -256,7 +256,25 @@ code on the same line is a lexical error (`doc comment must begin a line`).
 A comment of either form runs to the end of its line, which only LF or
 CRLF ends (1.1): a lone CR inside a comment does not end it and is still
 the lexical error `invalid_line_terminator`, so the rest of the line never
-becomes tokens.
+becomes tokens. A comment of either form may not contain a control
+character (U+0000-U+001F other than tab and CR, and U+007F: `control
+character in comment`) or a bidirectional formatting character
+(U+202A-U+202E and U+2066-U+2069: `bidirectional formatting character in
+comment`), D75; each is reported at the character, and the comment still
+ends at the end of its line.
+
+Decision: [D-343] D75. control characters and the bidirectional
+embedding, override, and isolate characters are rejected in comments, and
+the bidirectional ones in text literals too, where `\u{202E}` still writes
+one. Rationale: each makes the source display differently from what it is:
+an override inside a comment or a literal reorders the code after it on
+the screen of every reviewer (CVE-2021-42574, "Trojan Source"), and
+comments, doc comments above all, are copied into generated Rust, Go,
+Java, C, and Python, where a raw control character can end a comment or
+corrupt the file. A program never needs either raw, and the escape keeps
+every value writable. Rejected alternative: a warning (a review sees the
+displayed text, not the warning), and rejecting them only in doc comments
+(an ordinary comment reorders the display as well).
 
 Decision: [D-003] D60. a comment beginning with four or more slashes (`////`) is an
 ordinary comment, not documentation. Rationale: the design says
@@ -436,7 +454,7 @@ literal      = INT | TEXT | bool_literal
 | Literal | Rules |
 | - | - |
 | `INT` | Decimal only. `_` may appear only between two digits (`1_000_000`; not `_1`, `1_`, `1__0`). The literal `0` is the only one that may begin with `0` (`007` is a lexical error: `leading zeros are not permitted`). No sign: `-5` is unary minus applied to `5` (Section 5 (j)). The token carries the digit string; Int is arbitrary precision so there is no range check. |
-| `TEXT` | Delimited by `"`. May contain any Unicode scalar value except `"`, `\`, and the control characters listed in D62; a raw line terminator inside a literal is a lexical error (`unterminated text literal`), any other excluded control character is `control character in text literal`. Exactly six escapes: `\\`, `\"`, `\n`, `\r`, `\t`, and `\u{H}` with one to six hex digits denoting a Unicode scalar value (the grammar's `hex_digit+` is bounded to six: a seventh digit is the lexical error `unicode escape has more than six hex digits`; surrogates `D800`-`DFFF` and values above `10FFFF` are lexical errors). Any other character after `\` is a lexical error. The token carries the decoded string. |
+| `TEXT` | Delimited by `"`. May contain any Unicode scalar value except `"`, `\`, and the control characters listed in D62; a raw line terminator inside a literal is a lexical error (`unterminated text literal`), any other excluded control character is `control character in text literal`, and a raw bidirectional formatting character (U+202A-U+202E, U+2066-U+2069) is `bidirectional formatting character in text literal` (D75). Exactly six escapes: `\\`, `\"`, `\n`, `\r`, `\t`, and `\u{H}` with one to six hex digits denoting a Unicode scalar value (the grammar's `hex_digit+` is bounded to six: a seventh digit is the lexical error `unicode escape has more than six hex digits`; surrogates `D800`-`DFFF` and values above `10FFFF` are lexical errors). Any other character after `\` is a lexical error. The token carries the decoded string. |
 | `Bool` | the keywords `true` and `false` |
 | Float | None in 0.1. After an `INT` the lexer reports `floating-point literals are not supported in edition 0.1` if a `.` followed by a digit follows, and `a literal must be separated from an identifier` if an identifier character follows (`1e5`, `2x`). |
 | Bytes | None in 0.1. |
@@ -2289,3 +2307,4 @@ and typing see through.
 | D72 | a quoted message is the fixed beginning of the emitted message (placeholders filled, then an optional parenthesised hint and `, found <token>`); unquoted syntax errors are `expected <description>, found <token>`; generic messages carry `expected` and `found` |
 | D73 | minimum implementation limits: 64 levels of nesting and 1000 operators along a path of nested expressions, both `syntax_error` beyond the implementation's limits |
 | D74 | tests and properties may declare `using` parameters in parentheses after the name and an `effects` clause (Milestone 3) |
+| D75 | control and bidirectional formatting characters are rejected in comments; bidirectional ones also raw in text literals |

@@ -63,6 +63,98 @@ pub(crate) fn check_containment(cx: &mut Checker<'_>) {
     }
 }
 
+/// Report `polymorphic_recursion` on every struct or enum declaration that refers to its own
+/// recursive group (through any type, `List`, `Option`, and `Result` included) with a type
+/// argument that holds one of its type parameters inside a constructor (`S<List<T>>`,
+/// `Pair<T, T>` as an argument): its instantiations then grow without end (`S<Int>`,
+/// `S<List<Int>>`, ...), and every compiled target needs them all. A bare type parameter
+/// (`S<T>`, a permutation `S<U, T>`) or a closed type (`S<Int>`) as an argument keeps them finite.
+pub(crate) fn check_regular_recursion(cx: &mut Checker<'_>) {
+    let program = &cx.program;
+    let nodes: Vec<DefId> = program
+        .defs()
+        .filter(|d| matches!(d.kind, DefKind::Struct(_) | DefKind::Enum(_)))
+        .map(|d| d.id)
+        .collect();
+    // A -> B for every mention of B in the types of A
+    let mut edges: BTreeMap<DefId, BTreeSet<DefId>> = BTreeMap::new();
+    for &n in &nodes {
+        let mut out = BTreeSet::new();
+        for ty in contained_types(program, n) {
+            mentions(&ty, &mut |d, _| {
+                out.insert(d);
+            });
+        }
+        edges.insert(n, out);
+    }
+    let mut found: Vec<(DefId, String)> = Vec::new();
+    for scc in tarjan(&nodes, &edges) {
+        if scc.len() == 1 && !edges[&scc[0]].contains(&scc[0]) {
+            continue;
+        }
+        let group: BTreeSet<DefId> = scc.iter().copied().collect();
+        for &n in &scc {
+            // a declaration already on a containment cycle (`A<A<T>>`) has its error
+            if program.def(n).status == cpl_hir::DefStatus::HasErrors {
+                continue;
+            }
+            let mut bad: Option<Ty> = None;
+            for ty in contained_types(program, n) {
+                mentions(&ty, &mut |d, args| {
+                    let grows = |a: &Ty| !matches!(a, Ty::Param(_)) && has_param(a);
+                    if bad.is_none() && group.contains(&d) && args.iter().any(grows) {
+                        bad = Some(Ty::Adt(d, args.to_vec()));
+                    }
+                });
+            }
+            if let Some(t) = bad {
+                let generics: Vec<String> = match &program.def(n).kind {
+                    DefKind::Struct(s) => s.generics.clone(),
+                    DefKind::Enum(e) => e.generics.clone(),
+                    _ => Vec::new(),
+                };
+                found.push((n, program.display_ty_in(&t, &generics)));
+            }
+        }
+    }
+    for (n, t) in found {
+        let name = cx.program.def(n).name.display();
+        let d = diag(
+            codes::POLYMORPHIC_RECURSION,
+            Some(cx.decls[n.0 as usize].name_span),
+            format!("`{name}` refers to its own recursive declarations as `{t}`, whose type arguments grow at every level, so it has no finite set of instantiations to compile"),
+        )
+        .with_data("type", json!(name))
+        .with_data("reference", json!(t));
+        cx.emit(Stage::Resolve, d);
+        cx.fail(n);
+    }
+}
+
+/// Every declaration a type mentions, with its type arguments, outermost first.
+fn mentions(ty: &Ty, f: &mut dyn FnMut(DefId, &[Ty])) {
+    match ty {
+        Ty::Adt(d, args) => {
+            f(*d, args);
+            for a in args {
+                mentions(a, f);
+            }
+        }
+        Ty::List(t) | Ty::Gen(t) => mentions(t, f),
+        _ => {}
+    }
+}
+
+/// Whether a type holds a type parameter.
+fn has_param(ty: &Ty) -> bool {
+    match ty {
+        Ty::Param(_) => true,
+        Ty::Adt(_, args) => args.iter().any(has_param),
+        Ty::List(t) | Ty::Gen(t) => has_param(t),
+        _ => false,
+    }
+}
+
 /// The field, payload, or wrapper-payload types of a declaration.
 fn contained_types(program: &Program, def: DefId) -> Vec<Ty> {
     match &program.def(def).kind {

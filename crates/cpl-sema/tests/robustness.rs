@@ -19,7 +19,12 @@ fn polymorphic_recursion_terminates() {
     let got = codes_of(
         "module m.p\n\npub struct A<T> {\n    a: A<A<T>>\n}\n\npub struct B<T> {\n    c: C<T>\n}\n\npub struct C<T> {\n    b: B<List<T>>\n}\n\npub struct D<T> {\n    d: List<D<D<T>>>\n}\n",
     );
-    assert_eq!(got, ["infinite_type", "infinite_type", "infinite_type"]);
+    // A, and the B/C pair, contain themselves; D's `List` breaks containment, but its argument
+    // grows (D<D<T>>), so it has no finite set of instantiations (S7)
+    assert_eq!(
+        got,
+        ["infinite_type", "infinite_type", "infinite_type", "polymorphic_recursion"]
+    );
 }
 
 #[test]

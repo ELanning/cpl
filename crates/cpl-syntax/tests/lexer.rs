@@ -105,6 +105,31 @@ fn bad_escapes_are_lexical_errors() {
 }
 
 #[test]
+fn bidirectional_and_control_characters_are_refused_outside_escapes() {
+    // D75: Trojan Source: an override in a comment or a literal reorders the displayed line
+    for src in ["x // a \u{202e} b", "/// a \u{2066} b\nfn", "x // a \u{1} b", "x // \u{7f}"] {
+        assert_eq!(codes_of(src), vec![codes::INVALID_CHARACTER], "{src:?}");
+    }
+    assert_eq!(
+        messages_of("x // \u{202e}"),
+        vec!["bidirectional formatting character in comment"]
+    );
+    assert_eq!(
+        messages_of("x // \u{0}"),
+        vec!["control character in comment"]
+    );
+    assert!(messages_of("\"a\u{202e}b\"")[0]
+        .starts_with("bidirectional formatting character in text literal"));
+    // the escape still writes one, a tab in a comment is fine, and other non-ASCII text is too
+    assert!(codes_of("\"a\\u{202E}b\"").is_empty());
+    assert_eq!(tokens("\"a\\u{202E}b\"")[0].text, "a\u{202e}b");
+    assert!(codes_of("x // a\tb \u{e9} \u{200f}").is_empty());
+    // the literal still lexes as one token, without the character
+    let (t, _) = lex("\"a\u{202e}b\"", FileId(0));
+    assert_eq!(t[0].text, "ab");
+}
+
+#[test]
 fn unterminated_and_control_characters_in_text() {
     assert_eq!(codes_of("\"abc\nx"), vec![codes::UNTERMINATED_TEXT_LITERAL]);
     assert_eq!(codes_of("\"abc"), vec![codes::UNTERMINATED_TEXT_LITERAL]);

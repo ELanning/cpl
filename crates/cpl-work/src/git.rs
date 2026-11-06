@@ -145,6 +145,8 @@ where
         .map(|a| a.as_ref().to_os_string())
         .collect();
     let output = Command::new("git")
+        // a repository's own config may not run a program on a read (`core.fsmonitor`)
+        .args(["-c", "core.fsmonitor=false"])
         .arg("-C")
         .arg(dir)
         .args(&args)

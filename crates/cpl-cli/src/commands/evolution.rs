@@ -60,7 +60,7 @@ fn literal(ctx: &Ctx, text: &str) -> Result<Value, Failure> {
     })
 }
 fn report(ctx: &Ctx, command: &str, value: Value, ok: bool) -> Result<Report<Value>, Failure> {
-    let stdout = format!("{}\n", serde_json::to_string_pretty(&value).unwrap());
+    let stdout = format!("{}\n", crate::output::pretty(&value));
     Ok(Report::new(
         command,
         ctx.session.revision(),

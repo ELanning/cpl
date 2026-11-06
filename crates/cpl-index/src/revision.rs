@@ -68,6 +68,8 @@ pub enum GitError {
 fn run_git(dir: &Path, args: &[&str], input: Option<Vec<u8>>) -> Result<Output, GitError> {
     let mut command = Command::new("git");
     command
+        // a repository's own config may not run a program on a read (`core.fsmonitor`)
+        .args(["-c", "core.fsmonitor=false"])
         .arg("-C")
         .arg(dir)
         .args(args)

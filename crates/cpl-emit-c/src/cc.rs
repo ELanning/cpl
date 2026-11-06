@@ -251,13 +251,9 @@ impl Compiler {
     /// Whether a one-line program compiles and links with these sanitizers' flags (toolchain 12.8's skip policy, and
     /// `build_sanitizer_unavailable`).
     pub fn supports(&self, sanitizers: &[Sanitizer]) -> bool {
-        static PROBES: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
-        let n = PROBES.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-        let dir =
-            std::env::temp_dir().join(format!("cpl-sanitizer-probe-{}-{n}", std::process::id()));
-        if std::fs::create_dir_all(&dir).is_err() {
+        let Ok(dir) = cpl_diag::fsutil::private_temp_dir("cpl-sanitizer-probe") else {
             return false;
-        }
+        };
         let src = dir.join("probe.c");
         let out = dir.join("probe");
         let ok = std::fs::write(&src, "int main(void) { return 0; }\n").is_ok()

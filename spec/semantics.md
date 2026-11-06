@@ -419,7 +419,7 @@ data nor a capability); requiring `use std.gen` in test modules
 | `fn` without a body, `type` without a definition (grammar 3.9 and 3.5, the bodiless and definition-less forms) | permitted only in the standard library's stub files, and there only with `@builtin` (`spec/stdlib.md` 10.2); anywhere else the declaration is a check error, not a syntax error, and the rest of the file is checked normally | `missing_body` |
 | `type W(P)` | `P` is a value type (Section 3.2); `W` is not generic; `W` is a node of the S7 graph | `not_a_value_type`, `infinite_type` |
 | `type R = B where p` | `B` is a value type (it may itself be a refinement); the chain of bases must be acyclic (`type A = B where p` whose base chain reaches `A`; every declaration of the cycle is reported, S66); `p : Bool` with `self : B` in scope; `p` is a contract expression (Section 5.1) | `not_a_value_type`, `type_mismatch`, `cyclic_type_definition`, contract diagnostics |
-| `struct`, `enum` | field / payload types are value types; every type parameter is used by at least one field or payload; no cycle in the containment graph of S7 | `not_a_value_type`, `unused_type_parameter`, `infinite_type` |
+| `struct`, `enum` | field / payload types are value types; every type parameter is used by at least one field or payload; no cycle in the containment graph of S7; no reference to its own recursive group with a growing type argument (S7) | `not_a_value_type`, `unused_type_parameter`, `infinite_type`, `polymorphic_recursion` |
 | `capability` | operation parameter and return types are value types (an operation cannot take or return a capability) | `capability_in_value_position` (S13, S27; `not_a_value_type` for any other non-value type) |
 | `fn` | positional parameter types and the return type are value types; `using` parameter types are capability types; every type parameter is used (otherwise a warning); `decreases` only meaningful when the function is recursive (otherwise a warning) | `not_a_value_type`, `capability_in_value_position`, `using_param_not_capability`, `unused_type_parameter` (warning on `fn`), `unused_decreases` (warning) |
 | `test`, `property` | name non-empty; unique in the module's test namespace | `empty_test_name`, `duplicate_test_name` |
@@ -472,6 +472,23 @@ constructor application, or `check` could ever produce one, and every
 declaration of it is dead; the three prelude types are the places where a
 value can be absent or empty, which is what breaks the cycle. Rejected
 alternative: permitting the declarations and leaving them uninhabited.
+
+A struct or enum declaration that refers to its own recursive group (the
+declarations that reach one another through any type, `List`, `Option`,
+and `Result` included) with a type argument that holds a type parameter
+inside a constructor (`struct Nest<T> { next: Option<Nest<List<T>>> }`,
+`enum Grow<T> { More(List<Grow<Pair<T, T>>>) }`) is the error
+`polymorphic_recursion`, reported on that declaration with `type` and
+`reference` (the offending type). A bare type parameter (`Swap<B, A>`) or
+a closed type (`Tree<Int>`) as the argument is legal. A declaration already
+`infinite_type` is not reported again.
+Rationale: the values of such a type are finite, but the types are not:
+`Nest<Int>` holds a `Nest<List<Int>>`, which holds a
+`Nest<List<List<Int>>>`, and so on, and every compiled target (C, Rust, Go,
+Java) lays out or names each instantiation, so it has none to stop at,
+and a program of a few lines would make the compilers loop or exhaust
+memory. Rejected alternative: a depth bound on instantiation (the
+program's meaning would then depend on it).
 
 ## 2. Name resolution
 
@@ -1373,6 +1390,14 @@ is not checked for exhaustiveness (S62).
 Guards do not exist, so the analysis is exact. At runtime a match with no
 matching arm cannot occur after a successful check; if it does, the fault
 is `internal_error` (6.7).
+The search is exponential in the worst case (a `match` on a struct of `n`
+`Bool` fields whose arms keep every column complete branches two ways per
+column), so the two checks of one `match` together take at most 1,000,000
+steps (calls of `useful` and of the witness search); a `match` that needs
+more is the error `match_too_complex` on the `match` expression, with
+`budget`, and neither `non_exhaustive_match` nor `unreachable_arm` is
+reported for it. Splitting it into nested matches brings it under the
+budget: the bound is the implementation's, like D-239's.
 
 ### 3.14 Bodies
 
@@ -2954,7 +2979,7 @@ declaration as a whole spans the declaration's name token (the `TEXT` name
 of a test or property; the module path for `module_file_misplaced` and
 `reserved_module_path`): `duplicate_declaration`, `duplicate_identity`,
 `duplicate_test_name`, `missing_body`, `prelude_name_redefined`,
-`infinite_type`, `cyclic_type_definition`, `missing_decreases` on a
+`infinite_type`, `polymorphic_recursion`, `cyclic_type_definition`, `missing_decreases` on a
 function, `verification_result`, `verification_unsatisfied`,
 `cannot_run_generic`, `cannot_run_effectful`; a diagnostic about a part of
 a header spans that part: the type parameter (`unused_type_parameter`), the
@@ -2979,7 +3004,7 @@ import, `shadowed_binding` the shadowing binding, `assign_to_immutable` the
 whole assignment, `prelude_name_redefined` the redefinition. (5)
 `missing_decreases` on a loop spans the loop (from `while`),
 `unreachable_statement` the first unreachable statement, `unreachable_arm`
-the arm, `non_exhaustive_match` the `match` expression. (6) Span-less are
+the arm, `non_exhaustive_match` and `match_too_complex` the `match` expression. (6) Span-less are
 only the diagnostics with no source location: the `project_*` diagnostics
 of `spec/toolchain.md` Appendix B and `unsupported_edition` (the manifest
 and lock are not source files; the corpus harness treats a span in them as
@@ -3045,7 +3070,7 @@ failed file carries exactly one parse diagnostic, the earliest, D70, S52)
 | `invalid_utf8` | grammar 1.1; raised when the file's bytes are read, before lexing (D70); the file counts as failed | |
 | `invalid_line_terminator` | lone CR | |
 | `non_ascii_outside_text` | grammar 1.1 | `found` |
-| `invalid_character` | `;`, `!`, `&`, `\|`, other unexpected characters (grammar 1.6 messages); `control character in text literal` (D62) | `found` |
+| `invalid_character` | `;`, `!`, `&`, `\|`, other unexpected characters (grammar 1.6 messages); `control character in text literal` (D62); `control character in comment`, `bidirectional formatting character in comment`, `bidirectional formatting character in text literal` (D75) | `found` |
 | `unterminated_text_literal` | grammar 1.5 | |
 | `invalid_escape` | grammar 1.5: an unknown character after `\`, and a `\u{}` that is a surrogate, out of range, or has more than six hex digits | `found` |
 | `invalid_int_literal` | separators or leading zeros (grammar 1.5) | |
@@ -3095,6 +3120,7 @@ failed file carries exactly one parse diagnostic, the earliest, D70, S52)
 | `duplicate_variant`, `duplicate_operation`, `duplicate_parameter`, `duplicate_type_parameter` | 1.4 | `name` |
 | `unused_type_parameter` | 1.8 (error on `struct`/`enum`, W on `fn`) | `name` |
 | `cyclic_type_definition`, `infinite_type` | 1.8, S7, S66 (on every declaration of the cycle) | `type`, `notes` (the cycle) |
+| `polymorphic_recursion` | 1.8, S7 (on the declaration) | `type`, `reference` |
 | `cannot_run_effectful`, `cannot_run_generic` | S39, S78 | `symbol` |
 
 **type**
@@ -3114,6 +3140,7 @@ failed file carries exactly one parse diagnostic, the earliest, D70, S52)
 | `unknown_member`, `property_called`, `method_not_called` | 3.9, D43 | `name`, `type` |
 | `unused_value` | 3.11 | `type` |
 | `non_exhaustive_match` | 3.13 | `missing` (witness patterns), `type` (scrutinee) |
+| `match_too_complex` | 3.13 (on the `match` expression) | `budget` |
 | `unreachable_arm` (W) | 3.13 | |
 | `pattern_type_mismatch`, `pattern_arity_mismatch` | 3.12 | `expected`, `actual` (for a constructor pattern, the constructor's type name without arguments: `Option`) |
 | `propagate_not_result`, `propagate_return_mismatch`, `propagate_error_mismatch` | 3.8 | `expected` (`Result<T, E>` on the first two), `actual` |

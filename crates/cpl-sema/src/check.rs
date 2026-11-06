@@ -146,6 +146,7 @@ fn resolve(cx: &mut Checker<'_>) {
     refine::resolve_refinements(cx);
     sig::resolve_signatures(cx);
     wf::check_containment(cx);
+    wf::check_regular_recursion(cx);
     names::resolve_bodies(cx);
     check_bindings(cx);
 }

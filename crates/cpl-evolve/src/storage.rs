@@ -395,6 +395,10 @@ fn repository(root: &Path) -> Result<cpl_index::GitRepo, Diagnostic> {
         .ok_or_else(|| error("change_git", "publication requires a Git repository"))
 }
 fn rev(repo: &cpl_index::GitRepo, name: &str) -> Result<String, Diagnostic> {
+    // a name that begins with `-` would be read by git as an option
+    if name.is_empty() || name.starts_with('-') {
+        return Err(error("change_git", format!("`{name}` is not a revision")));
+    }
     let out = cpl_work::git(
         repo,
         &["rev-parse", "--verify", &format!("{name}^{{commit}}")],
@@ -418,6 +422,9 @@ fn commit(
 ) -> Result<String, Diagnostic> {
     let git =
         |args: &[&str]| cpl_work::git(repo, args).map_err(|e| error("change_git", e.to_string()));
+    if reference.starts_with('-') {
+        return Err(error("change_git", format!("`{reference}` is not a reference name")));
+    }
     git(&["check-ref-format", reference])?;
     let old = match git(&["rev-parse", "--verify", reference]) {
         Ok(out) => String::from_utf8_lossy(&out.stdout).trim().to_string(),
@@ -438,7 +445,9 @@ fn commit(
     };
     let index_git = |args: &[&str], input: Option<&[u8]>| -> Result<String, Diagnostic> {
         let mut cmd = Command::new("git");
-        cmd.arg("-C")
+        // a repository's own config may not run a program on a read (`core.fsmonitor`)
+        cmd.args(["-c", "core.fsmonitor=false"])
+            .arg("-C")
             .arg(&repo.toplevel)
             .args(args)
             .env("GIT_INDEX_FILE", &index_path)

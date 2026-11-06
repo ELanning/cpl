@@ -54,6 +54,8 @@ pub const WORK_UNKNOWN_TASK: DiagCode = DiagCode("work_unknown_task");
 pub const WORK_CYCLE: DiagCode = DiagCode("work_cycle");
 /// Unordered tasks write the same facet or add to the same namespace.
 pub const WORK_OVERLAPPING_WRITES: DiagCode = DiagCode("work_overlapping_writes");
+/// A change declares more than `reach::MAX_TASKS_PER_CHANGE` tasks.
+pub const WORK_TOO_MANY_TASKS: DiagCode = DiagCode("work_too_many_tasks");
 /// `require test(sel)` matches no test.
 pub const WORK_TEST_SELECTOR_EMPTY: DiagCode = DiagCode("work_test_selector_empty");
 /// `require prove(sel)` names a non-function.
@@ -114,6 +116,7 @@ pub const WORK_CODES: &[DiagCode] = &[
     WORK_UNKNOWN_TASK,
     WORK_CYCLE,
     WORK_OVERLAPPING_WRITES,
+    WORK_TOO_MANY_TASKS,
     WORK_TEST_SELECTOR_EMPTY,
     WORK_PROVE_NOT_FUNCTION,
     WORK_PRESERVE_WRITTEN,

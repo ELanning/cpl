@@ -280,6 +280,14 @@ units later without an ABI change).
   before any frame of the callee exists. `cplrt_enter_act` does the same
   for predicates, test bodies, and range bounds without the depth check
   and count (semantics S72).
+- The emitted code calls the inline `cplrt_fast_enter_fn`, which pushes the
+  frame without a call when every check passes trivially (depth below the
+  limit, the frame above the stack floor, no deadline, no cancellation or
+  failed parallel sibling) and is `cplrt_enter_fn` otherwise; likewise
+  `cplrt_fast_leave` (`cplrt_leave` on a fault) and
+  `cplrt_fast_header_measure` (a direct recursion's small, smaller,
+  nonnegative measure; `cplrt_header_measure` otherwise). The observable
+  behavior is the out-of-line functions'.
 - `cplrt_leave(cx, &fr, st)` pops the frame and, on a fault, appends
   `{def, site}` to the backtrace, which is the evaluator's `leaving`. A
   builtin pushes no frame; when its fault leaves it, the runtime sets the
@@ -579,16 +587,17 @@ evaluates them:
 | - | - |
 | `Lit` | an `Int` in the small range and a `Bool` are immediates (`cplrt_small(n)`, `CPLRT_TRUE`); every other literal is an immortal constant of the program unit (`CPL_K<n>`), borrowed |
 | `Local` | the slot, borrowed; `CPLRT_COPY` when stored |
-| `Ctor`, `Wrap`, `List`, `StructLit` | the payloads, the elements, or the spread base and then the fields in source order, each into a temporary (semantics 6.2); then `cplrt_enum_new`, `cplrt_wrap`, `cplrt_list_new`, or `cplrt_struct_new`, which retain the borrowed words they are given; a field the literal does not list is the base's `cplrt_field(base, i)`, borrowed; a payload-less variant (`None`, `Unavailable`, `Unit`) is the program's immortal static, which `cplrt_enum_new` returns for an empty payload |
+| `Ctor`, `Wrap`, `List`, `StructLit` | the payloads, the elements, or the spread base and then the fields in source order, each into a temporary (semantics 6.2); then `cplrt_enum_new`, `cplrt_wrap`, `cplrt_list_new`, or `cplrt_struct_new`, which retain the borrowed words they are given; a field the literal does not list is the base's `cplrt_field(base, i)`, borrowed; a payload-less variant (`None`, `Unavailable`, `Unit`) is the program's immortal static, which `cplrt_enum_new` returns for an empty payload; the optimized and debug profiles name it directly (`cplrt_word_of(&CPLPKG(s<def>_<variant>))`, defined in the tables unit and declared `extern` in the program unit), so building one is a constant |
 | `Field` | `cplrt_field(v, i)`, borrowed; `CPLRT_COPY` when kept |
 | `Call` of a `fn` with a block body | `cpl_f<n>(cx, CPL_S<site>, args..., using..., &t)` |
 | `Call` of a `@builtin` stub | `cplrt_bi(<id>)(cx, CPL_S<site>, CPL_D<stub>, args..., &t)` (Section 2.7) |
+| `xs.get(i).unwrap_or(d)`, `xs.first().unwrap_or(d)`, `xs.last().unwrap_or(d)` (optimized profile) | the element read in place, or `d`: `cplrt_items(xs)[k]` when `0 <= k < cplrt_len(xs)`, retained; no `Option` is built (reading an element cannot fault, so `d` evaluated after the read is not observable) |
 | `Call` of a `@builtin` stub whose id is not callable (`cpl_rtspec::builtins::spec(id).callable` is false), which only a hand-built HIR state contains | `cplrt_bi_uncallable(cx, CPL_S<site>, CPL_D<stub>, "<id>", args, n)` (Appendix B.1): for `gen_range` the precondition `lo <= hi` of its stub first, then `internal_error` kind `builtin_type_called` for a type id or `generator_not_a_value` for a generator id, with the detail of `crates/cpl-eval/src/builtins/gen.rs`, spanning the call, and the frame `{stub, site}`, as `call_builtin` reports it |
 | `Call` of a definition that is no function, or with an argument or handle count other than its declaration's (unreachable in a checked program) | `cplrt_internal(cx, CPL_S<site>, "not_a_function", ...)` or `cplrt_internal(cx, CPL_S<site>, "call_mismatch", ...)` with the detail that the evaluator's `call_fn` formats, computed at emit time (Section 3.2) |
 | `CapCall` | `cpl_o<cap>_<op>(cx, CPL_S<site>, handle, args..., &t)` |
 | `Check` | the `check_order(R)` chain unrolled as `cpl_p<r>` calls at the site of the `check`, root first; the first false gives `cplrt_check_failure(cx, CPL_R<r>, v, &t)`, else `cplrt_result_ok` |
 | `Propagate` | `cplrt_is_ok(v)`, then the payload, borrowed; else `CPLRT_MOVE(rv, v); goto exit` |
-| `Unary`, `Binary` | `cplrt_int_add`, `_sub`, `_mul`, `_neg`, and `/` and `%` through the one `cplrt_int_divrem` (T9); the orderings through `cplrt_int_cmp` or, against a small constant, the inline `cplrt_int_lt_small` family; `==` and `!=` through `cplrt_equal`; `++` through `cplrt_concat`; `not`, `and`, `or` as C `!`, `if`, short-circuiting exactly as semantics 6.2 says; a `Bool` subexpression that feeds control flow is a C `int` |
+| `Unary`, `Binary` | `cplrt_int_add`, `_sub`, `_mul`, `_neg`, and `/` and `%` through the one `cplrt_int_divrem` (T9); the orderings through `cplrt_int_cmp` or, against a small constant, the inline `cplrt_int_lt_small` family; `==` and `!=` through `cplrt_equal`, except on `Int`, `Bool`, and `Text` (refinements stripped), which compare inline (`cplrt_int_eq`, word equality, `cplrt_text_eq`: none can fail); `++` through `cplrt_concat`; in the optimized profile the arithmetic is the inline `cplrt_add_w` .. `cplrt_rem_w` (small operands in place, else `cplrt_arith_slow`, which returns the word or 0 with the fault raised, so a temporary never has its address taken), and a `var` read directly as an operand is borrowed, not copied, when no later operand of the same expression holds an `if` or a `match` (the only expressions that can reassign it); `not`, `and`, `or` as C `!`, `if`, short-circuiting exactly as semantics 6.2 says; a `Bool` subexpression that feeds control flow is a C `int` |
 | `Forall` | the collection into a temporary; a loop over its items (`cplrt_len`, `cplrt_item`, borrowed) that binds the binder, evaluates the predicate, and stops at the first false; no time check (the evaluator has none in `forall`) |
 | `Hole` | `cplrt_hole(cx, CPL_H<n>, visible, n)` with the locals of the hole's binding site, innermost first (Sections 3.2 and 3.5), a `using` parameter's entry being its capability reference as a word (Appendix B.1) |
 | `If`, `Match` | C `if`; the arms tried in source order with inline pattern tests (`cplrt_variant`, `cplrt_payload`, `cplrt_inner`, `cplrt_int_eq_small` or `cplrt_int_cmp` against a constant, `cplrt_text_eq`, the `Bool` words) binding into slots; no matching arm is `cplrt_no_match(cx, CPL_S<match>, <the scrutinee's slot>)`: `internal_error` kind `no_matching_arm` with the detail `no arm of the match matches <value text of the scrutinee>`, spanning the `match` expression, as the evaluator's `eval_match` raises it |
@@ -726,7 +735,8 @@ check and the lock steps around them, are toolchain 7.2's (T72):
    declarative-binding wrappers (Section 6.3), the version script, and the
    headers.
 5. **Compile** each unit, in parallel, with `-MD -MF <obj>.d`. An object
-   is cached under `<project>/.cpl/cache/c/obj/` by the blake3 of the
+   is cached under `<cache>/obj/` (`<cache>` the per-user cache of
+   `cpl build`, toolchain 7.2, never inside the project) by the blake3 of the
    unit's text, the compiler digest, and the unit's flags, together with
    its depfile and the blake3 of every file the depfile lists, and it is
    reused only while each of those files still has its recorded digest:
@@ -774,7 +784,7 @@ runtime's units put `#define _GNU_SOURCE 1` before that (Section 2.2).
 | `lib/lib<prefix>.so.<abi>` and the link `lib/lib<prefix>.so` | the runtime, the program, the API unit, the adapters and vendored sources; only the names the version script lists are dynamic symbols, under the version node `<PREFIX>_<abi>` (`<PREFIX>` is the prefix in upper case) |
 | `lib/lib<prefix>.a` | one object, `<prefix>.o`: the objects of the shared library joined by a relocatable link (the compiler with `-r -nostdlib`) and passed through `objcopy --keep-global-symbols` with the names the version script lists, so that, as in the shared library, only those names stay global and every other symbol, those of the adapters and the vendored sources included, is local; then `ar rcsD`. The `objcopy` is the one the compiler names (`-print-prog-name=objcopy`, toolchain T72) |
 | `bin/<prefix>` (`executable`) | the objects of the shared library plus `cpl_rt_exe.c`: a native executable (Section 8) |
-| `<project>/.cpl/cache/c/driver/<key>/<prefix>-driver` | the program compiled with `-DCPL_WITH_TESTS=1` (test bodies, range bounds, the entry trampoline of every function and every callable builtin stub, every backend-`c` adapter of the project) plus `cpl_rt_driver.c`, in the debug profile unless a sanitizer is selected: toolchain-internal (Section 3.8). `<key>` is the blake3 of the program digest, the runtime digest, the compiler digest, the effective flags of every compile and of the link (profile, sanitizers, coverage, and the manifest's options), and the digests of the backend-`c` bindings' adapter files and vendored sources (`c_input_digests`, toolchain 11.2); a cached driver is reused only while every object it links would be reused, so a changed header rebuilds it too. Its `<prefix>` is the effective prefix when that is in the prefix domain of toolchain 11.1, and `driver` otherwise (a project without the C target may be named `cpl`): a driver exports nothing, so the name reaches no host |
+| `<cache>/driver/<key>/<prefix>-driver` (`<cache>` the per-user cache of `cpl build`, toolchain 7.2) | the program compiled with `-DCPL_WITH_TESTS=1` (test bodies, range bounds, the entry trampoline of every function and every callable builtin stub, every backend-`c` adapter of the project) plus `cpl_rt_driver.c`, in the debug profile unless a sanitizer is selected: toolchain-internal (Section 3.8). `<key>` is the blake3 of the program digest, the runtime digest, the compiler digest, the effective flags of every compile and of the link (profile, sanitizers, coverage, and the manifest's options), and the digests of the backend-`c` bindings' adapter files and vendored sources (`c_input_digests`, toolchain 11.2); a cached driver is reused only while every object it links would be reused, so a changed header rebuilds it too. Its `<prefix>` is the effective prefix when that is in the prefix domain of toolchain 11.1, and `driver` otherwise (a project without the C target may be named `cpl`): a driver exports nothing, so the name reaches no host |
 
 The version script lists the exact exported names, never a pattern:
 `<prefix>_runtime_open`, `<prefix>_library_info`, every export symbol,
@@ -1097,6 +1107,17 @@ O(1) `len` and `get`).
   quantity `cpl_stats.live_bytes` reports. The budget is deterministic for
   a runtime that one thread uses at a time; concurrent calls share it, so
   which of them meets it depends on their interleaving.
+- **The small-object cache.** While an evaluation runs, the objects of up
+  to 64 bytes it frees (16-byte size classes, at most 256 per class) are
+  kept for its next allocations of the same class instead of being
+  returned to the allocator: a block in the cache is still counted in
+  `live_bytes` and `live_objects`, and the cache is emptied, with the
+  counts returned, when the evaluation that claimed it ends, so between
+  calls the statistics are exact. One thread at a time owns a runtime's
+  cache (the first evaluation to begin while no other thread holds it,
+  until its outermost evaluation ends); the others allocate as without it.
+  A runtime whose `max_heap_bytes` is below 64 MiB has no cache, so the
+  cached blocks never decide where a small budget is met.
 
 Decision: [D-294] C8. The runtime manages values by atomic reference
 counts, with relaxed increments, acquire-release decrements, saturation
@@ -4249,6 +4270,7 @@ typedef struct cplrt_op {                       /* one capability operation */
     const uint32_t *sorted;                     /* parameter indices in byte order of their names */
     uint32_t ret;                               /* CPL_X of the declared return type (6.4) */
     uint32_t ret_foreign;                       /* 1 when the return type is Result<T, std.foreign.ForeignError> */
+    const uint32_t *ptypes;                     /* CPL_X of each parameter: a request's arguments are checked */
 } cplrt_op;
 typedef struct cplrt_def {                      /* CPL_D: one per DefId, std included */
     const char *stable_id;                      /* Def::stable_id: `symbol` */
@@ -4256,14 +4278,19 @@ typedef struct cplrt_def {                      /* CPL_D: one per DefId, std inc
     const char *type_name;                      /* types::type_name: `$type`, ConstraintError.type_name (S44) */
     const char *bare_name;                      /* types::bare_name: value text */
     uint32_t kind;                              /* CPLRT_DEF_* */
-    uint32_t nmembers;                          /* fields, variants, positional parameters, or operations */
+    uint32_t nmembers;                          /* fields, variants, positional parameters, operations, or binders */
     const char *const *members;                 /* their names; a member stub's receiver is "self" */
     const uint32_t *sorted;                     /* member indices in byte order of their names (JSON keys) */
     cplrt_obj *const *statics;                  /* enum: per variant, its immortal value if payload-less, else NULL */
     const cplrt_op *ops;                        /* capability: nmembers operations */
     uint32_t nrequires;                         /* fn: its requires clauses (a builtin stub's from requires_spec) */
     const uint32_t *requires;                   /* CPL_CL indices */
-    const uint32_t *ptypes;                     /* fn, in a driver: CPL_X of each positional parameter; else NULL */
+    const uint32_t *ptypes;                     /* in a driver: CPL_X of each positional parameter of a fn or binder
+                                                   of a property; else NULL */
+    const uint32_t *psites;                     /* fn: CPL_S of each positional parameter (the span of a boundary
+                                                   refinement_violation, 5.5 step 3); else NULL */
+    uint32_t nusing;                            /* fn: its using parameters */
+    const uint32_t *ucaps;                      /* fn: DefId.0 of each using parameter's capability; else NULL */
 } cplrt_def;
 typedef struct cplrt_site {                     /* CPL_S: every span a fault can report */
     uint32_t file;                              /* FileId.0, an index into cplrt_program.files */

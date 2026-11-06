@@ -573,6 +573,58 @@ impl<'p> Interpreter<'p> {
         outcome
     }
 
+    /// `x = x ++ a ++ b ++ ...` (at least two operands after `x`): the operands are evaluated in
+    /// order, each seeing `x` unchanged, and then appended to `x` in place when nothing else
+    /// holds its buffer, so a loop that builds a text, bytes, or a list this way is linear
+    /// (left-nested, the chain would otherwise copy `x` once per iteration). Whether it applied.
+    fn assign_append_chain(&mut self, local: LocalId, value: &'p Expr) -> Eval<bool> {
+        let mut rights: Vec<&'p Expr> = Vec::new();
+        let mut e = value;
+        while let ExprKind::Binary {
+            op: BinaryOp::Concat,
+            lhs,
+            rhs,
+        } = &e.kind
+        {
+            rights.push(rhs);
+            e = lhs;
+        }
+        if rights.len() < 2 || !matches!(e.kind, ExprKind::Local(id) if id == local) {
+            return Ok(false);
+        }
+        let Some(Some(left)) = self.env().values.get(local.0 as usize) else {
+            return Ok(false);
+        };
+        // The snapshot keeps the operands' view of `x` while they run.
+        let mut left = left.clone();
+        let mut parts = Vec::with_capacity(rights.len());
+        for r in rights.into_iter().rev() {
+            parts.push(self.eval_expr(r)?);
+        }
+        let slot = local.0 as usize;
+        if matches!(self.env().values.get(slot), Some(Some(c)) if c.same_buffer(&left)) {
+            drop(left);
+            if let Some(Some(Value::Text(t))) = self.env().values.get(slot) {
+                // a cached length is of the text before the append (the clone goes before it)
+                let t = std::rc::Rc::clone(t);
+                self.take_text_length(&t);
+            }
+            let bad = match self.env_mut().values.get_mut(slot) {
+                Some(Some(current)) => parts.iter().position(|part| !current.append(part)),
+                _ => None,
+            };
+            return match bad {
+                Some(k) => self.confusion("matching sequences", &parts[k], value.span),
+                None => Ok(true),
+            };
+        }
+        if let Some(k) = parts.iter().position(|part| !left.append(part)) {
+            return self.confusion("matching sequences", &parts[k], value.span);
+        }
+        self.assign(local, left, value.span)?;
+        Ok(true)
+    }
+
     pub(super) fn exec_stmt(&mut self, s: &'p Stmt) -> Eval<()> {
         match s {
             Stmt::Let { local, value } => {
@@ -583,6 +635,9 @@ impl<'p> Interpreter<'p> {
             Stmt::Discard(e) | Stmt::Expr(e) => self.eval_expr(e).map(drop),
             Stmt::Assign { local, value } => {
                 if self.assign_int_leaf(*local, value) {
+                    return Ok(());
+                }
+                if self.assign_append_chain(*local, value)? {
                     return Ok(());
                 }
                 if let ExprKind::Binary {

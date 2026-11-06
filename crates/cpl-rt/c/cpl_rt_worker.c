@@ -20,6 +20,14 @@
 #include <time.h>
 #include <unistd.h>
 
+/* Whether the decoded JSON string v is exactly s: compared with its length, as a decoded string may hold U+0000
+   ("Timeout\u0000x" is not Timeout). */
+static int worker_jv_is(const cplrt_jv *v, const char *s)
+{
+    return v != NULL && v->type == CPLRT_JSON_STRING && v->len == strlen(s) && memcmp(v->str, s, v->len) == 0;
+}
+
+
 extern char **environ;
 
 /* Set by the driver's and the native executable's main: a C adapter host is this executable re-executed. */
@@ -488,8 +496,7 @@ cpl_status CPLRT(worker_grant)(cplrt_runtime *rt, const cplrt_grant *g, cplrt_ca
     const cplrt_jv *wk = ok ? CPLRT(json_member)(banner, "worker") : NULL;
     const cplrt_jv *pg = ok ? CPLRT(json_member)(banner, "program") : NULL;
     ok = ok && CPLRT(jv_u64)(CPLRT(json_member)(banner, "protocol"), &protocol) && protocol == 1u && wk != NULL &&
-         wk->type == CPLRT_JSON_STRING && strcmp(wk->str, kind) == 0 && pg != NULL && pg->type == CPLRT_JSON_STRING &&
-         digest != NULL && strcmp(pg->str, digest) == 0;
+         worker_jv_is(wk, kind) && digest != NULL && worker_jv_is(pg, digest);
     CPLRT(json_free)(banner);
     if (!ok) {
         worker_close(w);
@@ -545,6 +552,7 @@ cpl_status CPLRT(worker_grant)(cplrt_runtime *rt, const cplrt_grant *g, cplrt_ca
         if (m != NULL && m->type == CPLRT_JSON_STRING)
             snprintf(note, sizeof note, "%s", m->str);
     }
+    CPLRT(utf8_clip)(note, strlen(note)); /* a long message is cut at the buffer: never inside a character */
     CPLRT(json_free)(answer);
     worker_close(w);
     worker_reap(w, WORKER_GRACE_MS, status, sizeof status);
@@ -569,7 +577,7 @@ static int32_t worker_kind_index(const cplrt_jv *v)
     if (v == NULL || v->type != CPLRT_JSON_STRING)
         return -1;
     for (uint32_t i = 0; i < CPLRT_FOREIGN_KINDS_N; i++)
-        if (strcmp(v->str, CPLRT_FOREIGN_KINDS[i]) == 0)
+        if (worker_jv_is(v, CPLRT_FOREIGN_KINDS[i]))
             return (int32_t)i;
     return -1;
 }
@@ -828,12 +836,11 @@ int CPLRT(worker_main)(void)
             continue;
         }
         const cplrt_jv *op = CPLRT(json_member)(req, "op");
-        const char *name = op != NULL && op->type == CPLRT_JSON_STRING ? op->str : "";
-        if (strcmp(name, "bind") == 0) {
+        if (worker_jv_is(op, "bind")) {
             const cplrt_jv *bn = CPLRT(json_member)(req, "binding");
             const cplrt_grant *g = NULL;
             for (uint32_t i = 0; bn != NULL && bn->type == CPLRT_JSON_STRING && i < p->ngrants; i++)
-                if (p->grants[i].worker == WORKER_C && strcmp(p->grants[i].binding, bn->str) == 0)
+                if (p->grants[i].worker == WORKER_C && worker_jv_is(bn, p->grants[i].binding))
                     g = &p->grants[i];
             if (g == NULL || cap != NULL) {
                 worker_main_invalid(out, rt, "/binding", "no backend-c worker binding of this name, or one is bound");
@@ -862,7 +869,7 @@ int CPLRT(worker_main)(void)
                     (void)!write(out, handle, sizeof handle - 1u);
                 }
             }
-        } else if (strcmp(name, "cap_call") == 0) {
+        } else if (worker_jv_is(op, "cap_call")) {
             uint32_t opi = 0;
             const cplrt_capref *ref = cap != NULL ? CPLRT(cap_ref)(cap) : NULL;
             if (ref == NULL) {
@@ -875,8 +882,15 @@ int CPLRT(worker_main)(void)
                 uint32_t n = 0;
                 const char *detail = "";
                 int r = CPLRT(nodes_read_all)(rt, CPLRT(json_member)(req, "args"), &args, &n, &detail);
+                const cplrt_op *opd = &p->defs[ref->capability].ops[opi];
+                int typed = r == CPLRT_OK ? CPLRT(values_typed)(rt, opd->ptypes, opd->nparams, args, n) : CPLRT_OK;
                 if (r != CPLRT_OK) {
                     worker_main_invalid(out, rt, "/args", r == CPLRT_NOMEM ? "out of memory" : detail);
+                } else if (typed != CPLRT_OK) {
+                    CPLRT(words_release)(args, n);
+                    worker_main_invalid(out, rt, "/args",
+                                        typed == CPLRT_NOMEM ? "out of memory"
+                                                             : "the arguments are not of the operation's parameters");
                 } else {
                     cplrt_cx cx;
                     cplrt_memory_record mem;
@@ -911,14 +925,14 @@ int CPLRT(worker_main)(void)
                     CPLRT(words_release)(args, n);
                 }
             }
-        } else if (strcmp(name, "release") == 0) {
+        } else if (worker_jv_is(op, "release")) {
             if (cap != NULL) {
                 CPLRT(cap_unref)(cap);
                 cap = NULL;
             }
             static const char okn[] = "{\"ok\":null}\n";
             (void)!write(out, okn, sizeof okn - 1u);
-        } else if (strcmp(name, "shutdown") == 0) {
+        } else if (worker_jv_is(op, "shutdown")) {
             static const char okn[] = "{\"ok\":null}\n";
             (void)!write(out, okn, sizeof okn - 1u);
             CPLRT(json_free)(req);

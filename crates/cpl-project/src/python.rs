@@ -459,6 +459,19 @@ pub fn check_python(manifest: &Manifest, root: Option<&Path>) -> Vec<Diagnostic>
         }
     }
     for (name, binding) in &manifest.bindings {
+        // the name becomes the Python function `bind_<name>` of the package, and a TOML key can
+        // be any text: a name that is not an identifier would be code in the generated module
+        if binding.backend == "python" && !crate::c_bindings::is_binding_name(name) {
+            out.push(
+                error(
+                    codes::PROJECT_BINDING_NAME_INVALID,
+                    format!(
+                        "binding `{name}`: a backend-python binding's name must match ^[a-z][a-z0-9_]*$, so that its grant `bind_{name}` is a Python identifier"
+                    ),
+                )
+                .with_data("binding", json!(name)),
+            );
+        }
         if binding.backend == "python" && !is_python_module_path(&binding.adapter) {
             out.push(
                 error(

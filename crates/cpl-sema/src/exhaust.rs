@@ -55,6 +55,36 @@ pub(crate) trait Space {
 /// The most witnesses a non-exhaustive match reports.
 const MAX_WITNESSES: usize = 32;
 
+/// The steps (calls of `useful` and `witnesses`) one `match` may take. Both are exponential in the
+/// worst case: a `match` on a struct of `n` `Bool` fields whose arms keep every column's
+/// constructors complete (`S { a: true, .. }`, `S { a: false, .. }`, `S { b: true, .. }`, ...)
+/// branches two ways per column. Past the budget the `match` is `match_too_complex`, so a few
+/// lines of source cannot keep the checker busy for hours.
+pub(crate) const MATCH_STEP_BUDGET: u64 = 1_000_000;
+
+/// The steps left to one `match`'s check.
+pub(crate) struct Budget(std::cell::Cell<u64>);
+
+impl Budget {
+    pub(crate) fn new(steps: u64) -> Budget {
+        Budget(std::cell::Cell::new(steps))
+    }
+
+    /// Take one step: false when none is left.
+    fn step(&self) -> bool {
+        let left = self.0.get();
+        if left == 0 {
+            return false;
+        }
+        self.0.set(left - 1);
+        true
+    }
+
+    pub(crate) fn exhausted(&self) -> bool {
+        self.0.get() == 0
+    }
+}
+
 /// A witness pattern of a non-exhaustive match.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum Witness {
@@ -186,7 +216,11 @@ pub(crate) fn witnesses<S: Space>(
     space: &S,
     rows: &[Vec<Pat>],
     tys: &[S::Ty],
+    budget: &Budget,
 ) -> Vec<Vec<Witness>> {
+    if !budget.step() {
+        return Vec::new();
+    }
     if tys.is_empty() {
         return if rows.is_empty() {
             vec![Vec::new()]
@@ -203,7 +237,7 @@ pub(crate) fn witnesses<S: Space>(
                 let k = c.fields.len();
                 let mut t2 = c.fields.clone();
                 t2.extend(tys[1..].iter().cloned());
-                for w in witnesses(space, &specialize(rows, &c.key, k), &t2) {
+                for w in witnesses(space, &specialize(rows, &c.key, k), &t2, budget) {
                     let (args, rest) = w.split_at(k);
                     let head = match &c.name {
                         Some(name) => Witness::Ctor(name.clone(), args.to_vec()),
@@ -219,7 +253,7 @@ pub(crate) fn witnesses<S: Space>(
             }
         }
         _ => {
-            let sub = witnesses(space, &default(rows), &tys[1..]);
+            let sub = witnesses(space, &default(rows), &tys[1..], budget);
             if sub.is_empty() {
                 return out;
             }
@@ -397,8 +431,12 @@ impl<T: Clone> Matrix<T> {
         self.default.as_mut().expect("just built")
     }
 
-    /// `useful(P, q)` for this matrix's rows `P`.
-    fn useful<S: Space<Ty = T>>(&mut self, space: &S, q: &[Pat]) -> bool {
+    /// `useful(P, q)` for this matrix's rows `P`; true once the budget is spent (the caller
+    /// then reports `match_too_complex`, not an unreachable arm).
+    fn useful<S: Space<Ty = T>>(&mut self, space: &S, q: &[Pat], budget: &Budget) -> bool {
+        if !budget.step() {
+            return true;
+        }
         if q.is_empty() {
             return self.rows.is_empty();
         }
@@ -408,7 +446,7 @@ impl<T: Clone> Matrix<T> {
                 let mut q2: Vec<Pat> = args.clone();
                 q2.resize(k, Pat::Wild);
                 q2.extend(q[1..].iter().cloned());
-                self.special(space, c, k).useful(space, &q2)
+                self.special(space, c, k).useful(space, &q2, budget)
             }
             Pat::Wild => {
                 let complete = match &self.sigma {
@@ -425,10 +463,10 @@ impl<T: Clone> Matrix<T> {
                     ctors.into_iter().any(|(key, k)| {
                         let mut q2 = vec![Pat::Wild; k];
                         q2.extend(q[1..].iter().cloned());
-                        self.special(space, &key, k).useful(space, &q2)
+                        self.special(space, &key, k).useful(space, &q2, budget)
                     })
                 } else {
-                    self.default(space).useful(space, &q[1..])
+                    self.default(space).useful(space, &q[1..], budget)
                 }
             }
         }
@@ -442,6 +480,9 @@ pub(crate) struct MatchCheck {
     pub missing: Vec<String>,
     /// The indices of the arms no value reaches (`unreachable_arm`).
     pub unreachable: Vec<usize>,
+    /// The check ran out of `MATCH_STEP_BUDGET` (`match_too_complex`): `missing` and
+    /// `unreachable` are then empty.
+    pub too_complex: bool,
 }
 
 /// Check the arms of a `match` on a scrutinee of type `ty`: `arms[i]` is
@@ -449,6 +490,16 @@ pub(crate) struct MatchCheck {
 /// neither check (S62); exhaustiveness is checked only when every arm's
 /// pattern is well-typed.
 pub(crate) fn check_match<S: Space>(space: &S, ty: &S::Ty, arms: &[Option<Pat>]) -> MatchCheck {
+    check_match_within(space, ty, arms, &Budget::new(MATCH_STEP_BUDGET))
+}
+
+/// `check_match` within `budget`.
+pub(crate) fn check_match_within<S: Space>(
+    space: &S,
+    ty: &S::Ty,
+    arms: &[Option<Pat>],
+    budget: &Budget,
+) -> MatchCheck {
     let tys = vec![ty.clone()];
     let mut rows: Vec<Vec<Pat>> = Vec::new();
     let mut matrix = Matrix::new(space, tys.clone());
@@ -456,23 +507,34 @@ pub(crate) fn check_match<S: Space>(space: &S, ty: &S::Ty, arms: &[Option<Pat>])
     for (i, arm) in arms.iter().enumerate() {
         let Some(p) = arm else { continue };
         let q = vec![p.clone()];
-        if !matrix.useful(space, &q) {
+        if !matrix.useful(space, &q, budget) {
             unreachable.push(i);
+        }
+        if budget.exhausted() {
+            break;
         }
         matrix.push(q.clone());
         rows.push(q);
     }
-    let missing = if arms.iter().all(Option::is_some) {
-        witnesses(space, &rows, &tys)
+    let missing = if !budget.exhausted() && arms.iter().all(Option::is_some) {
+        witnesses(space, &rows, &tys, budget)
             .into_iter()
             .map(|w| w[0].render())
             .collect()
     } else {
         Vec::new()
     };
+    if budget.exhausted() {
+        return MatchCheck {
+            missing: Vec::new(),
+            unreachable: Vec::new(),
+            too_complex: true,
+        };
+    }
     MatchCheck {
         missing,
         unreachable,
+        too_complex: false,
     }
 }
 
@@ -729,7 +791,7 @@ mod tests {
             for _ in 0..(1 + case % 12) {
                 let q = vec![random_pat(&mut r, ty, 3)];
                 assert_eq!(
-                    matrix.useful(&Toy, &q),
+                    matrix.useful(&Toy, &q, &Budget::new(MATCH_STEP_BUDGET)),
                     useful(&Toy, &rows, &q, &tys),
                     "{ty:?}: {q:?} after {rows:?}"
                 );
@@ -737,5 +799,17 @@ mod tests {
                 rows.push(q);
             }
         }
+    }
+
+    #[test]
+    fn a_match_past_the_budget_is_too_complex() {
+        // Option<Option<...<Bool>>> is small; a budget of a few steps is still too few for it
+        let ty = T::Opt(Box::new(T::Opt(Box::new(T::Bool))));
+        let some = |p: Pat| Pat::Ctor(CtorKey::Variant(0), vec![p]);
+        let arms = vec![Some(some(some(Pat::Ctor(CtorKey::Bool(true), vec![])))), Some(Pat::Wild)];
+        let c = check_match_within(&Toy, &ty, &arms, &Budget::new(3));
+        assert!(c.too_complex && c.missing.is_empty() && c.unreachable.is_empty(), "{c:?}");
+        let c = check_match(&Toy, &ty, &arms);
+        assert!(!c.too_complex && c.missing.is_empty(), "{c:?}");
     }
 }

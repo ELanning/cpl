@@ -16,6 +16,7 @@
 //! crate root (`cpl_diag::Span`, `cpl_diag::StableId`, ...); wire types are
 //! addressed through [`json`].
 
+pub mod fsutil;
 pub mod diag;
 pub mod facet;
 pub mod id;

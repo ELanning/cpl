@@ -14,7 +14,9 @@ const WORKER: &str = include_str!("python/worker.py");
 
 /// The bootstrap of a Python worker (`spec/python.md` 6.1, P7), passed as `<python> -c BOOTSTRAP`: it reads
 /// `<length>\n<source>` from standard input byte-exactly and executes the source as the module `__cpl_worker__`.
-pub const BOOTSTRAP: &str = "import os,sys,types\n\
+pub const BOOTSTRAP: &str = "import sys\n\
+if sys.path and sys.path[0]=='':del sys.path[0]\n\
+import os,types\n\
 def _r(n):\n b=bytearray()\n while len(b)<n:\n  c=os.read(0,n-len(b))\n  if not c:sys.exit(70)\n  b+=c\n return bytes(b)\n\
 h=bytearray()\n\
 while not h.endswith(b'\\n'):\n c=os.read(0,1)\n if not c:sys.exit(70)\n h+=c\n\

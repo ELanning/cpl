@@ -79,34 +79,35 @@ impl Package {
     /// Write the package under `dir`: a file whose content is unchanged keeps its time stamp
     /// (the host's incremental build), and a file an earlier `write` generated there that this
     /// package no longer has is removed (the list is `dir/.cpl-generated`). Nothing else in
-    /// `dir` is touched.
+    /// `dir` is touched, and nothing outside it: a path through a symbolic link below `dir` is
+    /// refused and a file is replaced, never written through (`cpl_diag::fsutil`), since a
+    /// checked-out project controls what its default output directory holds.
     pub fn write(&self, dir: &std::path::Path) -> std::io::Result<()> {
+        use cpl_diag::fsutil;
+        use std::path::Path;
+        std::fs::create_dir_all(dir)?;
         let index = dir.join(".cpl-generated");
-        let previous = std::fs::read_to_string(&index).unwrap_or_default();
+        let previous = match fsutil::refuse_link(&index) {
+            Ok(()) => std::fs::read_to_string(&index).unwrap_or_default(),
+            Err(_) => String::new(),
+        };
         for old in previous.lines() {
-            let path = std::path::Path::new(old);
-            let inside = !old.is_empty()
-                && path
-                    .components()
-                    .all(|c| matches!(c, std::path::Component::Normal(_)));
-            if inside && !self.files.contains_key(old) {
-                let _ = std::fs::remove_file(dir.join(path));
+            if !old.is_empty() && !self.files.contains_key(old) {
+                // a listed path through a link (or out of `dir`) is not removed
+                let _ = fsutil::remove_beneath(dir, Path::new(old));
             }
         }
         for (path, text) in &self.files {
-            let full = dir.join(path);
-            if let Some(parent) = full.parent() {
-                std::fs::create_dir_all(parent)?;
-            }
+            let full = fsutil::beneath(dir, Path::new(path))?;
             if std::fs::read(&full).ok().as_deref() != Some(text.as_bytes()) {
-                std::fs::write(&full, text)?;
+                fsutil::write_beneath(dir, Path::new(path), text.as_bytes())?;
             }
         }
         let mut list: String = self.files.keys().map(|k| format!("{k}\n")).collect();
         if list.is_empty() {
             list.push('\n');
         }
-        std::fs::write(index, list)
+        fsutil::write_beneath(dir, Path::new(".cpl-generated"), list.as_bytes())
     }
 }
 
@@ -377,6 +378,18 @@ pub fn needs_validation(p: &Program, ty: &Ty) -> bool {
     walk(p, ty, &mut BTreeSet::new())
 }
 
+/// Whether a type holds a type parameter: its validation would need the type argument, which a
+/// generic host form does not have. Every other parameter of a host form is checked, a generic
+/// function's included.
+pub fn has_type_param(ty: &Ty) -> bool {
+    match ty {
+        Ty::Param(_) => true,
+        Ty::Adt(_, args) => args.iter().any(has_type_param),
+        Ty::List(t) | Ty::Gen(t) => has_type_param(t),
+        _ => false,
+    }
+}
+
 /// Whether a value of `ty` can hold a `Text`: a host whose strings need not be Unicode scalar
 /// values (Go's may be any bytes, Java's may hold unpaired surrogates) checks every one that
 /// enters at its boundary.
@@ -423,47 +436,164 @@ pub fn contains_text(p: &Program, ty: &Ty) -> bool {
 /// A field, payload, or wrapped value whose type reaches the type being declared needs a
 /// reference in a host whose types have a size (`Arc` in Rust, a pointer in Go).
 pub fn reaches(p: &Program, ty: &Ty, target: DefId, enums_by_value: bool) -> bool {
-    fn walk(p: &Program, ty: &Ty, target: DefId, enums: bool, seen: &mut BTreeSet<String>) -> bool {
-        match ty {
-            Ty::Refined(..) => walk(p, &erase(p, ty), target, enums, seen),
+    // iteratively: a cycle of declarations through `Option` can be thousands long
+    let mut seen: BTreeSet<String> = BTreeSet::new();
+    let mut stack: Vec<Ty> = vec![ty.clone()];
+    while let Some(ty) = stack.pop() {
+        match &ty {
+            Ty::Refined(..) => stack.push(erase(p, &ty)),
             Ty::Wrapper(d) => {
-                *d == target
-                    || (seen.insert(p.display_path(*d))
-                        && p.def(*d)
-                            .kind
-                            .as_wrapper()
-                            .is_some_and(|w| walk(p, &w.inner, target, enums, seen)))
+                if *d == target {
+                    return true;
+                }
+                if seen.insert(p.display_path(*d)) {
+                    if let Some(w) = p.def(*d).kind.as_wrapper() {
+                        stack.push(w.inner.clone());
+                    }
+                }
             }
             Ty::Adt(d, args) => {
                 if *d == target {
                     return true;
                 }
-                if !seen.insert(p.display_ty(ty)) {
-                    return false;
+                if !seen.insert(p.display_ty(&ty)) {
+                    continue;
                 }
                 match std_type(p, *d) {
-                    Some(StdType::Option | StdType::Result) => {
-                        args.iter().any(|a| walk(p, a, target, enums, seen))
-                    }
-                    Some(_) => false,
+                    Some(StdType::Option | StdType::Result) => stack.extend(args.iter().cloned()),
+                    Some(_) => {}
                     None => match &p.def(*d).kind {
-                        DefKind::Struct(s) => s
-                            .fields
-                            .iter()
-                            .any(|f| walk(p, &instantiate(&f.ty, args), target, enums, seen)),
-                        DefKind::Enum(e) if enums => e.variants.iter().any(|v| {
-                            v.payload
+                        DefKind::Struct(s) => {
+                            stack.extend(s.fields.iter().map(|f| instantiate(&f.ty, args)))
+                        }
+                        DefKind::Enum(e) if enums_by_value => stack.extend(
+                            e.variants
                                 .iter()
-                                .any(|t| walk(p, &instantiate(t, args), target, enums, seen))
-                        }),
-                        _ => false,
+                                .flat_map(|v| &v.payload)
+                                .map(|t| instantiate(t, args)),
+                        ),
+                        _ => {}
                     },
                 }
             }
-            _ => false,
+            _ => {}
         }
     }
-    walk(p, ty, target, enums_by_value, &mut BTreeSet::new())
+    false
+}
+
+/// The declarations on a cycle of the declaration graph: an edge from a struct, enum, or wrapper
+/// to every declaration its field, payload, or wrapped types mention, type arguments and
+/// `Option`, `Result`, and `List` included. `reaches(p, ty, d, _)` for a type of `d`'s own can
+/// hold only when `d` is on such a cycle (whatever it reaches is mentioned along a path from
+/// `d`), so the printers ask `reaches` only for those, and a chain of declarations costs time
+/// linear in its length, where asking for every field walked the chain below it.
+pub struct Cycles(BTreeSet<DefId>);
+
+impl Cycles {
+    pub fn new(p: &Program) -> Cycles {
+        fn mentions(p: &Program, ty: &Ty, out: &mut BTreeSet<DefId>) {
+            match ty {
+                Ty::Adt(d, args) => {
+                    out.insert(*d);
+                    for a in args {
+                        mentions(p, a, out);
+                    }
+                }
+                Ty::Wrapper(d) => {
+                    out.insert(*d);
+                }
+                Ty::List(t) | Ty::Gen(t) => mentions(p, t, out),
+                Ty::Refined(..) => {
+                    let base = erase(p, ty);
+                    if !matches!(base, Ty::Refined(..)) {
+                        mentions(p, &base, out);
+                    }
+                }
+                _ => {}
+            }
+        }
+        let nodes: Vec<DefId> = p.defs().map(|d| d.id).collect();
+        let index: BTreeMap<DefId, usize> = nodes.iter().enumerate().map(|(i, d)| (*d, i)).collect();
+        let edges: Vec<Vec<usize>> = nodes
+            .iter()
+            .map(|&d| {
+                let mut out = BTreeSet::new();
+                match &p.def(d).kind {
+                    DefKind::Struct(s) => s.fields.iter().for_each(|f| mentions(p, &f.ty, &mut out)),
+                    DefKind::Enum(e) => e
+                        .variants
+                        .iter()
+                        .flat_map(|v| &v.payload)
+                        .for_each(|t| mentions(p, t, &mut out)),
+                    DefKind::Wrapper(w) => mentions(p, &w.inner, &mut out),
+                    _ => {}
+                }
+                out.iter().filter_map(|m| index.get(m).copied()).collect()
+            })
+            .collect();
+        Cycles(
+            strongly_connected(&edges)
+                .into_iter()
+                .filter(|c| c.len() > 1 || edges[c[0]].contains(&c[0]))
+                .flatten()
+                .map(|i| nodes[i])
+                .collect(),
+        )
+    }
+
+    /// Whether a type of `d`'s own (a field, payload, or wrapped type) can reach `d`.
+    pub fn may_contain_itself(&self, d: DefId) -> bool {
+        self.0.contains(&d)
+    }
+}
+
+/// Tarjan's strongly connected components of a graph on `0..edges.len()`, iteratively.
+fn strongly_connected(edges: &[Vec<usize>]) -> Vec<Vec<usize>> {
+    const NONE: usize = usize::MAX;
+    let n = edges.len();
+    let (mut index, mut low, mut on_stack) = (vec![NONE; n], vec![0; n], vec![false; n]);
+    let (mut stack, mut out, mut next) = (Vec::new(), Vec::new(), 0);
+    for root in 0..n {
+        if index[root] != NONE {
+            continue;
+        }
+        let mut work: Vec<(usize, usize)> = vec![(root, 0)];
+        while let Some(&mut (u, ref mut at)) = work.last_mut() {
+            if *at == 0 && index[u] == NONE {
+                index[u] = next;
+                low[u] = next;
+                next += 1;
+                stack.push(u);
+                on_stack[u] = true;
+            }
+            if let Some(&v) = edges[u].get(*at) {
+                *at += 1;
+                if index[v] == NONE {
+                    work.push((v, 0));
+                } else if on_stack[v] {
+                    low[u] = low[u].min(index[v]);
+                }
+                continue;
+            }
+            work.pop();
+            if let Some(&(parent, _)) = work.last() {
+                low[parent] = low[parent].min(low[u]);
+            }
+            if low[u] == index[u] {
+                let mut c = Vec::new();
+                while let Some(w) = stack.pop() {
+                    on_stack[w] = false;
+                    c.push(w);
+                    if w == u {
+                        break;
+                    }
+                }
+                out.push(c);
+            }
+        }
+    }
+    out
 }
 
 /// The functions a JSON driver can call: monomorphic, without capability parameters.

@@ -39,7 +39,7 @@ fail:
     st = CPLRT_FAULT;
 done:
     cplrt_release(t0); cplrt_release(rv);
-    return cplrt_leave(cx, &fr, st);
+    return cplrt_fast_leave(cx, &fr, st);
 }
 
 /* positive.ops.Positive  [identity positive.ops.Positive, DefId 67] */
@@ -57,7 +57,7 @@ fail:
     st = CPLRT_FAULT;
 done:
     cplrt_release(t0); cplrt_release(rv);
-    return cplrt_leave(cx, &fr, st);
+    return cplrt_fast_leave(cx, &fr, st);
 }
 
 /* positive.ops.parse_size  [identity positive.ops.parse_size, DefId 68] */
@@ -67,7 +67,7 @@ static int cpl_f68(cplrt_cx *cx, uint32_t site, cplrt_w p0_text, cplrt_w *out)
     cplrt_w t0 = 0, t1 = 0, rv = 0;
     cplrt_frame fr;
     const cplrt_w params[1] = { p0_text };
-    if (cplrt_enter_fn(cx, &fr, CPL_D68, site, params, 1u) != CPLRT_OK)
+    if (cplrt_fast_enter_fn(cx, &fr, CPL_D68, site, params, 1u) != CPLRT_OK)
         return CPLRT_FAULT;
     if (cplrt_bi(text_trim)(cx, CPL_S74, CPL_D54, p0_text, &t0) != CPLRT_OK) goto fail;
     if (cplrt_bi(text_parse_int)(cx, CPL_S75, CPL_D64, t0, &t1) != CPLRT_OK) goto fail;
@@ -78,7 +78,7 @@ fail:
     st = CPLRT_FAULT;
 done:
     cplrt_release(t0); cplrt_release(t1); cplrt_release(rv);
-    return cplrt_leave(cx, &fr, st);
+    return cplrt_fast_leave(cx, &fr, st);
 }
 
 /* positive.ops.positive_size  [identity positive.ops.positive_size, DefId 69] */
@@ -88,7 +88,7 @@ static int cpl_f69(cplrt_cx *cx, uint32_t site, cplrt_w p0_text, cplrt_w *out)
     cplrt_w l1_n = 0, t0 = 0, t1 = 0, t2 = 0, rv = 0;
     cplrt_frame fr;
     const cplrt_w params[1] = { p0_text };
-    if (cplrt_enter_fn(cx, &fr, CPL_D69, site, params, 1u) != CPLRT_OK)
+    if (cplrt_fast_enter_fn(cx, &fr, CPL_D69, site, params, 1u) != CPLRT_OK)
         return CPLRT_FAULT;
     if (cpl_f68(cx, CPL_S76, p0_text, &t0) != CPLRT_OK) goto fail;
     if (!cplrt_is_ok(t0)) {
@@ -109,7 +109,7 @@ fail:
     st = CPLRT_FAULT;
 done:
     cplrt_release(l1_n); cplrt_release(t0); cplrt_release(t1); cplrt_release(t2); cplrt_release(rv);
-    return cplrt_leave(cx, &fr, st);
+    return cplrt_fast_leave(cx, &fr, st);
 }
 
 

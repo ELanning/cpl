@@ -302,7 +302,7 @@ fn check_paths(out: &mut Vec<Diagnostic>, name: &str, section: &CBindingSection,
 
 /// `^[a-z][a-z0-9_]*$`: the name of a backend-`c` binding, so that its grant
 /// `<prefix>_bind_<name>` is a C identifier.
-fn is_binding_name(name: &str) -> bool {
+pub(crate) fn is_binding_name(name: &str) -> bool {
     let mut bytes = name.bytes();
     bytes.next().is_some_and(|b| b.is_ascii_lowercase())
         && bytes.all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'_')

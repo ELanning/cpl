@@ -239,6 +239,10 @@ cpl_status CPLRT(error_interop_note)(cplrt_runtime *rt, cpl_error **error, uint3
     api_puts(&t, ",\"category\":\"interop\",\"severity\":\"error\",\"message\":");
     api_json_string(&t, message, strlen(message));
     if (note != NULL) {                                 /* after message: no span, symbol, or facet (4.6) */
+        /* a note from an adapter is its own: only its valid UTF-8 prefix goes into the error's JSON */
+        size_t valid = note_len;
+        if (!CPLRT(utf8_valid)(note, note_len, &valid, NULL))
+            note_len = valid;
         api_puts(&t, ",\"notes\":[{\"message\":");
         api_json_string(&t, note, note_len);
         api_puts(&t, "}]");
@@ -892,8 +896,18 @@ static void api_buf_release(cpl_runtime *prt, cpl_buf *buf)
     cplrt_runtime *rt = api_rt(prt);
     if (buf == NULL || buf->ptr == NULL)
         return;
-    api_buf *blk = (api_buf *)(void *)(buf->ptr - sizeof(api_buf));
     pthread_mutex_lock(&rt->lock);
+    /* only a live buffer of this runtime is released: a copy of a released cpl_buf (a host's double release) is found
+       in no list and left alone, instead of its freed header being read */
+    api_buf *blk = (api_buf *)rt->buffers;
+    while (blk != NULL && (char *)(void *)(blk + 1) != buf->ptr)
+        blk = blk->next;
+    if (blk == NULL) {
+        pthread_mutex_unlock(&rt->lock);
+        buf->ptr = NULL;
+        buf->len = 0;
+        return;
+    }
     if (blk->prev != NULL)
         blk->prev->next = blk->next;
     else
@@ -1819,6 +1833,15 @@ static cpl_status api_foreign_error_new(cpl_runtime *prt, cpl_foreign_kind kind,
         return api_null(rt, error, keys == NULL ? "keys" : "values");
     for (size_t i = 0; i < ndetails; i++) {
         char param[32];
+        /* a view with a length and no bytes (cabi.md 4.8): interop_null_pointer, not a read of address 0 */
+        if (keys[i].ptr == NULL && keys[i].len > 0) {
+            snprintf(param, sizeof param, "keys[%zu]", i);
+            return api_null(rt, error, param);
+        }
+        if (values[i].ptr == NULL && values[i].len > 0) {
+            snprintf(param, sizeof param, "values[%zu]", i);
+            return api_null(rt, error, param);
+        }
         if (keys[i].len > 0 && !CPLRT(utf8_valid)(keys[i].ptr, keys[i].len, &valid, NULL)) {
             snprintf(param, sizeof param, "keys[%zu]", i);
             return api_utf8_error(rt, error, param, valid);

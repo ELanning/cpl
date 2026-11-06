@@ -1513,6 +1513,16 @@ fn rule10_text_literals_take_the_minimal_canonical_escapes() {
 }
 
 #[test]
+fn rule10_bidirectional_formatting_characters_stay_escaped() {
+    // D75: they are no raw characters of a literal, so the canonical spelling escapes them
+    check(
+        CPL,
+        &wrap("let a = \"x\\u{202E}y\\u{2066}z\\u{200F}\"\na"),
+        "module m\n\nfn f() -> Int {\n    let a = \"x\\u{202e}y\\u{2066}z\u{200f}\"\n    a\n}\n",
+    );
+}
+
+#[test]
 fn rule10_literals_are_respelled_in_every_position_that_holds_one() {
     // Rule 10 applies to every text literal (annotation arguments, patterns,
     // test and property names, goals, Git refs) and every integer literal
@@ -1540,14 +1550,15 @@ fn rule10_literals_are_respelled_in_every_position_that_holds_one() {
 fn rule11_comment_text_is_kept_byte_for_byte_from_the_slashes() {
     // Rule 11: "text byte-for-byte from `//` (so `//x` stays `//x` and `// x`
     // stays `// x`; trailing whitespace is dropped)"; D60: four or more
-    // slashes are an ordinary comment; D1: comments may hold any Unicode.
+    // slashes are an ordinary comment; D1: comments may hold any Unicode but
+    // the control and bidirectional formatting characters of D75.
     check(
         CPL,
         concat!(
-            "module m\n\n//x\n//   spaced   \n////\n//// banner ////\n//\n// \u{fc}n\u{ef}c\u{f6}d\u{e9} \u{2713} \u{202e}rtl\u{202c} \u{2028} end\nfn f() -> Int {",
+            "module m\n\n//x\n//   spaced   \n////\n//// banner ////\n//\n// \u{fc}n\u{ef}c\u{f6}d\u{e9} \u{2713} \u{200f}rtl\u{200e} \u{2028} end\nfn f() -> Int {",
             " 1 } //no space\n",
         ),
-        "module m\n\n//x\n//   spaced\n////\n//// banner ////\n//\n// \u{fc}n\u{ef}c\u{f6}d\u{e9} \u{2713} \u{202e}rtl\u{202c} \u{2028} end\nfn f() -> Int {\n    1\n} //no space\n",
+        "module m\n\n//x\n//   spaced\n////\n//// banner ////\n//\n// \u{fc}n\u{ef}c\u{f6}d\u{e9} \u{2713} \u{200f}rtl\u{200e} \u{2028} end\nfn f() -> Int {\n    1\n} //no space\n",
     );
 }
 

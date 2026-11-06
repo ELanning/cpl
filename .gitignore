@@ -3,3 +3,6 @@
 # Editor swap files
 *.swp
 *~
+# CPL execution state (toolchain 7.2): build outputs, and caches from before the per-user cache
+**/.cpl/build/
+**/.cpl/cache/

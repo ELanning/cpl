@@ -65,6 +65,7 @@ int CPLRT(cx_begin)(cplrt_cx *cx, cplrt_runtime *rt, cplrt_memory_record *memory
         eval_tl.floors[depth] = floor;
     eval_tl.n = depth + 1u;
     cx->stack_floor = floor;
+    CPLRT(value_cache_enter)(rt); /* paired with cx_end, as eval_tl.n is: nothing below fails */
 
     /* the deadline: a budget whose deadline would overflow is no budget (3.4) */
     cx->budget_ms = budget_ms;
@@ -116,6 +117,7 @@ void CPLRT(cx_end)(cplrt_cx *cx)
     cx->calls = 0;
     if (eval_tl.n > 0)
         eval_tl.n--;
+    CPLRT(value_cache_leave)(cx->rt);
 }
 
 static const cplrt_def *eval_current(const cplrt_cx *cx)

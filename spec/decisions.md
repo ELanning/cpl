@@ -30,13 +30,13 @@ D-212 (refinement identity).
 
 | Document | Local ids | Stable ids | Lines |
 | - | - | - | - |
-| `grammar.md` | D1-D74 + 1 design conflict | D-001-D-070, D-226-D-227, D-238-D-239, D-339 | 75 |
+| `grammar.md` | D1-D75 + 1 design conflict | D-001-D-070, D-226-D-227, D-238-D-239, D-339, D-343 | 76 |
 | `semantics.md` | S1-S83 + 1 design conflict | D-071-D-131, D-228-D-235, D-247-D-252, D-277-D-283, D-340-D-341 | 84 |
 | `toolchain.md` | T1-T82 + 1 design conflict | D-132-D-179, D-236-D-237, D-240-D-246, D-253-D-276, D-326-D-327 | 83 |
 | `stdlib.md` | S1-S48 + 2 design conflicts | D-180-D-225, D-284-D-286, D-342 | 50 |
 | `cabi.md` | C1-C39 | D-287-D-325 | 39 |
 | `python.md` | P1-P11 | D-328-D-338 | 11 |
-| total | | D-001-D-342 | 342 |
+| total | | D-001-D-343 | 343 |
 
 D-226 to D-237 are the rulings of the fixture review of 2026-10-28 (the
 ambiguities reported by the `cpl-sema`, `cpl-eval`, and parser teams); they
@@ -439,3 +439,4 @@ section for D74, and toolchain T74's binding rules) keep their ids.
 | D-340 | `semantics.md` §6.8 Faults in `cpl run` and `cpl test` (S82) | `cpl run` and fixtures also grant Python bindings, always in a worker; a worker is an adapter host for S80 (`binding_host_failed`), timeouts and cancellations are foreign failures of the binding layer, and `binding_protocol` gains the malformed worker answer. | One failure model serves every out-of-process adapter with the kinds that stdlib S27 reserved, and the toolchain hosts no foreign code in process. |
 | D-341 | `semantics.md` §7.3 Running tests (S83) | Tests and properties may declare `using` parameters bound to fixtures, granted once per test execution and once per property, with `test_fixture_missing` and `test_fixture_failed`; tests without them stay pure (amends S30). | Service-dependent tests must declare fixtures, a fixture is a binding the manifest requests and the runner grants, and a grant per test isolates tests. |
 | D-342 | `stdlib.md` §7 std.foreign (S48) | Python bindings and workers produce `ForeignError` in a closed table of situations: an adapter's exception (kind from `cpl_foreign_kind`, `foreign_type` its class, then `cpl_foreign_details`), an ill-typed result, and a worker's exit, timeout, or cancellation. | A Python exception is the design's foreign exception, its class the classification a Python programmer knows, and each worker failure gets the kind S27 reserved for it. |
+| D-343 | `grammar.md` §1.2 Comments (D75) | Control characters and the bidirectional embedding, override, and isolate characters are rejected in comments; the bidirectional ones raw in text literals too (`\u{...}` still writes them). | Either makes source display differently from what it is (CVE-2021-42574) or corrupts the generated code a doc comment is copied into; a warning is not seen by a review of the displayed text. |

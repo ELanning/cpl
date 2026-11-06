@@ -143,7 +143,14 @@ both by `load_project` from a directory and by `tree_at` from a commit
 own path with the bytes of its target; a link to a directory is never
 followed, so nothing reached only through it is a member; and a link that
 leads to no file (dangling, a loop, a link to a directory, a path through
-a file, or, in a commit, a target outside the repository) is not a member.
+a file, or a target outside the repository) is not a member. From a
+directory, "the repository" is the git work tree that contains the
+project (the nearest ancestor of its resolved root with a `.git` entry),
+else the project root itself, and a file is a member only when its fully
+resolved path lies inside it: a checked-out repository may then not make
+`cpl check` read, and print in a diagnostic, a file the user can read
+elsewhere (`/proc/self/environ`, a key in the home directory), and the
+directory reading agrees with the commit's, which holds no such file.
 A `[build] sources` directory or `work/` that is itself a link, or is
 reached through one, is therefore absent, exactly as in the commit's tree
 (`git ls-tree` lists nothing under a linked `src`): a sources directory is
@@ -2313,7 +2320,7 @@ pub struct Submission { pub attempt: u32, pub token: FencingToken, pub tree: Str
 pub enum SubmitOutcome { Recorded(CandidateId), Unchanged(CandidateId) }   // Unchanged: the same candidate submitted again
 /// Why an operation was refused; `code()` is the Appendix B code where one exists (`work_stale_submission`,
 /// `work_boundary_unenforceable`, `work_not_authorized`, `work_unknown_task`, `work_cycle`, `work_overlapping_writes`,
-/// `work_bad_workers`), and `to_diagnostic()` uses it (else `internal_error`), with `task` in the payload. Variants
+/// `work_bad_workers`, `work_too_many_tasks`), and `to_diagnostic()` uses it (else `internal_error`), with `task` in the payload. Variants
 /// include `StaleBaseline { task, missing, unexpected }`, `OverlappingWrites { first, second, overlap }`,
 /// `BadWorkers { change, workers }` (`ChangeRun::open` of a change with `workers 0`), and `InvalidTimestamp`.
 pub enum ScheduleError { /* ... */ }
@@ -2595,7 +2602,7 @@ impl Compiler {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct BuildConfig {
     pub out_dir: PathBuf,                         // `--out`, default <project>/.cpl/build/c
-    pub cache_dir: PathBuf,                       // <project>/.cpl/cache/c
+    pub cache_dir: PathBuf,                       // the per-user cache of `cpl build` (Section 7.2): <user cache>/cpl/<project key>/c
     pub profile: cc::Profile,
     pub sanitize: Vec<cc::Sanitizer>,
     pub artifacts: Vec<ArtifactKind>,             // cpl_project's (Section 11.1): `--artifact`, else `[interop.c] artifacts`
@@ -3214,7 +3221,7 @@ Idempotency, `format(parse(format(x))) == format(x)`, holds exactly
 | 7 | Function header: `pub fn name<T>(params) -> Ret` on one line (the params group may break under rule 6). Clauses follow, each on its own line indented one level, in canonical order: `effects`, every `requires` in source order, every `ensures` in source order, `decreases`. The body's `{` is placed on the header line when there are no clauses and the params group is flat; otherwise on its own line at the header's indentation. The same `{` rule applies to `while` (`invariant`s then `decreases`), `property` (`for` clauses), `patch` (`expect`), and to an `if`, `else if`, `match`, or `while` header in which a comma group printed broken: its `{` goes on its own line at the header's indentation, except inside a comma group, where it stays on the line that closes the header (T64). Capability operations: signature line then contract clauses, indented one level deeper than the operation. A bodiless `fn` (the stub form of grammar 3.9, `FnDecl::body` is `None`) prints its header and its clauses by the same rules and nothing after them: no `{` and no body, so the declaration ends with its header line or its last clause line. A definition-less `type` (`TypeDeclKind::Opaque`) is one line: `pub type List<T>`. |
 | 8 | Expressions print with one space around binary operators, `=`, `->`, `=>`, and after `:` and `,`; no space before `,` or `:`; no spaces inside `()` `[]` `<>`; one space inside the braces of a struct literal, an `effects` set, and a `.work` selector set (`Page { ..p }`, `effects { db.get }`, `write { paginate.body }`), and none inside a `use` list's braces (`use std.text.{trim}`, `use a.b.{c, D}`, as every corpus file writes them); `?`, `.member`, `..spread`, unary `-` and `?hole` attach to their operand; `not` is followed by one space. Parentheses are preserved exactly as written (never added, never removed). The spread prints first. `forall x in c: p`. `if c {` ... `} else if c2 {` ... `} else {` ... `}`; `match s {` with arms `pattern => expr` or `pattern => {` block `}`. Blocks are always multi-line except the empty block `{}`. |
 | 9 | Line breaks inside an expression are removed, with one exception: inside a `Paren` group, a source line break immediately before a binary operator is preserved (`BinaryExpr::break_before_op`); the operator then begins a continuation line indented one level deeper than the line containing the opening parenthesis. |
-| 10 | Text literals are re-escaped canonically, over exactly the set grammar D62 forbids raw and semantics S40 escapes: `\\`, `\"`, `\n`, `\r`, `\t`; every other scalar value in U+0000-U+001F, and U+007F (DEL), as `\u{H}` with the minimal number of lowercase hex digits (`\u{1}`, `\u{7f}`); every other scalar value literally. Int literals print their digit string without separators. |
+| 10 | Text literals are re-escaped canonically, over exactly the set grammar D62 forbids raw and semantics S40 escapes: `\\`, `\"`, `\n`, `\r`, `\t`; every other scalar value in U+0000-U+001F, U+007F (DEL), and the bidirectional formatting characters grammar D75 forbids raw (U+202A-U+202E, U+2066-U+2069), as `\u{H}` with the minimal number of lowercase hex digits (`\u{1}`, `\u{7f}`, `\u{202e}`); every other scalar value literally. Int literals print their digit string without separators. |
 | 11 | Comments: `leading` comments print on their own lines at the node's indentation, text byte-for-byte from `//` (so `//x` stays `//x`, `// x` stays `// x`, and a tab in the text stays a tab; trailing spaces and tabs are dropped, rule 1), each preceded by one blank line when its `blank_line_before` is true (never directly after an opening `{`, `(`, or `[`, at the start of a file, or between clauses, rule 4); a `trailing` comment prints after one space following the node's last token; a second and every further trailing comment of the same node prints on a line of its own where the next parse attaches it (T63): above the next node of the same sequence (where nothing comes between, simply the next lines, at that node's indentation), below the `{` of a body that follows a header's last clause or a patch's `expect` line (Section 2.3 rule C), after the blank line that separates two declarations (rule 3; also after the last clause of a bodiless `fn`), at the operations' indentation after a capability operation's last clause, above the doc comments of the declaration an annotation belongs to (rule 5), and directly below the last declaration of a file, where it becomes a file trailing comment; `trailing_comments` print at the sequence's inner indentation; a comment written between a header and its `{` prints below the `{` (Section 2.3 rule C). |
 | 12 | `.work` files: `use` declarations, one blank line, changes separated by one blank line; inside `change`: `base`, `target`, `workers`, tasks in source order, `integrate`; inside `task`: `write`, `add`, `depend`, `preserve`, `goal`; `after` on the task's header line. `.patch` files: `patch sel` newline `    expect base(sel)` newline `{` body `}`, patch forms separated by exactly one blank line. |
 
@@ -5168,6 +5175,7 @@ named file, and a missing file or a directory is `usage_bad_argument`
 | facet selectors name a facet applicable to the declaration kind (`Positive.body` is not) | `work_facet_not_applicable` | error |
 | `identity` is never in a `write` or `add` set | `work_identity_not_writable` | error |
 | `after` names tasks of the same change; the graph is acyclic | `work_unknown_task`, `work_cycle` | error |
+| a change declares at most 4,096 tasks (the order and overlap rules compare every pair of tasks; past the limit they are not run) | `work_too_many_tasks` | error |
 | `write` sets of unordered tasks (neither reaches the other through `after`) do not overlap at facet level (`.definition` counts as every applicable facet but `identity`; file selectors are not compared); `add` namespaces of unordered tasks do not overlap (T43, segment-wise); `ChangeRun::open` checks the same again when a change opens (Section 10.2) | `work_overlapping_writes` | error |
 | `require test(sel)` matches at least one test: a namespace selects the tests in it (T43), a declaration selector selects `Index::tests_for` of that declaration, and a facet selector is `work_facet_not_applicable` (it still names its declaration individually); `require prove(sel)` names functions: a namespace selects the functions in it, and a selector that names nothing, or a declaration or namespace with no function, is `work_prove_not_function`; `require review(t)` names a task | `work_test_selector_empty`, `work_prove_not_function`, `work_unknown_task` | error |
 | no facet is in both the `write` set and the `preserve` set of one task | `work_preserve_written` | error |
@@ -5296,7 +5304,7 @@ with `build_lock_missing`), so that a project with check errors reports
 them whatever its targets; the target (`build_target_not_enabled`); the
 interop plan, whose `project_export_skipped_generic` infos (Section 11.1)
 `cpl build` alone reports; compiler discovery and the target check;
-emission; compilation, each object cached in `<project>/.cpl/cache/c/obj/`
+emission; compilation, each object cached in `<cache>/obj/`, `<cache>` the per-user `$XDG_CACHE_HOME/cpl/<project key>/c` (else `$HOME/.cache/cpl/<project key>/c`; `<project key>` the first 32 hex digits of the blake3 of the project root's canonical path)
 and reused by the rule of `spec/cabi.md` 1.6 (never while a header that
 its depfile lists has changed); linking; `build.json`; under `--release`
 the lock comparisons; with `--lock` the lock write. A build whose every input matches the cache reuses its outputs
@@ -5305,7 +5313,7 @@ and reports `cached: true`.
 Layout:
 
 ```text
-<out>/                                   default <project>/.cpl/build/c; caches in <project>/.cpl/cache/c/
+<out>/                                   default <project>/.cpl/build/c; caches in the per-user cache (above)
 ├── include/
 │   ├── cpl.h                            C API 0.1, identical in every package (spec/cabi.md Appendix A)
 │   ├── cpl_adapter.h
@@ -5334,8 +5342,20 @@ A host may link `lib/`, or vendor the package by compiling its units of
 `src/` with the adapters and vendored sources that `build.json` lists
 under `inputs`, as `spec/cabi.md` 1.6 states (which units, the C11
 compiler, and the flags the units depend on, `-fno-strict-aliasing` among
-them). `.cpl/build` and `.cpl/cache` are disposable execution state
-(design line 40), outside the source set.
+them). `.cpl/build` and the per-user cache are disposable execution state
+(design line 40), outside the source set. The cache is the user's, never
+the project's: a repository could commit cache entries (a compiled object,
+a driver) that a build would link or run without any source review seeing
+them, so objects and drivers are cached under `$XDG_CACHE_HOME/cpl/<project
+key>/c` (an absolute `XDG_CACHE_HOME`; else `$HOME/.cache/cpl/<project
+key>/c`; with neither, a fresh private directory per process, so nothing is
+reused), `<project key>` the first 32 hex digits of the blake3 of the
+project root's canonical path. The default output directory
+`.cpl/build/<target>` is written only when no component below the project
+root on the way to it is a symbolic link (`build_target_unsupported`
+otherwise), and `build.json`, a package's files, and `cpl.lock` are written
+by renaming a fresh temporary file over the old one, which replaces a link
+there instead of writing through it.
 
 JSON (`BuildOutput`, flattened into the envelope; also `<out>/build.json`):
 
@@ -6523,7 +6543,7 @@ reports, never loading:
 | Milestone 3: a backend-`python` binding whose `adapter` is not a dotted path of Python identifiers | `check_python` | `project_binding_adapter_invalid` (E; `binding`, `found`) |
 | Milestone 3: a `timeout_ms` integer that is not positive, or `timeout_ms` on a backend-`c` binding with `isolation = "in_process"` (a value that is no integer is `project_manifest_invalid`, T53) | `check_python` | `project_binding_timeout_invalid` (E; `binding`, `found`) |
 | Milestone 3: a `[test.fixtures]` value that names no binding / a binding whose capability is not the key | `check_python` | `project_fixture_binding_unknown` (E; `capability`, `binding`) / `project_fixture_capability_mismatch` (E; `capability`, `binding`, `found`) |
-| a backend-`c` binding whose name (that of its `[bindings.<name>]` table) does not match `^[a-z][a-z0-9_]*$`, so that its grant `<prefix>_bind_<name>` would be no C identifier (cabi.md Section 5) | `check_c_bindings` | `project_binding_name_invalid` (E; `binding`) |
+| a backend-`c` or backend-`python` binding whose name (that of its `[bindings.<name>]` table) does not match `^[a-z][a-z0-9_]*$`, so that its grant `<prefix>_bind_<name>` (C) or `bind_<name>` (Python) would be no identifier (cabi.md Section 5) | `check_c_bindings` | `project_binding_name_invalid` (E; `binding`) |
 | Milestone 2 only: a backend-`c` binding whose `isolation` is absent (default `worker`) or not `"in_process"`; from Milestone 3 the code is not raised, since a C adapter may run in a worker (`spec/python.md` 6.6) | `check_c_bindings` | `project_binding_isolation_unsupported` (E; `binding`, `found`) |
 | a backend-`c` binding whose `adapter` ends neither in `.c` nor in `.cbind.toml` | `check_c_bindings` | `project_binding_adapter_kind` (E; `binding`, `found`) |
 | a backend-`c` `adapter` that is not a project-relative path (it is absolute or has a `..` segment) or names no regular file under the project root (a link to a file counts as that file, T54) | `check_c_bindings` | `project_binding_adapter_missing` (E; `binding`, `path`) |
@@ -7722,7 +7742,7 @@ owned by `spec/cabi.md` Section 4 and listed here by reference; every
 | `project_binding_bad_backend` | project | E | project (`check_bindings`) | backend not one of `python`, `node`, `c` |
 | `project_binding_bad_isolation` | project | E | project (`check_bindings`) | isolation not `worker` or `in_process` |
 | `project_c_target_not_enabled` | project | E | project (`check_c_bindings`) | `[interop.c]` present while none of `"c"`, `"python"`, and `"node"` is in `[interop] targets` (Section 11.1); `key`, `targets` |
-| `project_binding_name_invalid` | project | E | project (`check_c_bindings`) | a backend-`c` binding whose name does not match `^[a-z][a-z0-9_]*$`, so that its grant would be no C identifier (Section 11.1); `binding` |
+| `project_binding_name_invalid` | project | E | project (`check_c_bindings`, `check_python`) | a backend-`c` or backend-`python` binding whose name does not match `^[a-z][a-z0-9_]*$`, so that its grant would be no C identifier (Section 11.1); `binding` |
 | `project_binding_isolation_unsupported` | project | E | project (`check_c_bindings`) | Milestone 2 only (not raised from Milestone 3, `spec/python.md` 6.6): a backend-`c` binding whose `isolation` is absent or not `in_process`; `binding`, `found` |
 | `project_binding_adapter_kind` | project | E | project (`check_c_bindings`) | a backend-`c` `adapter` that ends neither in `.c` nor in `.cbind.toml`; `binding`, `found` |
 | `project_binding_adapter_missing` | project | E | project (`check_c_bindings`) | a backend-`c` `adapter` that is no project-relative path of a regular file; `binding`, `path` |
@@ -7767,6 +7787,7 @@ owned by `spec/cabi.md` Section 4 and listed here by reference; every
 | `work_unknown_task` | work | E | work | `after`/`review` names no task |
 | `work_cycle` | work | E | work | `after` graph has a cycle |
 | `work_overlapping_writes` | work | E | work | unordered tasks write the same facet or add to overlapping namespaces (`cpl work check`, and `ChangeRun::open`) |
+| `work_too_many_tasks` | work | E | work | a change declares more than 4,096 tasks (`cpl work check`, and `ChangeRun::open`); `change`, `tasks`, `limit` |
 | `work_test_selector_empty` | work | E | work | `require test(sel)` matches no test |
 | `work_prove_not_function` | work | E | work | `require prove(sel)` names no function: a declaration that is no function (`kind`), nothing, or a namespace without functions; `selector` |
 | `work_preserve_written` | work | E | work | a facet both written and preserved by one task |

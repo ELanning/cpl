@@ -21,6 +21,8 @@ use std::fmt::Write as _;
 #[derive(Default)]
 pub(crate) struct Names {
     pub used: BTreeSet<(u8, u32)>,
+    /// The immortal statics of payload-less variants the unit names directly: (def, variant).
+    pub statics: BTreeSet<(u32, u32)>,
 }
 
 pub(crate) const N_D: u8 = 0;
@@ -343,8 +345,16 @@ impl<'a, 'p> Lowerer<'a, 'p> {
 
     fn unit(&mut self, slot: &str) {
         let unit = self.p.std_defs.unit;
-        let d = self.def_name(unit);
-        self.checked(&format!("cplrt_enum_new(cx, {d}, 0u, NULL, 0u, &{slot})"));
+        let w = self.variant_static(unit, 0);
+        self.line(&format!("CPLRT_SET({slot}, {w});"));
+    }
+
+    /// The word of a payload-less variant: its immortal static (`tables.rs`), named directly, so
+    /// building one is a constant, not a call (no count to keep: retain and release skip immortals).
+    fn variant_static(&mut self, def: DefId, variant: u32) -> String {
+        debug_assert!(variant <= 0xffff);
+        self.names.statics.insert((def.0, variant));
+        format!("cplrt_word_of(&CPLPKG(s{}_{variant}))", def.0)
     }
 
     /// The `visible` array of a binding site: the C of each local in scope, innermost first.
@@ -389,11 +399,26 @@ impl<'a, 'p> Lowerer<'a, 'p> {
 
     fn lower_all(&mut self, es: &'p [Expr]) -> Vec<Op> {
         let mut out = Vec::with_capacity(es.len());
-        for e in es {
-            let op = self.expr(e);
+        for (i, e) in es.iter().enumerate() {
+            let op = self.operand(e, &es[i + 1..]);
             out.push(op);
         }
         out
+    }
+
+    /// `e` as an operand that is consumed once `rest` (the operands after it) is evaluated: a var
+    /// read directly is borrowed, without the reference of its own `local` takes, when nothing in
+    /// `rest` can reassign it (only an `if` or a `match` holds statements; a call cannot reach
+    /// the caller's vars). A loop's `i + 1` or `i < n` then neither retains nor releases.
+    fn operand(&mut self, e: &'p Expr, rest: &[Expr]) -> Op {
+        if let ExprKind::Local(id) = &e.kind {
+            if let Some(LocalC::Slot(n, true)) = self.locals.get(id) {
+                if !rest.iter().any(|r| self.later_may_reassign(r)) {
+                    return Op::Borrowed(n.clone());
+                }
+            }
+        }
+        self.expr(e)
     }
 
     /// An array of borrowed words for a call: `{ const cplrt_w v[n] = {...}; <stmt> }`, or NULL for none.
@@ -624,6 +649,9 @@ impl<'a, 'p> Lowerer<'a, 'p> {
             }
             ExprKind::Lit(cpl_hir::Lit::Text(s)) => self.text_lit(s),
             ExprKind::Local(id) => self.local(*id),
+            ExprKind::Ctor { def, variant, args } if args.is_empty() && *variant <= 0xffff => {
+                Op::Imm(self.variant_static(*def, *variant))
+            }
             ExprKind::Ctor { def, variant, args } => {
                 let ops = self.lower_all(args);
                 let t = self.temp();
@@ -950,8 +978,73 @@ impl<'a, 'p> Lowerer<'a, 'p> {
         }
     }
 
+    /// The builtin a definition is, if any.
+    fn builtin_of(&self, def: DefId) -> Option<&'p str> {
+        match &self.p.defs.get(def.0 as usize)?.kind.as_fn()?.body {
+            FnBody::Builtin(id) => Some(id.as_str()),
+            _ => None,
+        }
+    }
+
+    /// `xs.get(i).unwrap_or(d)`, `xs.first().unwrap_or(d)`, and `xs.last().unwrap_or(d)` (optimized): the element,
+    /// or `d`, read in place, with no `Option` built and released. Reading an element cannot fault (only building
+    /// the `Option` could, for lack of memory), so evaluating `d` after the read is not observable.
+    fn list_read_or(&mut self, callee: DefId, args: &'p [Expr]) -> Option<Op> {
+        if !self.t.optimize || args.len() != 2 || self.builtin_of(callee) != Some("option_unwrap_or") {
+            return None;
+        }
+        let ExprKind::Call {
+            callee: inner,
+            args: inner_args,
+            using,
+            ..
+        } = &args[0].kind
+        else {
+            return None;
+        };
+        if !using.is_empty() {
+            return None;
+        }
+        let which = self.builtin_of(*inner)?;
+        if !matches!(
+            (which, inner_args.len()),
+            ("list_get", 2) | ("list_first", 1) | ("list_last", 1)
+        ) {
+            return None;
+        }
+        let rest = std::slice::from_ref(&args[1]);
+        let xs = self.operand(&inner_args[0], if which == "list_get" { &inner_args[1..] } else { rest });
+        let xs = match xs {
+            Op::Borrowed(x) if self.later_may_reassign(&args[1]) => Op::Slot(self.temp_of(Op::Borrowed(x))),
+            other => other,
+        };
+        let index = if which == "list_get" {
+            let i = self.operand(&inner_args[1], rest);
+            let i = match i {
+                Op::Borrowed(x) if self.later_may_reassign(&args[1]) => Op::Slot(self.temp_of(Op::Borrowed(x))),
+                other => other,
+            };
+            let ie = i.expr().to_string();
+            format!("(cplrt_is_small({ie}) ? cplrt_small_value({ie}) : INT64_C(-1))")
+        } else if which == "list_first" {
+            "INT64_C(0)".to_string()
+        } else {
+            format!("((int64_t)cplrt_len({}) - 1)", xs.expr())
+        };
+        let d = self.operand(&args[1], &[]);
+        let t = self.temp();
+        let (xe, de) = (xs.expr().to_string(), d.expr().to_string());
+        self.line(&format!(
+            "{{ int64_t k_ = {index}; CPLRT_COPY({t}, (k_ >= 0 && (uint64_t)k_ < cplrt_len({xe})) ? cplrt_items({xe})[k_] : {de}); }}"
+        ));
+        Some(Op::Slot(t))
+    }
+
     fn call(&mut self, callee: DefId, args: &'p [Expr], using: &'p [Expr], span: Span) -> Op {
         let p = self.p;
+        if let Some(op) = self.list_read_or(callee, args) {
+            return op;
+        }
         let ops = self.lower_all(args);
         let handles: Vec<String> = using.iter().map(|u| self.using_arg(u)).collect();
         let t = self.temp();
@@ -1045,21 +1138,35 @@ impl<'a, 'p> Lowerer<'a, 'p> {
             }
             _ => {}
         }
-        let a = self.expr(lhs);
+        let a = self.operand(lhs, std::slice::from_ref(rhs));
         let a = match a {
             Op::Borrowed(x) if self.later_may_reassign(rhs) => {
                 Op::Slot(self.temp_of(Op::Borrowed(x)))
             }
             other => other,
         };
-        let b = self.expr(rhs);
+        let b = self.operand(rhs, &[]);
         let t = self.temp();
         let (ae, be) = (a.expr().to_string(), b.expr().to_string());
         match op {
             BinaryOp::Eq | BinaryOp::Ne => {
-                self.checked(&format!("cplrt_equal(cx, {ae}, {be}, &eq)"));
                 let neg = if op == BinaryOp::Ne { "!" } else { "" };
-                self.line(&format!("CPLRT_SET({t}, cplrt_bool({neg}eq));"));
+                // a scalar type compares inline; the structural equality is a call
+                match cpl_eval::types::strip(self.p, &lhs.ty) {
+                    Ty::Int => self.line(&format!(
+                        "CPLRT_SET({t}, cplrt_bool({neg}cplrt_int_eq({ae}, {be})));"
+                    )),
+                    Ty::Bool => {
+                        self.line(&format!("CPLRT_SET({t}, cplrt_bool({neg}({ae} == {be})));"))
+                    }
+                    Ty::Text => self.line(&format!(
+                        "CPLRT_SET({t}, cplrt_bool({neg}cplrt_text_eq({ae}, {be})));"
+                    )),
+                    _ => {
+                        self.checked(&format!("cplrt_equal(cx, {ae}, {be}, &eq)"));
+                        self.line(&format!("CPLRT_SET({t}, cplrt_bool({neg}eq));"));
+                    }
+                }
             }
             BinaryOp::Concat => self.checked(&format!("cplrt_concat(cx, {ae}, {be}, &{t})")),
             BinaryOp::Add | BinaryOp::Sub | BinaryOp::Mul | BinaryOp::Div | BinaryOp::Rem => {
@@ -1071,19 +1178,22 @@ impl<'a, 'p> Lowerer<'a, 'p> {
                     BinaryOp::Div => "cplrt_int_div",
                     _ => "cplrt_int_rem",
                 };
-                let f = if self.t.optimize {
-                    match op {
-                        BinaryOp::Add => "cplrt_fast_add",
-                        BinaryOp::Sub => "cplrt_fast_sub",
-                        BinaryOp::Mul => "cplrt_fast_mul",
-                        BinaryOp::Div => "cplrt_fast_div",
-                        BinaryOp::Rem => "cplrt_fast_rem",
-                        _ => f,
-                    }
+                if self.t.optimize {
+                    // by value: the temporary's address is never taken, so it can live in a register
+                    let f = match op {
+                        BinaryOp::Add => "cplrt_add_w",
+                        BinaryOp::Sub => "cplrt_sub_w",
+                        BinaryOp::Mul => "cplrt_mul_w",
+                        BinaryOp::Div => "cplrt_div_w",
+                        _ => "cplrt_rem_w",
+                    };
+                    let fail = self.fail.clone();
+                    self.line(&format!(
+                        "{{ cplrt_w r_ = {f}(cx, {site}, {ae}, {be}); if (r_ == 0) {fail} CPLRT_SET({t}, r_); }}"
+                    ));
                 } else {
-                    f
-                };
-                self.checked(&format!("{f}(cx, {site}, {ae}, {be}, &{t})"));
+                    self.checked(&format!("{f}(cx, {site}, {ae}, {be}, &{t})"));
+                }
             }
             BinaryOp::Lt | BinaryOp::Le | BinaryOp::Gt | BinaryOp::Ge => {
                 let rel = match op {
@@ -1294,6 +1404,49 @@ impl<'a, 'p> Lowerer<'a, 'p> {
         self.cov(stmt_kind(s));
         if self.t.optimize {
             if let Stmt::Assign { local, value } = s {
+                // x = x ++ a ++ b ++ ...: every operand first (each sees x unchanged), then each
+                // appended in place, so a loop building x this way is linear
+                let mut rights: Vec<&'p Expr> = Vec::new();
+                let mut e: &'p Expr = value;
+                while let ExprKind::Binary {
+                    op: BinaryOp::Concat,
+                    lhs,
+                    rhs,
+                } = &e.kind
+                {
+                    rights.push(rhs);
+                    e = lhs;
+                }
+                if rights.len() >= 2
+                    && matches!(e.kind, ExprKind::Local(id) if id == *local)
+                    && matches!(value.ty, Ty::List(_) | Ty::Text | Ty::Bytes)
+                    && !rights.iter().any(|r| self.later_may_reassign(r))
+                {
+                    let mut parts = Vec::with_capacity(rights.len());
+                    for r in rights.into_iter().rev() {
+                        let part = self.expr(r);
+                        // a borrowed word is kept: a later operand may change what it borrows from
+                        let part = match part {
+                            Op::Borrowed(b) => {
+                                let t = self.temp();
+                                self.line(&format!("CPLRT_COPY({t}, {b});"));
+                                t
+                            }
+                            other => other.expr().to_string(),
+                        };
+                        parts.push(part);
+                    }
+                    let slot = self.slot_of(*local);
+                    let helper = match value.ty {
+                        Ty::Text => "cplrt_text_concat_owned",
+                        Ty::Bytes => "cplrt_bytes_concat_owned",
+                        _ => "cplrt_list_concat_owned",
+                    };
+                    for part in parts {
+                        self.checked(&format!("{helper}(cx, &{slot}, {part})"));
+                    }
+                    return;
+                }
                 if let ExprKind::Binary {
                     op: BinaryOp::Concat,
                     lhs,
@@ -1701,7 +1854,7 @@ pub(crate) fn emit_fn(t: &mut Tables<'_>, names: &mut Names, def: DefId) -> Stri
         l.region(c, cl, "decreases", move |l, ve| {
             let cln = l.names.cl(cl);
             l.line(&format!(
-                "if (cplrt_header_measure(cx, &fr, {cln}, {ve}) != CPLRT_OK) goto fail;"
+                "if (cplrt_fast_header_measure(cx, &fr, {cln}, {ve}) != CPLRT_OK) goto fail;"
             ));
         });
     }
@@ -1747,7 +1900,7 @@ pub(crate) fn emit_fn(t: &mut Tables<'_>, names: &mut Names, def: DefId) -> Stri
     }
     let _ = writeln!(
         out,
-        "    if (cplrt_enter_fn(cx, &fr, {dn}, site, params, {np}u) != CPLRT_OK)"
+        "    if (cplrt_fast_enter_fn(cx, &fr, {dn}, site, params, {np}u) != CPLRT_OK)"
     );
     out.push_str("        return CPLRT_FAULT;\n");
     out.push_str(&body_text);
@@ -1759,7 +1912,7 @@ pub(crate) fn emit_fn(t: &mut Tables<'_>, names: &mut Names, def: DefId) -> Stri
         "    CPLRT_MOVE(*out, rv);\n    goto done;\nfail:\n    st = CPLRT_FAULT;\ndone:\n",
     );
     out.push_str(&l.releases());
-    out.push_str("    return cplrt_leave(cx, &fr, st);\n}\n");
+    out.push_str("    return cplrt_fast_leave(cx, &fr, st);\n}\n");
     format!("{}{out}", l.helpers)
 }
 
@@ -1807,7 +1960,7 @@ pub(crate) fn emit_pred(t: &mut Tables<'_>, names: &mut Names, def: DefId) -> St
     out.push_str(&body);
     out.push_str("    goto done;\nfail:\n    st = CPLRT_FAULT;\ndone:\n");
     out.push_str(&l.releases());
-    out.push_str("    return cplrt_leave(cx, &fr, st);\n}\n");
+    out.push_str("    return cplrt_fast_leave(cx, &fr, st);\n}\n");
     format!("{}{out}", l.helpers)
 }
 
@@ -1927,7 +2080,7 @@ pub(crate) fn emit_test(t: &mut Tables<'_>, names: &mut Names, def: DefId) -> St
     out.push_str(&text);
     out.push_str("    goto done;\nfail:\n    st = CPLRT_FAULT;\ndone:\n");
     out.push_str(&l.releases());
-    out.push_str("    return cplrt_leave(cx, &fr, st);\n}\n");
+    out.push_str("    return cplrt_fast_leave(cx, &fr, st);\n}\n");
     format!("{}{out}", l.helpers)
 }
 
@@ -1977,7 +2130,7 @@ pub(crate) fn emit_bounds(
                 "    CPLRT_MOVE(*out, rv);\n    goto done;\nfail:\n    st = CPLRT_FAULT;\ndone:\n",
             );
             out.push_str(&l.releases());
-            out.push_str("    return cplrt_leave(cx, &fr, st);\n}\n");
+            out.push_str("    return cplrt_fast_leave(cx, &fr, st);\n}\n");
             entries.push((i as u32, side, name));
         }
     }

@@ -153,6 +153,30 @@ fn containment_cycles_are_infinite_types() {
 }
 
 #[test]
+fn growing_type_arguments_are_polymorphic_recursion() {
+    // `Nest<List<T>>` and `Grow<Pair<T, T>>` inside their own declarations need infinitely many
+    // instantiations; a permutation (`Swap<B, A>`), a bare parameter, and a closed argument do not
+    let result = check_source(
+        "module m.p\n\npub struct Nest<T> {\n    v: T\n    next: Option<Nest<List<T>>>\n}\n\npub struct Pair<A, B> {\n    a: A\n    b: B\n}\n\npub enum Grow<T> {\n    End\n    More(List<Grow<Pair<T, T>>>)\n}\n\npub enum Swap<A, B> {\n    End\n    More(Option<Swap<B, A>>)\n}\n\npub enum Tree<T> {\n    Leaf(T)\n    Node(List<Tree<T>>)\n    Ints(List<Tree<Int>>)\n}\n",
+    );
+    let got: Vec<(u32, String)> = project_triples(&result)
+        .into_iter()
+        .map(|(l, _, c)| (l, c))
+        .collect();
+    assert_eq!(
+        got,
+        [
+            (3, "polymorphic_recursion".to_string()),
+            (13, "polymorphic_recursion".to_string()),
+        ],
+        "{}",
+        render(&result)
+    );
+    let j = json_values(&result);
+    assert_eq!(j[0]["reference"], json!("Nest<List<T>>"));
+}
+
+#[test]
 fn refinement_cycles_and_dependents() {
     let result = check_source(
         "module m.c\n\ntype A = B where self > 0\ntype B = A where self > 1\ntype C = A where self > 2\n\nfn f(c: C) -> Int {\n    1\n}\n",

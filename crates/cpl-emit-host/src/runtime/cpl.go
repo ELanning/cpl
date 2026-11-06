@@ -17,10 +17,12 @@ import (
 	"math"
 	"math/big"
 	"os"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync/atomic"
 	"unicode/utf8"
+	"unsafe"
 )
 
 // ===========================================================================
@@ -321,15 +323,20 @@ func ListOf[T any](items ...T) List[T] {
 	return List[T]{s: s}
 }
 
-// ListLit is a list literal of the program: it keeps the argument slice.
-func ListLit[T any](items ...T) List[T] { return List[T]{s: items} }
+// ListLit is a list literal of the program. It copies its arguments like ListOf: a host that
+// passes a slice (ListLit(buf...)) keeps it, and changing it must not change a list CPL holds.
+func ListLit[T any](items ...T) List[T] {
+	s := make([]T, len(items))
+	copy(s, items)
+	return List[T]{s: s}
+}
 
 func (l List[T]) Len() int      { return len(l.s) }
 func (l List[T]) At(i int) T    { return l.s[i] }
 func (l List[T]) IsEmpty() bool { return len(l.s) == 0 }
 
-// Items is the elements, shared: do not modify them.
-func (l List[T]) Items() []T { return l.s[:len(l.s):len(l.s)] }
+// Items is a copy of the elements: a list a CPL function validated cannot change under it.
+func (l List[T]) Items() []T { return append([]T(nil), l.s...) }
 
 // ToSlice is a copy of the elements.
 func (l List[T]) ToSlice() []T {
@@ -762,13 +769,32 @@ func RefinementFault(expected, symbol string) *Fault {
 // context: defer cpl.Recover(cx, &err).
 func Recover(cx *Cx, err *error) {
 	if r := recover(); r != nil {
-		if f, ok := r.(*Fault); ok {
-			cx.Attribute(f)
-			*err = f
-			return
+		f, ok := r.(*Fault)
+		if !ok {
+			if f = nilFault(r); f == nil {
+				panic(r)
+			}
 		}
-		panic(r)
+		cx.Attribute(f)
+		*err = f
 	}
+}
+
+// nilFault is the fault of a nil that a host passed where CPL has a value: an enum (every
+// variant test fails, so a match reaches its unreachable end), a capability, or a value behind
+// a recursive field. CPL has no nil, so generated code reads one only when a host gave it; the
+// call then ends in a refinement_violation (the argument is outside its type), not a panic.
+func nilFault(r any) *Fault {
+	nilRead := false
+	if e, ok := r.(runtime.Error); ok {
+		nilRead = strings.Contains(e.Error(), "nil pointer dereference")
+	} else if s, ok := r.(string); ok {
+		nilRead = s == "cpl: unreachable"
+	}
+	if !nilRead {
+		return nil
+	}
+	return NewFault("refinement_violation", "", "", "", "an argument holds nil, which is no CPL value")
 }
 
 // MaxCallDepth is the default call-depth limit (semantics S38).
@@ -1190,6 +1216,27 @@ func isWhiteSpace(c rune) bool {
 }
 
 func BytesConcat(a, b Bytes) Bytes { return Bytes{a.s + b.s} }
+
+// TextBuf holds the bytes of a text variable that the code appends to (x = x ++ y), so that a
+// loop of appends is linear, as with strings.Builder: while the variable is exactly the buffer's
+// contents, an append extends the buffer, and the text it returns aliases the buffer. Bytes
+// already in a text are never written again, so a text the buffer gave out earlier, held
+// elsewhere, does not change.
+type TextBuf struct{ b []byte }
+
+// Append is x + more, through the buffer.
+func (t *TextBuf) Append(x, more string) string {
+	if len(more) == 0 {
+		return x
+	}
+	if len(x) == 0 || len(t.b) != len(x) || unsafe.StringData(x) != &t.b[0] {
+		b := make([]byte, len(x), 2*(len(x)+len(more)))
+		copy(b, x)
+		t.b = b
+	}
+	t.b = append(t.b, more...)
+	return unsafe.String(&t.b[0], len(t.b))
+}
 
 func Flatten[T any](lists List[List[T]]) List[T] {
 	n := 0

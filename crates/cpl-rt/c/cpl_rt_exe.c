@@ -194,6 +194,7 @@ int main(int argc, char **argv)
         if (r != CPLRT_OK) {
             char msg[512];
             snprintf(msg, sizeof msg, "argument %u: %s", (unsigned)i, detail.ptr != NULL ? detail.ptr : "invalid");
+            CPLRT(utf8_clip)(msg, strlen(msg));
             CPLRT(sbuf_free)(&pointer);
             CPLRT(sbuf_free)(&detail);
             for (uint32_t k = 0; k < i; k++)

@@ -280,13 +280,32 @@ static int wire_hexval(char c)
         return c - '0';
     if (c >= 'a' && c <= 'f')
         return c - 'a' + 10;
-    if (c >= 'A' && c <= 'F')
-        return c - 'A' + 10;
-    return -1;
+    return -1; /* lowercase only: one spelling of each byte string (cabi.md 3.8) */
 }
 
 /* The value of a node list {"nodes": [...]} built in the configured runtime: CPLRT_OK and *out (owned), CPLRT_INVALID
    with a detail, or CPLRT_NOMEM. */
+/* The most positions a value from another process may have once the nodes it shares are expanded: every walk of it
+   (rendering, equality, its uses in CPL code) visits them all, and a few hundred bytes of wire nodes can otherwise
+   describe more of them than any walk finishes. */
+#define WIRE_MAX_EXPANDED (UINT64_C(1) << 26)
+/* The most digits of an Int from another process: parsing is quadratic in them (about a second at this bound). */
+#define WIRE_MAX_INT_DIGITS 1000000u
+
+/* `-?(0|[1-9][0-9]*)` but not "-0": the one decimal spelling of each Int (spec/cabi.md 3.8). */
+static int wire_canonical_int(const char *s, size_t len)
+{
+    size_t i = len > 0 && s[0] == '-' ? 1u : 0u;
+    if (i == len)
+        return 0;
+    if (s[i] == '0')
+        return len == i + 1u && i == 0;
+    for (; i < len; i++)
+        if (s[i] < '0' || s[i] > '9')
+            return 0;
+    return 1;
+}
+
 int CPLRT(nodes_read)(cplrt_runtime *rt, const cplrt_jv *v, cplrt_w *out, const char **detail)
 {
     const cplrt_program *p = rt->program;
@@ -297,8 +316,12 @@ int CPLRT(nodes_read)(cplrt_runtime *rt, const cplrt_jv *v, cplrt_w *out, const 
     }
     uint32_t n = nodes->n;
     cplrt_w *words = (cplrt_w *)calloc(n, sizeof *words);
-    if (words == NULL)
+    uint64_t *expanded = (uint64_t *)calloc(n, sizeof *expanded); /* each node's positions, saturating */
+    if (words == NULL || expanded == NULL) {
+        free(words);
+        free(expanded);
         return CPLRT_NOMEM;
+    }
     int r = CPLRT_OK;
     for (uint32_t i = 0; i < n && r == CPLRT_OK; i++) {
         const cplrt_jv *node = &nodes->items[i];
@@ -315,6 +338,12 @@ int CPLRT(nodes_read)(cplrt_runtime *rt, const cplrt_jv *v, cplrt_w *out, const 
         case 'i':
             if (na != 1 || a[0].type != CPLRT_JSON_STRING) {
                 *detail = "an Int node is [\"i\", \"<decimal>\"]";
+                r = CPLRT_INVALID;
+            } else if (!wire_canonical_int(a[0].str, a[0].len)) {
+                *detail = "an Int node holds a canonical decimal";
+                r = CPLRT_INVALID;
+            } else if (a[0].len > WIRE_MAX_INT_DIGITS) {
+                *detail = "an Int node holds at most 1000000 digits";
                 r = CPLRT_INVALID;
             } else {
                 int k = CPLRT(int_parse)(rt, a[0].str, a[0].len, &words[i]);
@@ -351,7 +380,7 @@ int CPLRT(nodes_read)(cplrt_runtime *rt, const cplrt_jv *v, cplrt_w *out, const 
             for (size_t k = 0; k < len && r == CPLRT_OK; k++) {
                 int hi = wire_hexval(a[0].str[2 * k]), lo = wire_hexval(a[0].str[2 * k + 1]);
                 if (hi < 0 || lo < 0) {
-                    *detail = "a Bytes node holds hex digits";
+                    *detail = "a Bytes node holds lowercase hex digits";
                     r = CPLRT_INVALID;
                 }
                 bytes[k] = (uint8_t)(hi * 16 + lo);
@@ -388,6 +417,7 @@ int CPLRT(nodes_read)(cplrt_runtime *rt, const cplrt_jv *v, cplrt_w *out, const 
                 r = CPLRT_NOMEM;
                 break;
             }
+            uint64_t size = 1;
             for (uint32_t k = 0; k < nk; k++) {
                 uint32_t ci = 0;
                 if (!CPLRT(jv_u32)(&a[fixed + k], &ci) || ci >= i) {
@@ -396,7 +426,9 @@ int CPLRT(nodes_read)(cplrt_runtime *rt, const cplrt_jv *v, cplrt_w *out, const 
                     break;
                 }
                 kids[k] = words[ci];
+                size = size + expanded[ci] < size ? UINT64_MAX : size + expanded[ci];
             }
+            expanded[i] = size;
             if (r == CPLRT_OK) {
                 const cplrt_def *d = fixed >= 1u ? &p->defs[def] : NULL;
                 if (tag == 'r' && (d->kind != CPLRT_DEF_STRUCT || nk != d->nmembers)) {
@@ -423,6 +455,12 @@ int CPLRT(nodes_read)(cplrt_runtime *rt, const cplrt_jv *v, cplrt_w *out, const 
             r = CPLRT_INVALID;
             break;
         }
+        if (expanded[i] == 0)
+            expanded[i] = 1; /* a leaf */
+    }
+    if (r == CPLRT_OK && expanded[n - 1] > WIRE_MAX_EXPANDED) {
+        *detail = "the value has too many positions once its shared nodes are expanded";
+        r = CPLRT_INVALID;
     }
     if (r == CPLRT_OK) {
         cplrt_retain(words[n - 1]);
@@ -431,6 +469,7 @@ int CPLRT(nodes_read)(cplrt_runtime *rt, const cplrt_jv *v, cplrt_w *out, const 
     for (uint32_t i = 0; i < n; i++)
         cplrt_release(words[i]);
     free(words);
+    free(expanded);
     return r;
 }
 

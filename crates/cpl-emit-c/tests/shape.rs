@@ -3,7 +3,7 @@
 //! (the interpreter corpus, the examples, the checker's `ok` corpus, the differential corpus), each function read
 //! alone: (1) every slot is declared at the top and initialized to 0; (2) only `CPLRT_SET`, `CPLRT_COPY`, and
 //! `CPLRT_MOVE` write a slot; (3) the only labels are `exit:`, `fail:`, and `done:`; (4) no `return` before `done:`
-//! but the refusal after `cplrt_enter_fn` or `cplrt_enter_act`; (5) no `setjmp`/`longjmp` and no mutable global state.
+//! but the refusal after `cplrt_enter_fn` (or its inline `cplrt_fast_enter_fn`) or `cplrt_enter_act`; (5) no `setjmp`/`longjmp` and no mutable global state.
 
 use cpl_diag::FileOrigin;
 use cpl_project::{load_project, load_project_from_tree, LoadOptions, Project, VirtualTree};
@@ -127,7 +127,10 @@ fn check_function(name: &str, lines: &[&str]) -> Vec<String> {
                 .find(|l| !l.trim().is_empty())
                 .copied()
                 .unwrap_or("");
-            if !(prev.contains("cplrt_enter_fn") || prev.contains("cplrt_enter_act")) {
+            if !(prev.contains("cplrt_enter_fn")
+                || prev.contains("cplrt_fast_enter_fn")
+                || prev.contains("cplrt_enter_act"))
+            {
                 out.push(format!("{name}: a return before done: {t}"));
             }
         }

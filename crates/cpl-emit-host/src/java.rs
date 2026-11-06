@@ -825,11 +825,7 @@ impl<'p> Printer<'p> {
             params.join(", ")
         );
         for q in &fd.params {
-            // a generic function's arguments get no validator; its plain texts are still checked
-            if !f.generics.is_empty() && matches!(erase(p, &q.ty), Ty::Text) {
-                let _ = writeln!(out, "            if (!{rt}.Rt.validText({})) {{\n                throw {rt}.Fault.refinement(\"Text\", {symbol});\n            }}", pname(&q.name));
-            }
-            if f.generics.is_empty() && needs_validation(p, &q.ty) {
+            if !crate::has_type_param(&q.ty) && needs_validation(p, &q.ty) {
                 let v = self.validator_name(&q.ty);
                 let _ = writeln!(
                     out,
@@ -848,7 +844,7 @@ impl<'p> Printer<'p> {
             .collect();
         let _ = writeln!(
             out,
-            "            return x_{name}({}cx);\n        }} catch ({rt}.Fault $f) {{\n            throw cx.attribute($f);\n        }} catch (java.lang.StackOverflowError $e) {{\n            throw {rt}.Fault.stack();\n        }}\n    }}\n",
+            "            return x_{name}({}cx);\n        }} catch ({rt}.Fault $f) {{\n            throw cx.attribute($f);\n        }} catch (java.lang.NullPointerException $e) {{\n            throw cx.attribute({rt}.Fault.nullValue());\n        }} catch (java.lang.StackOverflowError $e) {{\n            throw {rt}.Fault.stack();\n        }}\n    }}\n",
             args.concat()
         );
     }

@@ -5,7 +5,6 @@
 #include "cpl_rt.h"
 
 #define CPL_D8 8u
-#define CPL_D21 21u
 #define CPL_D67 67u
 #define CPL_S75 75u
 #define CPL_S76 76u
@@ -14,6 +13,7 @@
 #define CPL_CL6 6u
 #define CPL_CL7 7u
 #define CPL_CL8 8u
+extern cplrt_obj CPLPKG(s21_0);
 
 
 static int cpl_p8(cplrt_cx *cx, uint32_t site, cplrt_w p0_self, int *out_holds);
@@ -34,7 +34,7 @@ fail:
     st = CPLRT_FAULT;
 done:
     cplrt_release(t0); cplrt_release(rv);
-    return cplrt_leave(cx, &fr, st);
+    return cplrt_fast_leave(cx, &fr, st);
 }
 
 /* loops.ops.count_up  [identity loops.ops.count_up, DefId 67] */
@@ -42,11 +42,10 @@ static int cpl_f67(cplrt_cx *cx, uint32_t site, cplrt_w p0_n, cplrt_w *out)
 {
     int st = CPLRT_OK, eq = 0, holds = 0;
     uint64_t it0 = 0;
-    cplrt_w l1_i = 0, t0 = 0, m0 = 0, t1 = 0, t2 = 0, t3 = 0, t4 = 0, t5 = 0, t6 = 0, t7 = 0, t8 = 0, t9 = 0;
-    cplrt_w t10 = 0, t11 = 0, t12 = 0, rv = 0;
+    cplrt_w l1_i = 0, t0 = 0, m0 = 0, t1 = 0, t2 = 0, t3 = 0, t4 = 0, t5 = 0, t6 = 0, t7 = 0, rv = 0;
     cplrt_frame fr;
     const cplrt_w params[1] = { p0_n };
-    if (cplrt_enter_fn(cx, &fr, CPL_D67, site, params, 1u) != CPLRT_OK)
+    if (cplrt_fast_enter_fn(cx, &fr, CPL_D67, site, params, 1u) != CPLRT_OK)
         return CPLRT_FAULT;
     if (cx->check_contracts) { /* obl requires/1: n >= 0 */
         CPLRT_SET(t0, cplrt_bool(cplrt_int_cmp(p0_n, cplrt_small(INT64_C(0))) >= 0));
@@ -56,48 +55,42 @@ static int cpl_f67(cplrt_cx *cx, uint32_t site, cplrt_w p0_n, cplrt_w *out)
     it0 = 0;
     CPLRT_SET(m0, 0);
     if (cx->check_contracts) { /* obl loop/1/invariant/1/init: i <= n */
-        CPLRT_COPY(t1, l1_i);
-        CPLRT_SET(t2, cplrt_bool(cplrt_int_cmp(t1, p0_n) <= 0));
-        if (!cplrt_truth(t2)) {
+        CPLRT_SET(t1, cplrt_bool(cplrt_int_cmp(l1_i, p0_n) <= 0));
+        if (!cplrt_truth(t1)) {
             { const cplrt_w visible[2] = { l1_i, p0_n }; cplrt_invariant_failed(cx, CPL_CL7, visible, 2u, it0); }
             goto fail;
         }
     }
     for (;;) {
         if (cplrt_tick(cx, CPL_S75) != CPLRT_OK) goto fail;
-        CPLRT_COPY(t3, l1_i);
-        CPLRT_SET(t4, cplrt_bool(cplrt_int_cmp(t3, p0_n) < 0));
-        if (!cplrt_truth(t4)) break;
+        CPLRT_SET(t2, cplrt_bool(cplrt_int_cmp(l1_i, p0_n) < 0));
+        if (!cplrt_truth(t2)) break;
         if (cx->check_contracts) { /* obl loop/1/decreases: n - i */
-            CPLRT_COPY(t5, l1_i);
-            if (cplrt_int_sub(cx, CPL_S76, p0_n, t5, &t6) != CPLRT_OK) { cplrt_claim(cx, CPL_CL8); goto fail; }
-            { const cplrt_w visible[2] = { l1_i, p0_n }; if (cplrt_loop_measure(cx, CPL_CL8, visible, 2u, it0, t6, &m0) != CPLRT_OK) goto fail; }
+            if (cplrt_int_sub(cx, CPL_S76, p0_n, l1_i, &t3) != CPLRT_OK) { cplrt_claim(cx, CPL_CL8); goto fail; }
+            { const cplrt_w visible[2] = { l1_i, p0_n }; if (cplrt_loop_measure(cx, CPL_CL8, visible, 2u, it0, t3, &m0) != CPLRT_OK) goto fail; }
         }
-        CPLRT_COPY(t7, l1_i);
-        if (cplrt_int_add(cx, CPL_S77, t7, cplrt_small(INT64_C(1)), &t8) != CPLRT_OK) goto fail;
-        CPLRT_MOVE(l1_i, t8);
-        if (cplrt_enum_new(cx, CPL_D21, 0u, NULL, 0u, &t9) != CPLRT_OK) goto fail;
+        if (cplrt_int_add(cx, CPL_S77, l1_i, cplrt_small(INT64_C(1)), &t4) != CPLRT_OK) goto fail;
+        CPLRT_MOVE(l1_i, t4);
+        CPLRT_SET(t5, cplrt_word_of(&CPLPKG(s21_0)));
         it0 += 1;
         if (cx->check_contracts) { /* obl loop/1/invariant/1/preserve: i <= n */
-            CPLRT_COPY(t10, l1_i);
-            CPLRT_SET(t11, cplrt_bool(cplrt_int_cmp(t10, p0_n) <= 0));
-            if (!cplrt_truth(t11)) {
+            CPLRT_SET(t6, cplrt_bool(cplrt_int_cmp(l1_i, p0_n) <= 0));
+            if (!cplrt_truth(t6)) {
                 { const cplrt_w visible[2] = { l1_i, p0_n }; cplrt_invariant_failed(cx, CPL_CL7, visible, 2u, it0); }
                 goto fail;
             }
         }
     }
-    CPLRT_COPY(t12, l1_i);
-    CPLRT_MOVE(rv, t12);
+    CPLRT_COPY(t7, l1_i);
+    CPLRT_MOVE(rv, t7);
     CPLRT_MOVE(*out, rv);
     goto done;
 fail:
     st = CPLRT_FAULT;
 done:
     cplrt_release(l1_i); cplrt_release(t0); cplrt_release(m0); cplrt_release(t1); cplrt_release(t2); cplrt_release(t3);
-    cplrt_release(t4); cplrt_release(t5); cplrt_release(t6); cplrt_release(t7); cplrt_release(t8); cplrt_release(t9);
-    cplrt_release(t10); cplrt_release(t11); cplrt_release(t12); cplrt_release(rv);
-    return cplrt_leave(cx, &fr, st);
+    cplrt_release(t4); cplrt_release(t5); cplrt_release(t6); cplrt_release(t7); cplrt_release(rv);
+    return cplrt_fast_leave(cx, &fr, st);
 }
 
 

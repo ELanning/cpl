@@ -449,9 +449,27 @@ impl<'a> Validator<'a> {
             task_outputs.push(output);
             facts.push(fact);
         }
-        let graph = Graph::new(&tasks);
-        self.after(&name, &tasks, &names, &graph);
-        self.overlaps(&tasks, &facts, &graph);
+        if tasks.len() > crate::reach::MAX_TASKS_PER_CHANGE {
+            // the order and overlap rules compare every pair of tasks: refused, not run
+            self.push(
+                error(
+                    codes::WORK_TOO_MANY_TASKS,
+                    change.name.span,
+                    format!(
+                        "change `{name}` declares {} tasks; a change may declare at most {}",
+                        tasks.len(),
+                        crate::reach::MAX_TASKS_PER_CHANGE
+                    ),
+                )
+                .with_data("change", json!(name))
+                .with_data("tasks", json!(tasks.len()))
+                .with_data("limit", json!(crate::reach::MAX_TASKS_PER_CHANGE)),
+            );
+        } else {
+            let graph = Graph::new(&tasks);
+            self.after(&name, &tasks, &names, &graph);
+            self.overlaps(&tasks, &facts, &graph);
+        }
         let (integrate, integrate_outputs, reviewed) =
             self.integrate(&name, change.integrate(), &names);
         for (task, fact) in tasks.iter().zip(&facts) {
@@ -1457,7 +1475,7 @@ struct Graph {
     edges: Vec<Vec<usize>>,
     /// The tasks reachable from each task through `after` (itself only on a
     /// cycle).
-    reach: Vec<BTreeSet<usize>>,
+    reach: crate::reach::Reach,
 }
 
 impl Graph {
@@ -1476,24 +1494,13 @@ impl Graph {
                     .collect()
             })
             .collect();
-        let reach = (0..tasks.len())
-            .map(|start| {
-                let mut seen = BTreeSet::new();
-                let mut stack: Vec<usize> = edges[start].clone();
-                while let Some(at) = stack.pop() {
-                    if seen.insert(at) {
-                        stack.extend(edges[at].iter().copied());
-                    }
-                }
-                seen
-            })
-            .collect();
+        let reach = crate::reach::Reach::new(&edges);
         Graph { edges, reach }
     }
 
     /// Whether one of the two tasks runs after the other.
     fn ordered(&self, i: usize, j: usize) -> bool {
-        self.reach[i].contains(&j) || self.reach[j].contains(&i)
+        self.reach.reaches(i, j) || self.reach.reaches(j, i)
     }
 
     /// One cycle per strongly connected component that has one, starting
@@ -1501,21 +1508,14 @@ impl Graph {
     /// edges in their order (`[a, c, b, a]` for `a after c`, `b after a`,
     /// `c after b`, the order `ScheduleError::Cycle` reports).
     fn cycles(&self) -> Vec<Vec<usize>> {
-        let mut seen = BTreeSet::new();
-        let mut cycles = Vec::new();
-        for start in 0..self.edges.len() {
-            if seen.contains(&start) || !self.reach[start].contains(&start) {
-                continue;
-            }
-            let component: BTreeSet<usize> = self.reach[start]
-                .iter()
-                .copied()
-                .filter(|&j| self.reach[j].contains(&start))
-                .collect();
-            seen.extend(component.iter().copied());
-            cycles.push(self.cycle_through(start, &component));
-        }
-        cycles
+        self.reach
+            .cycles()
+            .into_iter()
+            .map(|members| {
+                let component: BTreeSet<usize> = members.iter().copied().collect();
+                self.cycle_through(members[0], &component)
+            })
+            .collect()
     }
 
     fn cycle_through(&self, start: usize, component: &BTreeSet<usize>) -> Vec<usize> {

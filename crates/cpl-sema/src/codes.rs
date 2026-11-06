@@ -150,6 +150,9 @@ codes! {
     CYCLIC_TYPE_DEFINITION = "cyclic_type_definition", Resolve, Error;
     /// A containment cycle not broken by `List`, `Option`, or `Result` (S7).
     INFINITE_TYPE = "infinite_type", Resolve, Error;
+    /// A generic declaration that refers to its own recursive group with growing type arguments
+    /// (`struct S<T> { next: Option<S<List<T>>> }`): infinitely many instantiations (S7).
+    POLYMORPHIC_RECURSION = "polymorphic_recursion", Resolve, Error;
     /// `cpl run` of an effectful function (S39).
     CANNOT_RUN_EFFECTFUL = "cannot_run_effectful", Resolve, Error;
     /// `cpl run` of a generic function (S39).
@@ -176,6 +179,8 @@ codes! {
     UNUSED_VALUE = "unused_value", Type, Error;
     NON_EXHAUSTIVE_MATCH = "non_exhaustive_match", Type, Error;
     UNREACHABLE_ARM = "unreachable_arm", Type, Warning;
+    /// A `match` whose exhaustiveness check exceeds its step budget (S62).
+    MATCH_TOO_COMPLEX = "match_too_complex", Type, Error;
     PATTERN_TYPE_MISMATCH = "pattern_type_mismatch", Type, Error;
     PATTERN_ARITY_MISMATCH = "pattern_arity_mismatch", Type, Error;
     PROPAGATE_NOT_RESULT = "propagate_not_result", Type, Error;

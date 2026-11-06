@@ -509,7 +509,8 @@ fn escape_text(value: &str, out: &mut String) {
             '\n' => out.push_str("\\n"),
             '\r' => out.push_str("\\r"),
             '\t' => out.push_str("\\t"),
-            c if (c as u32) < 0x20 || c == '\x7f' => {
+            // D75: a bidirectional formatting character is no raw character of a literal
+            c if (c as u32) < 0x20 || c == '\x7f' || crate::lexer::is_bidi_control(c) => {
                 out.push_str(&format!("\\u{{{:x}}}", c as u32));
             }
             c => out.push(c),

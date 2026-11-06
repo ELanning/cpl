@@ -1,0 +1,61 @@
+module appends
+
+use std.text.{join}
+use std.bytes.{from_list}
+
+/// Text appended in place through a chain that reads the variable's own old value, with
+/// snapshots kept and the variable reset to an old snapshot (an in-place append must never
+/// change a text another variable holds).
+pub fn texts(n: Int) -> Text {
+    var t = "a"
+    var snaps: List<Text> = []
+    var i = 0
+    while i < n {
+        let before = t
+        t = t ++ before ++ "x" ++ i.to_text()
+        snaps = snaps.push(before)
+        if i % 3 == 2 {
+            t = before
+        }
+        i = i + 1
+    }
+    join(snaps, ",") ++ "|" ++ t
+}
+
+/// Two variables appended from one value: neither append may show in the other.
+pub fn forked(n: Int) -> Text {
+    var a = "base"
+    var i = 0
+    while i < n {
+        a = a ++ "." ++ i.to_text()
+        i = i + 1
+    }
+    var b = a
+    a = a ++ "-a" ++ "1"
+    b = b ++ "-b" ++ "2"
+    a ++ "|" ++ b
+}
+
+/// Lists appended through chains, with a snapshot read inside the chain.
+pub fn lists(n: Int) -> List<Int> {
+    var xs: List<Int> = [0]
+    var keep: List<Int> = []
+    var i = 1
+    while i <= n {
+        keep = xs
+        xs = xs ++ [i] ++ keep.take(2) ++ [i * 10]
+        i = i + 1
+    }
+    keep ++ [-1] ++ xs
+}
+
+/// Bytes appended through a chain.
+pub fn bytes_chain(n: Int) -> Int {
+    var b = from_list([1, 2])
+    var i = 0
+    while i < n {
+        b = b ++ from_list([i % 256]) ++ from_list([7])
+        i = i + 1
+    }
+    b.len
+}

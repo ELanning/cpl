@@ -2273,38 +2273,38 @@ fn links_that_lead_to_no_file_of_the_commit_are_left_out() {
     link(Path::new("nowhere.cpl"), "dangling.cpl");
     link(Path::new("loop_b.cpl"), "loop_a.cpl");
     link(Path::new("loop_a.cpl"), "loop_b.cpl");
-    // A link to a file outside the repository is a member of the working
-    // tree, but no file of any commit.
+    // A link to a file outside the repository is no member, on disk as in
+    // every commit (T54): a checkout may not make `cpl` read files the
+    // repository does not hold.
     link(&outside.join("outer.cpl"), "outer.cpl");
     let repo = fixture_at(root.clone());
     repo.git(&["init", "-q", "-b", "main"]);
     let commit = repo.commit_all("links");
-    let files = source_files(&reader, &["src"]);
+    let mut files = source_files(&reader, &["src"]);
     for absent in ["dangling.cpl", "loop_a.cpl", "loop_b.cpl"] {
         assert!(
             !files.contains_key(&format!("src/reader/{absent}")),
             "{absent}"
         );
     }
-    assert!(files.contains_key("src/reader/outer.cpl"));
+    // (the helper follows every link; the loader leaves this one out)
+    assert!(files.remove("src/reader/outer.cpl").is_some());
     let digest = source_digest(&files);
+    assert_eq!(
+        digest,
+        project_digest(&workspace().join("examples/reader")),
+        "the links add no member"
+    );
     let (code, env) = json_of(&reader, &["inspect", "reader.outer.outer_one"]);
-    assert_eq!(code, 0, "{env}");
-    assert_eq!(env["diagnostics"], json!([]));
+    assert_ne!(code, 0, "{env}");
     assert_eq!(
         env["revision"],
         json!({ "commit": commit, "state": "clean", "digest": digest })
     );
     let (code, env) = json_of(&reader, &["diff", "HEAD"]);
     assert_eq!(code, 0, "{env}");
-    assert_eq!(
-        statements(&env),
-        [st("identity_added", "reader.outer.outer_one")]
-    );
-    assert_eq!(
-        env["old"]["digest"],
-        json!(project_digest(&workspace().join("examples/reader")))
-    );
+    assert_eq!(statements(&env), Vec::<(String, String)>::new());
+    assert_eq!(env["old"]["digest"], json!(digest));
     assert_eq!(env["new"]["digest"], json!(digest));
 }
 

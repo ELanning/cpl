@@ -224,6 +224,7 @@ typedef struct cplrt_op {                       /* one capability operation */
     const uint32_t *sorted;                     /* parameter indices in byte order of their names */
     uint32_t ret;                               /* CPL_X of the declared return type (6.4) */
     uint32_t ret_foreign;                       /* 1 when the return type is Result<T, std.foreign.ForeignError> */
+    const uint32_t *ptypes;                     /* CPL_X of each parameter: a request's arguments are checked */
 } cplrt_op;
 typedef struct cplrt_def {                      /* CPL_D: one per DefId, std included */
     const char *stable_id;                      /* Def::stable_id: `symbol` */
@@ -231,16 +232,19 @@ typedef struct cplrt_def {                      /* CPL_D: one per DefId, std inc
     const char *type_name;                      /* types::type_name: `$type`, ConstraintError.type_name (S44) */
     const char *bare_name;                      /* types::bare_name: value text */
     uint32_t kind;                              /* CPLRT_DEF_* */
-    uint32_t nmembers;                          /* fields, variants, positional parameters, or operations */
+    uint32_t nmembers;                          /* fields, variants, positional parameters, operations, or binders */
     const char *const *members;                 /* their names; a member stub's receiver is "self" */
     const uint32_t *sorted;                     /* member indices in byte order of their names (JSON keys) */
     cplrt_obj *const *statics;                  /* enum: per variant, its immortal value if payload-less, else NULL */
     const cplrt_op *ops;                        /* capability: nmembers operations */
     uint32_t nrequires;                         /* fn: its requires clauses (a builtin stub's from requires_spec) */
     const uint32_t *requires;                   /* CPL_CL indices */
-    const uint32_t *ptypes;                     /* fn, in a driver: CPL_X of each positional parameter; else NULL */
+    const uint32_t *ptypes;                     /* in a driver: CPL_X of each positional parameter of a fn or binder
+                                                   of a property; else NULL */
     const uint32_t *psites;                     /* fn: CPL_S of each positional parameter (the span of a boundary
                                                    refinement_violation, 5.5 step 3); else NULL */
+    uint32_t nusing;                            /* fn: its using parameters */
+    const uint32_t *ucaps;                      /* fn: DefId.0 of each using parameter's capability; else NULL */
 } cplrt_def;
 typedef struct cplrt_site {                     /* CPL_S: every span a fault can report */
     uint32_t file;                              /* FileId.0, an index into cplrt_program.files */
@@ -436,6 +440,16 @@ static inline int cplrt_int_div(cplrt_cx *cx, uint32_t site, cplrt_w a, cplrt_w 
 static inline int cplrt_int_rem(cplrt_cx *cx, uint32_t site, cplrt_w a, cplrt_w b, cplrt_w *out)
 { return cplrt_int_divrem(cx, site, a, b, NULL, out); }
 int cplrt_int_cmp(cplrt_w a, cplrt_w b);                   /* -1, 0, 1; never fails */
+/* Int == Int without a call while both are small: normalized bigints lie outside the small range (2.5), so a small
+   equals only itself and never a bigint */
+static inline int cplrt_int_eq(cplrt_w a, cplrt_w b)
+{
+    if (a == b)
+        return 1;
+    if (cplrt_is_small(a) || cplrt_is_small(b))
+        return 0;
+    return cplrt_int_cmp(a, b) == 0;
+}
 
 #define cplrt_equal CPLRT(equal)
 #define cplrt_concat CPLRT(concat)
@@ -602,6 +616,60 @@ static inline int cplrt_fast_tick(cplrt_cx *cx, uint32_t site)
     return CPLRT_OK;
 }
 
+/* Enter a function activation without an out-of-line call on the common path: the depth below its limit, the stack
+   above its floor, and nothing for the time budget or cancellation to handle (fast_tick's test); otherwise
+   cplrt_enter_fn, which raises the fault exactly as before. */
+static inline int cplrt_fast_enter_fn(cplrt_cx *cx, cplrt_frame *fr, uint32_t def, uint32_t site, const cplrt_w *params,
+                                      uint32_t n)
+{
+#if defined(__GNUC__) || defined(__clang__)
+    if (cx->calls < cx->max_call_depth && (uintptr_t)__builtin_frame_address(0) >= cx->stack_floor &&
+        cx->deadline_ns == 0 &&
+        (cx->parallel_failure == NULL ||
+         cx->parallel_index <= atomic_load_explicit(cx->parallel_failure, memory_order_acquire)) &&
+        (cx->cancel == NULL || atomic_load_explicit(cx->cancel, memory_order_relaxed) == 0u)) {
+        fr->prev = cx->top;
+        fr->def = def;
+        fr->site = site;
+        fr->params = params;
+        fr->nparams = n;
+        fr->call = 1;
+        fr->measure = 0;
+        cx->top = fr;
+        cx->calls++;
+        return CPLRT_OK;
+    }
+#endif
+    return cplrt_enter_fn(cx, fr, def, site, params, n);
+}
+
+/* Leave an activation: inline when it succeeded; a fault takes cplrt_leave, which records the frame on it. */
+static inline int cplrt_fast_leave(cplrt_cx *cx, cplrt_frame *fr, int st)
+{
+    if (st != CPLRT_OK)
+        return cplrt_leave(cx, fr, st);
+    cx->top = fr->prev;
+    if (fr->call)
+        cx->calls--;
+    cplrt_release(fr->measure);
+    fr->measure = 0;
+    return CPLRT_OK;
+}
+
+/* The header decreases measure (S35) without a call when the enclosing activation is the same function's with a small
+   measure, and this one is smaller and not negative: direct recursion's common case. Everything else (no such
+   activation nearby, a bigint, a violation) is cplrt_header_measure's. */
+static inline int cplrt_fast_header_measure(cplrt_cx *cx, cplrt_frame *fr, uint32_t clause, cplrt_w measure)
+{
+    const cplrt_frame *g = fr->prev;
+    if (fr->measure == 0 && cplrt_is_small(measure) && g != NULL && g->def == fr->def && cplrt_is_small(g->measure) &&
+        cplrt_small_value(measure) >= 0 && cplrt_small_value(measure) < cplrt_small_value(g->measure)) {
+        fr->measure = measure;
+        return CPLRT_OK;
+    }
+    return cplrt_header_measure(cx, fr, clause, measure);
+}
+
 /* Optimized lowering's fast paths preserve the arbitrary-precision fallback and its fault site. */
 static inline int cplrt_fast_add(cplrt_cx *cx, uint32_t site, cplrt_w a, cplrt_w b, cplrt_w *out)
 {
@@ -646,6 +714,56 @@ static inline int cplrt_fast_rem(cplrt_cx *cx, uint32_t site, cplrt_w a, cplrt_w
         CPLRT_SET(*out, cplrt_small(cplrt_small_value(a) % cplrt_small_value(b))); return CPLRT_OK;
     }
     return cplrt_int_rem(cx, site, a, b, out);
+}
+/* The same operations returning the result word, 0 on a fault (no Int is the word 0): the generated code keeps its
+   temporaries in registers, where an out parameter takes their address. The slow path, out of line, is
+   cplrt_int_add .. cplrt_int_rem by op (0 add, 1 sub, 2 mul, 3 div, 4 rem). */
+#define cplrt_arith_slow CPLRT(arith_slow)
+cplrt_w cplrt_arith_slow(cplrt_cx *cx, uint32_t site, int op, cplrt_w a, cplrt_w b);
+static inline cplrt_w cplrt_add_w(cplrt_cx *cx, uint32_t site, cplrt_w a, cplrt_w b)
+{
+    if (cplrt_is_small(a) && cplrt_is_small(b)) {
+        int64_t n = cplrt_small_value(a) + cplrt_small_value(b);
+        if (n >= CPLRT_SMALL_MIN && n <= CPLRT_SMALL_MAX)
+            return cplrt_small(n);
+    }
+    return cplrt_arith_slow(cx, site, 0, a, b);
+}
+static inline cplrt_w cplrt_sub_w(cplrt_cx *cx, uint32_t site, cplrt_w a, cplrt_w b)
+{
+    if (cplrt_is_small(a) && cplrt_is_small(b)) {
+        int64_t n = cplrt_small_value(a) - cplrt_small_value(b);
+        if (n >= CPLRT_SMALL_MIN && n <= CPLRT_SMALL_MAX)
+            return cplrt_small(n);
+    }
+    return cplrt_arith_slow(cx, site, 1, a, b);
+}
+static inline cplrt_w cplrt_mul_w(cplrt_cx *cx, uint32_t site, cplrt_w a, cplrt_w b)
+{
+#if defined(__GNUC__) || defined(__clang__)
+    if (cplrt_is_small(a) && cplrt_is_small(b)) {
+        int64_t n;
+        if (!__builtin_mul_overflow(cplrt_small_value(a), cplrt_small_value(b), &n) && n >= CPLRT_SMALL_MIN &&
+            n <= CPLRT_SMALL_MAX)
+            return cplrt_small(n);
+    }
+#endif
+    return cplrt_arith_slow(cx, site, 2, a, b);
+}
+static inline cplrt_w cplrt_div_w(cplrt_cx *cx, uint32_t site, cplrt_w a, cplrt_w b)
+{
+    if (cplrt_is_small(a) && cplrt_is_small(b) && cplrt_small_value(b) != 0) {
+        int64_t n = cplrt_small_value(a) / cplrt_small_value(b);
+        if (n <= CPLRT_SMALL_MAX)
+            return cplrt_small(n);
+    }
+    return cplrt_arith_slow(cx, site, 3, a, b);
+}
+static inline cplrt_w cplrt_rem_w(cplrt_cx *cx, uint32_t site, cplrt_w a, cplrt_w b)
+{
+    if (cplrt_is_small(a) && cplrt_is_small(b) && cplrt_small_value(b) != 0)
+        return cplrt_small(cplrt_small_value(a) % cplrt_small_value(b));
+    return cplrt_arith_slow(cx, site, 4, a, b);
 }
 #define cplrt_list_push_owned CPLRT(list_push_owned)
 int cplrt_list_push_owned(cplrt_cx *, uint32_t, uint32_t, cplrt_w *, cplrt_w);

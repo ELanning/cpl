@@ -1,0 +1,185 @@
+module bench
+
+use std.text.{split}
+
+/// Integer arithmetic in a loop.
+pub fn arith(n: Int) -> Int {
+    var i = 0
+    var acc = 0
+    while i < n {
+        acc = (acc + i * i) % 1000003
+        i = i + 1
+    }
+    acc
+}
+
+/// Recursive calls.
+pub fn fib(n: Int) -> Int
+    requires n >= 0
+    decreases n
+{
+    if n < 2 { n } else { fib(n - 1) + fib(n - 2) }
+}
+
+/// Branches and division: the total of the Collatz steps of 1..n.
+pub fn collatz(n: Int) -> Int {
+    var total = 0
+    var k = 1
+    while k <= n {
+        var x = k
+        while x != 1 {
+            if x % 2 == 0 {
+                x = x / 2
+            } else {
+                x = 3 * x + 1
+            }
+            total = total + 1
+        }
+        k = k + 1
+    }
+    total
+}
+
+/// A list built by appending, then read by index.
+pub fn list_index(n: Int) -> Int {
+    var xs: List<Int> = []
+    var i = 0
+    while i < n {
+        xs = xs.push(i * 3 % 17)
+        i = i + 1
+    }
+    var sum = 0
+    var j = 0
+    while j < xs.len {
+        sum = sum + xs.get(j).unwrap_or(0)
+        j = j + 1
+    }
+    sum
+}
+
+/// A list walked with first and drop.
+pub fn list_walk(n: Int) -> Int {
+    var xs: List<Int> = []
+    var i = 0
+    while i < n {
+        xs = xs.push(i % 11)
+        i = i + 1
+    }
+    var sum = 0
+    var rest = xs
+    while rest.len > 0 {
+        sum = sum + rest.first().unwrap_or(0)
+        rest = rest.drop(1)
+    }
+    sum
+}
+
+fn merge(a: List<Int>, b: List<Int>) -> List<Int> {
+    var out: List<Int> = []
+    var i = 0
+    var j = 0
+    while i < a.len or j < b.len {
+        let x = a.get(i)
+        let y = b.get(j)
+        match x {
+            None => {
+                out = out.push(y.unwrap_or(0))
+                j = j + 1
+            }
+            Some(u) => match y {
+                None => {
+                    out = out.push(u)
+                    i = i + 1
+                }
+                Some(v) => if u <= v {
+                    out = out.push(u)
+                    i = i + 1
+                } else {
+                    out = out.push(v)
+                    j = j + 1
+                }
+            }
+        }
+    }
+    out
+}
+
+fn sort(xs: List<Int>) -> List<Int>
+    decreases xs.len
+{
+    if xs.len <= 1 {
+        xs
+    } else {
+        let half = xs.len / 2
+        merge(sort(xs.take(half)), sort(xs.drop(half)))
+    }
+}
+
+/// Merge sort of n pseudo-random integers; the checksum of the result.
+pub fn sorting(n: Int) -> Int {
+    var xs: List<Int> = []
+    var seed = 12345
+    var i = 0
+    while i < n {
+        seed = (seed * 1103515245 + 12345) % 2147483648
+        xs = xs.push(seed % 100000)
+        i = i + 1
+    }
+    let sorted = sort(xs)
+    var sum = 0
+    var k = 0
+    while k < sorted.len {
+        sum = (sum * 31 + sorted.get(k).unwrap_or(0)) % 1000000007
+        k = k + 1
+    }
+    sum
+}
+
+struct Point {
+    x: Int
+    y: Int
+}
+
+fn step(p: Point, k: Int) -> Point {
+    Point { x: p.y % 1000 + k, y: p.x % 1000 + 2 * k }
+}
+
+/// Structs made and read in a loop.
+pub fn structs(n: Int) -> Int {
+    var p = Point { x: 1, y: 2 }
+    var i = 0
+    while i < n {
+        p = step(p, i % 7)
+        i = i + 1
+    }
+    p.x + p.y
+}
+
+/// Text built by appending, split into words, and measured.
+pub fn text(n: Int) -> Int {
+    var t = ""
+    var i = 0
+    while i < n {
+        t = t ++ "w" ++ (i % 100).to_text() ++ " "
+        i = i + 1
+    }
+    let words = split(t, " ")
+    var total = 0
+    var j = 0
+    while j < words.len {
+        total = total + words.get(j).unwrap_or("").len
+        j = j + 1
+    }
+    total + t.len
+}
+
+/// Arbitrary-precision integers: the digits of n!.
+pub fn bigint(n: Int) -> Int {
+    var f = 1
+    var i = 2
+    while i <= n {
+        f = f * i
+        i = i + 1
+    }
+    f.to_text().len
+}

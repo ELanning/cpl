@@ -1,0 +1,6 @@
+[project]
+name = "bench"
+edition = "0.1"
+
+[interop]
+targets = ["c", "rust", "go", "java"]

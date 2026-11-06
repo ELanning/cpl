@@ -191,15 +191,32 @@ pub fn run(ctx: &Ctx, args: &BuildArgs) -> Result<Report<BuildOutput>, Failure> 
         .clone()
         .unwrap_or_else(|| cpl_sema::interop::InteropPlan::empty(project.manifest.c_prefix()));
     diagnostics.extend(plan.skipped_diagnostics(program));
-    let root = project
-        .root
-        .clone()
-        .unwrap_or_else(|| std::env::temp_dir().join("cpl-build"));
+    // a project with no root builds into a fresh private directory (reported as `out_dir`): a
+    // shared, guessable one in the temporary directory could be another user's
+    let root = match project.root.clone() {
+        Some(root) => root,
+        None => cpl_diag::fsutil::private_temp_dir("cpl-build")
+            .unwrap_or_else(|_| std::env::temp_dir().join(format!("cpl-build-{}", std::process::id()))),
+    };
     let out_dir = match &args.out {
         Some(o) if o.is_absolute() => o.clone(),
         Some(o) => ctx.session.cwd.join(o),
         None => root.join(".cpl").join("build").join(target),
     };
+    // The default output directory is inside the project, whose files can include symbolic links
+    // planted to send the build's writes (and its removal of stale outputs) anywhere: refused. An
+    // explicit --out is the user's own choice.
+    if args.out.is_none() {
+        let below = std::path::Path::new(".cpl").join("build").join(target);
+        if let Err(e) = cpl_diag::fsutil::beneath(&root, &below) {
+            diagnostics.push(Diagnostic::error(
+                cpl_emit_c::codes::BUILD_TARGET_UNSUPPORTED,
+                Category::Build,
+                format!("cannot write the {target} package to {}: {e}", out_dir.display()),
+            ));
+            return Err(Failure::new(Status::Error, revision, &diagnostics, Some(sm)));
+        }
+    }
     if source {
         return build_source(
             target,
@@ -231,7 +248,7 @@ pub fn run(ctx: &Ctx, args: &BuildArgs) -> Result<Report<BuildOutput>, Failure> 
     };
     let cfg = BuildConfig {
         out_dir,
-        cache_dir: root.join(".cpl").join("cache").join("c"),
+        cache_dir: super::run::user_cache_dir(&root).join("c"),
         profile: if args.profile == "debug" {
             Profile::Debug
         } else {
@@ -299,8 +316,8 @@ pub fn run(ctx: &Ctx, args: &BuildArgs) -> Result<Report<BuildOutput>, Failure> 
                     ));
                 }
                 output.lock.written = true;
-                let json = serde_json::to_string_pretty(&output).expect("BuildOutput serializes");
-                let _ = std::fs::write(cfg.out_dir.join("build.json"), json + "\n");
+                let json = crate::output::pretty(&output);
+                let _ = cpl_diag::fsutil::write_atomic(&cfg.out_dir.join("build.json"), (json + "\n").as_bytes());
             }
             let mut stdout = String::new();
             for a in &output.artifacts {

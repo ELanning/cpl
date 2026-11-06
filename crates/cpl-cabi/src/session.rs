@@ -287,7 +287,13 @@ fn request_on<T>(
             let (done, wait) = std::sync::mpsc::channel::<()>();
             std::thread::spawn(move || {
                 if wait.recv_timeout(limit) == Err(std::sync::mpsc::RecvTimeoutError::Timeout) {
-                    let _ = std::process::Command::new("kill")
+                    // by absolute path: a `kill` earlier on PATH is not ours to run; the pid is
+                    // still this child's (it is not reaped until the session waits for it)
+                    let kill = ["/bin/kill", "/usr/bin/kill"]
+                        .into_iter()
+                        .find(|k| std::path::Path::new(k).exists())
+                        .unwrap_or("kill");
+                    let _ = std::process::Command::new(kill)
                         .arg("-9")
                         .arg(pid.to_string())
                         .status();

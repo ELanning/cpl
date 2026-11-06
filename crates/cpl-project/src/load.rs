@@ -95,7 +95,10 @@ pub struct VirtualTree {
 /// for a source directory); and a link that leads to no file (dangling, a
 /// loop, a path through a file) is not a member.
 pub fn load_project(root: &Path, opts: &LoadOptions) -> Result<Project, LoadError> {
-    let tree = DiskTree { root };
+    let tree = DiskTree {
+        root,
+        confine: std::cell::OnceCell::new(),
+    };
     load(
         &tree,
         Some(root.to_path_buf()),
@@ -258,9 +261,39 @@ trait Tree {
 
 struct DiskTree<'a> {
     root: &'a Path,
+    /// Where a file of the project may lie once links are followed (`confinement`).
+    confine: std::cell::OnceCell<Option<PathBuf>>,
 }
 
 impl DiskTree<'_> {
+    /// T54: the directory every file of the project must lie in once its links are followed:
+    /// the git work tree that contains the project (the nearest ancestor of its canonical root
+    /// with a `.git`), else the project root. A commit's tree holds only files of the commit, so a
+    /// link there leads only to them; on disk the same rule keeps a checked-out repository from
+    /// making `cpl check` read, and print in its diagnostics, any file the user can read
+    /// (`/proc/self/environ`, a key in the home directory). `None` when the root cannot be
+    /// resolved: then no link is followed.
+    fn confinement(&self) -> Option<&Path> {
+        self.confine
+            .get_or_init(|| {
+                let root = fs::canonicalize(self.root).ok()?;
+                let repo = root
+                    .ancestors()
+                    .find(|dir| fs::symlink_metadata(dir.join(".git")).is_ok())
+                    .map(Path::to_path_buf);
+                Some(repo.unwrap_or(root))
+            })
+            .as_deref()
+    }
+
+    /// Whether the file at `full` (it exists) lies inside `confinement` once resolved.
+    fn confined(&self, full: &Path) -> bool {
+        match (fs::canonicalize(full), self.confinement()) {
+            (Ok(target), Some(within)) => target.starts_with(within),
+            _ => false,
+        }
+    }
+
     fn full(&self, rel: &str) -> PathBuf {
         if rel.is_empty() {
             self.root.to_path_buf()
@@ -312,7 +345,9 @@ impl DiskTree<'_> {
                 } else if file_type.is_symlink() {
                     // T54: a link to a file is that file; a link to a
                     // directory, or one that leads to no file, is not a member.
-                    if follow(&entry.path(), &path)?.is_some_and(|meta| meta.is_file()) {
+                    if follow(&entry.path(), &path)?.is_some_and(|meta| meta.is_file())
+                        && self.confined(&entry.path())
+                    {
                         out.push(path);
                     }
                 }
@@ -346,6 +381,11 @@ impl Tree for DiskTree<'_> {
         let full = self.full(path);
         match follow(&full, path)? {
             Some(meta) if meta.is_file() => {
+                // T54: a file that lies outside the confinement once its links (its own or a
+                // directory's on the way) are followed is no file of the project
+                if !self.confined(&full) {
+                    return Ok(None);
+                }
                 fs::read(&full).map(Some).map_err(|e| io_error(path, e))
             }
             _ => Ok(None),

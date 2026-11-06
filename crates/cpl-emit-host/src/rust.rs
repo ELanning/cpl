@@ -30,6 +30,7 @@ const FALLIBLE: &[&str] = FALLIBLE_BUILTINS;
 pub fn emit(p: &Program, lowered: &Lowered, options: &Options) -> Package {
     let mut r = Printer {
         p,
+        cycles: crate::Cycles::new(p),
         out: String::new(),
         validators: BTreeMap::new(),
         pending: Vec::new(),
@@ -124,6 +125,8 @@ fn module_path(p: &Program, d: DefId) -> Vec<String> {
 
 struct Printer<'p> {
     p: &'p Program,
+    /// The declarations whose own types may contain them (`boxed_*` asks `reaches` only there).
+    cycles: crate::Cycles,
     out: String,
     /// Validators requested: (key, type).
     validators: BTreeMap<String, String>,
@@ -285,13 +288,15 @@ impl<'p> Printer<'p> {
 
     // ---- types -----------------------------------------------------------------------
 
-    /// A field that contains its own struct is held by `Arc` (`spec/hosts.md` 2.2).
+    /// A field that contains its own struct is held by `cpl::Boxed` (`spec/hosts.md` 2.2, H6).
     fn boxed_field(&self, d: DefId, i: usize) -> bool {
         self.p
             .def(d)
             .kind
             .as_struct()
-            .is_some_and(|s| crate::reaches(self.p, &s.fields[i].ty, d, true))
+            .is_some_and(|s| {
+                self.cycles.may_contain_itself(d) && crate::reaches(self.p, &s.fields[i].ty, d, true)
+            })
     }
 
     fn boxed_payload(&self, d: DefId, variant: usize, i: usize) -> bool {
@@ -299,7 +304,10 @@ impl<'p> Printer<'p> {
             .def(d)
             .kind
             .as_enum()
-            .is_some_and(|e| crate::reaches(self.p, &e.variants[variant].payload[i], d, true))
+            .is_some_and(|e| {
+                self.cycles.may_contain_itself(d)
+                    && crate::reaches(self.p, &e.variants[variant].payload[i], d, true)
+            })
     }
 
     fn boxed_wrapper(&self, d: DefId) -> bool {
@@ -307,12 +315,12 @@ impl<'p> Printer<'p> {
             .def(d)
             .kind
             .as_wrapper()
-            .is_some_and(|w| crate::reaches(self.p, &w.inner, d, true))
+            .is_some_and(|w| self.cycles.may_contain_itself(d) && crate::reaches(self.p, &w.inner, d, true))
     }
 
     fn boxed_ty(&self, boxed: bool, t: String) -> String {
         if boxed {
-            format!("cpl::Arc<{t}>")
+            format!("cpl::Boxed<{t}>")
         } else {
             t
         }
@@ -554,7 +562,8 @@ impl<'p> Printer<'p> {
             refs: BTreeSet::new(),
         };
         let mut out = String::new();
-        let _ = writeln!(out, "#[doc(hidden)]\npub fn {name}__x{g}({}) -> Result<{ret}, cpl::Fault> {{\n    cx.enter()?;", params.join(", "));
+        // the internal forms are the crate's: a host calls the host form, which checks its arguments
+        let _ = writeln!(out, "#[doc(hidden)]\npub(crate) fn {name}__x{g}({}) -> Result<{ret}, cpl::Fault> {{\n    cx.enter()?;", params.join(", "));
         // S35: the activation's measure slot exists from entry to exit, past the `ensures`.
         let id = fx.r.fn_ids[&f.def];
         if f.measure.is_some() {
@@ -609,7 +618,7 @@ impl<'p> Printer<'p> {
         params.push("cx: &mut cpl::Cx".into());
         let _ = writeln!(
             body,
-            "#[doc(hidden)]\n#[inline]\npub fn {name}__b{g}({}) -> Result<{ret}, cpl::Fault> {{",
+            "#[doc(hidden)]\n#[inline]\npub(crate) fn {name}__b{g}({}) -> Result<{ret}, cpl::Fault> {{",
             params.join(", ")
         );
         fx.refs = refs;
@@ -645,9 +654,10 @@ impl<'p> Printer<'p> {
             def.docs.as_ref().map(|d| format!(": {}", d.lines().next().unwrap_or(""))).unwrap_or_default(),
             params.join(", ")
         );
-        if f.generics.is_empty() {
+        {
+            // every parameter whose type is closed, a generic function's included
             for q in &fd.params {
-                if needs_validation(p, &q.ty) {
+                if !crate::has_type_param(&q.ty) && needs_validation(p, &q.ty) {
                     let v = self.validator_name(&q.ty);
                     let _ = writeln!(
                         self.out,
@@ -994,16 +1004,43 @@ impl Fx<'_, '_> {
                 let _ = writeln!(out, "{pad}let mut v{var}: {};", self.var_ty(*var));
             }
             LStmt::Assign { var, value } => {
-                // `x = x ++ y` appends to a list nothing else shares.
+                // `x = x ++ a ++ b ...` appends to a list or text nothing else shares, after
+                // every part is computed (each sees `x` unchanged): a loop of appends is linear.
                 if let LExpr::Op {
                     op: Op::Concat,
-                    args,
                     ty,
+                    ..
                 } = value
                 {
-                    if matches!(&args[0], LExpr::Var(v) if v == var) && matches!(ty, Ty::List(_)) {
-                        let b = self.expr(&args[1]);
-                        let _ = writeln!(out, "{pad}v{var}.append_mut(&{b});");
+                    let mut parts = Vec::new();
+                    let mut e = value;
+                    while let LExpr::Op {
+                        op: Op::Concat,
+                        args,
+                        ..
+                    } = e
+                    {
+                        parts.push(&args[1]);
+                        e = &args[0];
+                    }
+                    if matches!(e, LExpr::Var(v) if v == var)
+                        && matches!(ty, Ty::List(_) | Ty::Text)
+                    {
+                        parts.reverse();
+                        if let [part] = parts.as_slice() {
+                            let b = self.expr(part);
+                            let _ = writeln!(out, "{pad}v{var}.append_mut(&{b});");
+                        } else {
+                            let _ = writeln!(out, "{pad}{{");
+                            for (i, part) in parts.iter().enumerate() {
+                                let b = self.expr(part);
+                                let _ = writeln!(out, "{pad}    let __a{i} = {b};");
+                            }
+                            for i in 0..parts.len() {
+                                let _ = writeln!(out, "{pad}    v{var}.append_mut(&__a{i});");
+                            }
+                            let _ = writeln!(out, "{pad}}}");
+                        }
                         return;
                     }
                 }
@@ -1414,7 +1451,7 @@ impl Fx<'_, '_> {
                             .enumerate()
                             .map(|(i, x)| {
                                 if self.r.boxed_payload(*def, *variant as usize, i) {
-                                    format!("cpl::Arc::new({x})")
+                                    format!("cpl::Boxed::new({x})")
                                 } else {
                                     x
                                 }
@@ -1444,7 +1481,7 @@ impl Fx<'_, '_> {
                     .enumerate()
                     .map(|(i, (f, v))| {
                         if std_type(p, *def).is_none() && self.r.boxed_field(*def, i) {
-                            format!("{}: cpl::Arc::new({v})", ident(&f.name))
+                            format!("{}: cpl::Boxed::new({v})", ident(&f.name))
                         } else {
                             format!("{}: {v}", ident(&f.name))
                         }
@@ -1455,7 +1492,7 @@ impl Fx<'_, '_> {
             LExpr::Wrap { def, arg } => {
                 let a = self.expr(arg);
                 if self.r.boxed_wrapper(*def) {
-                    format!("{}(cpl::Arc::new({a}))", self.r.path(*def))
+                    format!("{}(cpl::Boxed::new({a}))", self.r.path(*def))
                 } else {
                     format!("{}({a})", self.r.path(*def))
                 }

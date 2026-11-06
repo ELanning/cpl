@@ -97,6 +97,24 @@ int CPLRT(bytes_make)(cplrt_runtime *rt, const uint8_t *data, size_t len, cplrt_
 /* mirrors core::str::from_utf8 (the strict decoding of cpl_eval::builtins::bytes::to_text): the well-formed byte
    sequences of Unicode Table 3-7, so no surrogate, no overlong form, nothing above U+10FFFF; on failure the offset of
    the first byte of the first invalid or truncated sequence, Utf8Error::valid_up_to. */
+size_t CPLRT(utf8_clip)(char *s, size_t len)
+{
+    size_t start = len;
+    /* back over the continuation bytes of the last sequence, to its lead byte */
+    while (start > 0 && len - start < 4u && ((unsigned char)s[start - 1] & 0xC0u) == 0x80u)
+        start--;
+    if (start > 0) {
+        unsigned char lead = (unsigned char)s[start - 1];
+        size_t need = lead < 0x80u ? 1u : lead >= 0xF0u ? 4u : lead >= 0xE0u ? 3u : lead >= 0xC0u ? 2u : 0u;
+        if (need == 0 || len - (start - 1u) < need)
+            len = start - 1u; /* the last sequence is cut (or a stray continuation): drop it */
+    } else {
+        len = 0; /* nothing but continuation bytes */
+    }
+    s[len] = '\0';
+    return len;
+}
+
 int CPLRT(utf8_valid)(const char *s, size_t len, size_t *valid_up_to, size_t *scalars)
 {
     const unsigned char *p = (const unsigned char *)s;

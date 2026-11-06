@@ -32,7 +32,7 @@ fail:
     st = CPLRT_FAULT;
 done:
     cplrt_release(t0); cplrt_release(rv);
-    return cplrt_leave(cx, &fr, st);
+    return cplrt_fast_leave(cx, &fr, st);
 }
 
 /* store.ops.describe  [identity store.ops.describe, DefId 69] */
@@ -42,7 +42,7 @@ static int cpl_f69(cplrt_cx *cx, uint32_t site, cplrt_w p0_e, cplrt_w *out)
     cplrt_w t0 = 0, t1 = 0, rv = 0;
     cplrt_frame fr;
     const cplrt_w params[1] = { p0_e };
-    if (cplrt_enter_fn(cx, &fr, CPL_D69, site, params, 1u) != CPLRT_OK)
+    if (cplrt_fast_enter_fn(cx, &fr, CPL_D69, site, params, 1u) != CPLRT_OK)
         return CPLRT_FAULT;
     CPLRT_COPY(t0, p0_e);
     if (cplrt_variant(t0) == 0u) {
@@ -59,7 +59,7 @@ fail:
     st = CPLRT_FAULT;
 done:
     cplrt_release(t0); cplrt_release(t1); cplrt_release(rv);
-    return cplrt_leave(cx, &fr, st);
+    return cplrt_fast_leave(cx, &fr, st);
 }
 
 

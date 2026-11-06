@@ -17,7 +17,7 @@ use std::path::PathBuf;
 pub struct BuildConfig {
     /// `--out`, default `<project>/.cpl/build/c`.
     pub out_dir: PathBuf,
-    /// `<project>/.cpl/cache/c`.
+    /// The per-user cache of `cpl build` (toolchain 7.2): `<user cache>/cpl/<project key>/c`, never in the project.
     pub cache_dir: PathBuf,
     pub profile: cc::Profile,
     pub sanitize: Vec<cc::Sanitizer>,
@@ -813,7 +813,8 @@ fn build_target(
         python: python_info,
     };
     let json = serde_json::to_string_pretty(&output).expect("BuildOutput serializes");
-    std::fs::write(out.join("build.json"), json + "\n").map_err(io)?;
+    // replaced, never written through a link the project planted there
+    cpl_diag::fsutil::write_atomic(&out.join("build.json"), (json + "\n").as_bytes()).map_err(io)?;
     Ok(Built {
         output,
         diagnostics,

@@ -231,6 +231,11 @@ impl<'p> Tables<'p> {
                         }
                     }
                 }
+                if let DefKind::Property(pd) = &d.kind {
+                    for b in &pd.binders {
+                        t.add_type(&b.elem_ty);
+                    }
+                }
             }
         }
         t
@@ -607,6 +612,16 @@ pub(crate) fn members_of(p: &Program, def: DefId) -> Vec<String> {
             })
             .collect(),
         DefKind::Capability(c) => c.ops.iter().map(|o| o.name.clone()).collect(),
+        // a property's binders: the driver checks a run's binder values against them
+        DefKind::Property(pd) => pd
+            .binders
+            .iter()
+            .map(|b| {
+                pd.locals
+                    .get(b.local.0 as usize)
+                    .map_or_else(String::new, |l| l.name.clone())
+            })
+            .collect(),
         _ => Vec::new(),
     }
 }
@@ -718,11 +733,13 @@ impl Tables<'_> {
                 let mut names = Vec::new();
                 for (i, v) in e.variants.iter().enumerate() {
                     if v.payload.is_empty() {
-                        let name = format!("cpl_s{}_{}", d.id.0, i);
+                        // external (hidden by -fvisibility=hidden, namespaced by CPLPKG): the program
+                        // unit names it directly to build the variant (`lower::variant_static`)
+                        let name = format!("CPLPKG(s{}_{})", d.id.0, i);
                         if i <= 0xffff {
                             let _ = writeln!(
                                 out,
-                                "static cplrt_obj {name} = {{ CPLRT_ENUM, 0u, {i}u, 0u, {{ .live = {{ CPLRT_RC_IMMORTAL, {}u }} }} }};",
+                                "cplrt_obj {name} = {{ CPLRT_ENUM, 0u, {i}u, 0u, {{ .live = {{ CPLRT_RC_IMMORTAL, {}u }} }} }};",
                                 d.id.0
                             );
                             names.push(Some(name));
@@ -780,11 +797,18 @@ impl Tables<'_> {
                     let pn: Vec<String> = op.params.iter().map(|x| x.name.clone()).collect();
                     let pa = format!("cpl_op{n}_{i}_p");
                     let ps = format!("cpl_op{n}_{i}_s");
+                    let pt = format!("cpl_op{n}_{i}_t");
                     str_array(&mut out, &pa, &pn);
                     u32_array(&mut out, &ps, &sorted_indices(&pn));
+                    let types: Vec<u32> = op
+                        .params
+                        .iter()
+                        .map(|x| tt.ids.get(&type_text(p, &x.ty)).copied().unwrap_or(0))
+                        .collect();
+                    u32_array(&mut out, &pt, &types);
                     let foreign = cpl_eval::boundary::is_foreign_error_return(p, &op.ret);
                     ops.push(format!(
-                        "{{ {}, {}, {}u, {pa}, {ps}, {}u, {}u }}",
+                        "{{ {}, {}, {}u, {pa}, {ps}, {}u, {}u, {pt} }}",
                         c_string(&op.name),
                         c_string(operation_identity(p, d.id, &op.name).as_str()),
                         op.params.len(),
@@ -798,7 +822,7 @@ impl Tables<'_> {
                     "static const cplrt_op {name}[{}] = {{ {} }};",
                     ops.len().max(1),
                     if ops.is_empty() {
-                        "{ NULL, NULL, 0u, NULL, NULL, 0u, 0u }".to_string()
+                        "{ NULL, NULL, 0u, NULL, NULL, 0u, 0u, NULL }".to_string()
                     } else {
                         ops.join(", ")
                     }
@@ -816,6 +840,16 @@ impl Tables<'_> {
                 _ => (0, "NULL".to_string()),
             };
             let ptypes = match &d.kind {
+                DefKind::Property(pd) if self.with_tests && !pd.binders.is_empty() => {
+                    let name = format!("cpl_pt{n}");
+                    let ids: Vec<u32> = pd
+                        .binders
+                        .iter()
+                        .map(|b| tt.ids.get(&type_text(p, &b.elem_ty)).copied().unwrap_or(0))
+                        .collect();
+                    u32_array(&mut out, &name, &ids);
+                    name
+                }
                 DefKind::Fn(fd)
                     if self.with_tests && fd.generics.is_empty() && !fd.params.is_empty() =>
                 {
@@ -839,9 +873,26 @@ impl Tables<'_> {
                 }
                 _ => "NULL".to_string(),
             };
+            // the capability of each using parameter: a driver request's handles are checked
+            let (nusing, ucaps) = match &d.kind {
+                DefKind::Fn(fd) if !fd.using.is_empty() => {
+                    let name = format!("cpl_uc{n}");
+                    let caps: Vec<u32> = fd
+                        .using
+                        .iter()
+                        .map(|u| match &u.ty {
+                            Ty::Capability(c) => c.0,
+                            _ => u32::MAX,
+                        })
+                        .collect();
+                    u32_array(&mut out, &name, &caps);
+                    (caps.len(), name)
+                }
+                _ => (0, "NULL".to_string()),
+            };
             let qualified = p.display_path(d.id);
             def_rows.push(format!(
-                "    /* {n} */ {{ {}, {}, {}, {}, {}, {}u, {m_name}, {o_name}, {}, {ops_name}, {nreq}u, {req_name}, {ptypes}, {psites} }}",
+                "    /* {n} */ {{ {}, {}, {}, {}, {}, {}u, {m_name}, {o_name}, {}, {ops_name}, {nreq}u, {req_name}, {ptypes}, {psites}, {nusing}u, {ucaps} }}",
                 c_string(d.stable_id.as_str()),
                 c_string(&qualified),
                 c_string(&type_name(p, d.id)),

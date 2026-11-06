@@ -238,9 +238,91 @@ impl Output {
     }
 }
 
-/// Pretty JSON with two-space indentation (Section 7.1).
+/// Pretty JSON with two-space indentation (Section 7.1), the indentation capped at
+/// `MAX_INDENT_DEPTH` levels: indenting every line by its depth makes the text of a value nested
+/// `d` deep grow with `d²` (a value nested a million levels deep, from an untrusted program,
+/// would be terabytes); past the cap it grows with `d`. Shallower documents print exactly as
+/// `serde_json::to_string_pretty` prints them.
 pub fn pretty<T: Serialize + ?Sized>(value: &T) -> String {
-    serde_json::to_string_pretty(value).expect("a wire type serializes")
+    let mut out = Vec::new();
+    let mut ser = serde_json::Serializer::with_formatter(&mut out, CappedPretty::default());
+    value.serialize(&mut ser).expect("a wire type serializes");
+    String::from_utf8(out).expect("JSON is UTF-8")
+}
+
+/// The depth beyond which `pretty` indents no further.
+const MAX_INDENT_DEPTH: usize = 32;
+
+/// `serde_json::ser::PrettyFormatter` with two spaces, its indentation capped.
+#[derive(Default)]
+struct CappedPretty {
+    depth: usize,
+    has_value: bool,
+}
+
+impl CappedPretty {
+    fn indent<W: ?Sized + std::io::Write>(&self, w: &mut W) -> std::io::Result<()> {
+        for _ in 0..self.depth.min(MAX_INDENT_DEPTH) {
+            w.write_all(b"  ")?;
+        }
+        Ok(())
+    }
+}
+
+impl serde_json::ser::Formatter for CappedPretty {
+    fn begin_array<W: ?Sized + std::io::Write>(&mut self, w: &mut W) -> std::io::Result<()> {
+        self.depth += 1;
+        self.has_value = false;
+        w.write_all(b"[")
+    }
+    fn end_array<W: ?Sized + std::io::Write>(&mut self, w: &mut W) -> std::io::Result<()> {
+        self.depth -= 1;
+        if self.has_value {
+            w.write_all(b"\n")?;
+            self.indent(w)?;
+        }
+        w.write_all(b"]")
+    }
+    fn begin_array_value<W: ?Sized + std::io::Write>(
+        &mut self,
+        w: &mut W,
+        first: bool,
+    ) -> std::io::Result<()> {
+        w.write_all(if first { b"\n" } else { b",\n" })?;
+        self.indent(w)
+    }
+    fn end_array_value<W: ?Sized + std::io::Write>(&mut self, _w: &mut W) -> std::io::Result<()> {
+        self.has_value = true;
+        Ok(())
+    }
+    fn begin_object<W: ?Sized + std::io::Write>(&mut self, w: &mut W) -> std::io::Result<()> {
+        self.depth += 1;
+        self.has_value = false;
+        w.write_all(b"{")
+    }
+    fn end_object<W: ?Sized + std::io::Write>(&mut self, w: &mut W) -> std::io::Result<()> {
+        self.depth -= 1;
+        if self.has_value {
+            w.write_all(b"\n")?;
+            self.indent(w)?;
+        }
+        w.write_all(b"}")
+    }
+    fn begin_object_key<W: ?Sized + std::io::Write>(
+        &mut self,
+        w: &mut W,
+        first: bool,
+    ) -> std::io::Result<()> {
+        w.write_all(if first { b"\n" } else { b",\n" })?;
+        self.indent(w)
+    }
+    fn begin_object_value<W: ?Sized + std::io::Write>(&mut self, w: &mut W) -> std::io::Result<()> {
+        w.write_all(b": ")
+    }
+    fn end_object_value<W: ?Sized + std::io::Write>(&mut self, _w: &mut W) -> std::io::Result<()> {
+        self.has_value = true;
+        Ok(())
+    }
 }
 
 /// One-line JSON (`--jsonl`).

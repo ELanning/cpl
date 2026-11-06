@@ -82,6 +82,19 @@ impl<'t, 'c, 'a> Typer<'t, 'c, 'a> {
         };
         if !st.is_error() {
             let check = exhaust::check_match(&space, &st, &pats);
+            if check.too_complex {
+                self.error(
+                    diag(
+                        codes::MATCH_TOO_COMPLEX,
+                        Some(e.span),
+                        format!(
+                            "this `match` is too complex to check for exhaustiveness (more than {} steps); split it into nested matches",
+                            exhaust::MATCH_STEP_BUDGET
+                        ),
+                    )
+                    .with_data("budget", json!(exhaust::MATCH_STEP_BUDGET)),
+                );
+            }
             if !check.missing.is_empty() {
                 let ty = self.render(&st);
                 self.error(

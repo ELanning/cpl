@@ -1343,6 +1343,21 @@ fn mutated_copies_trigger_every_work_check_code() {
             None,
         ),
     ];
+    // more tasks than a change may declare, each after the one before it (the chain that made
+    // the old per-task reachability sets quadratic)
+    let many: String = (0..=cpl_work::reach::MAX_TASKS_PER_CHANGE)
+        .map(|i| {
+            let after = if i > 0 { format!(" after t{}", i - 1) } else { String::new() };
+            format!("    task t{i}{after} {{\n        write {{}}\n        goal \"g\"\n    }}\n\n")
+        })
+        .collect();
+    let mut cases = cases;
+    cases.push((
+        "work_too_many_tasks",
+        "    task implementation {\n",
+        Box::leak(format!("{many}    task implementation {{\n").into_boxed_str()),
+        None,
+    ));
     let mut covered = std::collections::BTreeSet::new();
     for (code, from, to, extra) in &cases {
         let mut tree = edited(from, to);

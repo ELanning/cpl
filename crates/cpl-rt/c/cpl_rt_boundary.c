@@ -40,8 +40,53 @@ typedef struct boundary_walk {
     boundary_seg *path;
     size_t npath, pcap;
     boundary_seg plocal[32];
+    /* the (object, type) positions whose children are already pushed: a value from another process may share a node
+       at many positions (a few hundred bytes of wire nodes can describe more leaves than memory holds), so each shared
+       composite is checked once against a type, and the walk is linear in the nodes, not in the expanded tree */
+    struct boundary_seen { const void *obj; uint32_t type; } *seen;
+    size_t nseen, seencap;
     int nomem;
 } boundary_walk;
+
+/* Whether the composite v is visited at type the first time (1), or was before (0); 0 also out of memory. */
+static int boundary_first(boundary_walk *w, cplrt_w v, uint32_t type)
+{
+    if (w->nseen * 2u >= w->seencap) {
+        size_t cap = w->seencap == 0 ? 64u : w->seencap * 2u;
+        if (cap > SIZE_MAX / sizeof *w->seen) {
+            w->nomem = 1;
+            return 0;
+        }
+        struct boundary_seen *grown = (struct boundary_seen *)CPLRT(alloc)(w->rt, cap * sizeof *grown);
+        if (grown == NULL) {
+            w->nomem = 1;
+            return 0;
+        }
+        memset(grown, 0, cap * sizeof *grown);
+        for (size_t i = 0; i < w->seencap; i++) {
+            if (w->seen[i].obj == NULL)
+                continue;
+            size_t h = (((uintptr_t)w->seen[i].obj >> 3) * 0x9E3779B97F4A7C15ull ^ w->seen[i].type) & (cap - 1u);
+            while (grown[h].obj != NULL)
+                h = (h + 1u) & (cap - 1u);
+            grown[h] = w->seen[i];
+        }
+        CPLRT(free)(w->seen);
+        w->seen = grown;
+        w->seencap = cap;
+    }
+    const void *obj = cplrt_obj_of(v);
+    size_t h = (((uintptr_t)obj >> 3) * 0x9E3779B97F4A7C15ull ^ type) & (w->seencap - 1u);
+    while (w->seen[h].obj != NULL) {
+        if (w->seen[h].obj == obj && w->seen[h].type == type)
+            return 0;
+        h = (h + 1u) & (w->seencap - 1u);
+    }
+    w->seen[h].obj = obj;
+    w->seen[h].type = type;
+    w->nseen++;
+    return 1;
+}
 
 static int boundary_grow(boundary_walk *w, void **items, size_t *cap, size_t need, size_t elem, void *local)
 {
@@ -84,6 +129,9 @@ static void boundary_init(boundary_walk *w, cplrt_runtime *rt)
     w->path = w->plocal;
     w->npath = 0;
     w->pcap = sizeof w->plocal / sizeof w->plocal[0];
+    w->seen = NULL;
+    w->nseen = 0;
+    w->seencap = 0;
     w->nomem = 0;
 }
 
@@ -93,6 +141,7 @@ static void boundary_fini(boundary_walk *w)
         CPLRT(free)(w->work);
     if (w->path != w->plocal)
         CPLRT(free)(w->path);
+    CPLRT(free)(w->seen);
 }
 
 /* The RFC 6901 pointer of the current path (boundary::render_pointer). */
@@ -178,6 +227,8 @@ static int boundary_visit(boundary_walk *w, const cplrt_program *p, const bounda
     case CPLRT_TY_LIST: {
         if (!boundary_is_kind(v, CPLRT_LIST))
             return 0;
+        if (!boundary_first(w, v, it->type))
+            return 1;
         uint32_t n = cplrt_len(v);
         for (uint32_t i = n; i-- > 0;) {
             boundary_work e = { BOUNDARY_VISIT, ty->elem, ty->elem, BOUNDARY_SEG_INDEX, i, NULL, cplrt_item(v, i) };
@@ -191,6 +242,8 @@ static int boundary_visit(boundary_walk *w, const cplrt_program *p, const bounda
             cplrt_len(v) != ty->nmembers || ty->def >= p->ndefs)
             return 0;
         const cplrt_def *d = &p->defs[ty->def];
+        if (!boundary_first(w, v, it->type))
+            return 1;
         if (ty->elem > 0) {
             boundary_work invariant = { BOUNDARY_REFINED, ty->elem - 1u, 0, 0, 0, NULL, v };
             if (!boundary_push(w, &invariant))
@@ -214,6 +267,8 @@ static int boundary_visit(boundary_walk *w, const cplrt_program *p, const bounda
         uint32_t lo = ty->members[variant], count = ty->members[variant + 1u] - lo;
         if (cplrt_payload_len(v) != count)
             return 0;
+        if (count > 0 && !boundary_first(w, v, it->type))
+            return 1;
         for (uint32_t i = count; i-- > 0;) {
             uint32_t t = ty->payloads[lo + i];
             boundary_work e = { BOUNDARY_VISIT, t, t, BOUNDARY_SEG_PAYLOAD, i, NULL, cplrt_payload(v, i) };
@@ -225,6 +280,8 @@ static int boundary_visit(boundary_walk *w, const cplrt_program *p, const bounda
     case CPLRT_TY_WRAPPER: {
         if (!boundary_is_kind(v, CPLRT_WRAPPER) || cplrt_obj_of(v)->u.live.def != ty->def)
             return 0;
+        if (!boundary_first(w, v, it->type))
+            return 1;
         boundary_work e = { BOUNDARY_VISIT, ty->elem, ty->elem, BOUNDARY_SEG_PAYLOAD, 0, NULL, cplrt_inner(v) };
         boundary_push(w, &e);
         return 1;
@@ -245,6 +302,25 @@ static int boundary_enter(boundary_walk *w, const boundary_work *it)
     w->path[w->npath++] = s;
     boundary_work leave = { BOUNDARY_LEAVE, 0, 0, 0, 1, NULL, 0 };
     return boundary_push(w, &leave);
+}
+
+int CPLRT(values_typed)(cplrt_runtime *rt, const uint32_t *types, uint32_t expected, const cplrt_w *v, uint32_t n)
+{
+    if (n != expected)
+        return CPLRT_INVALID;
+    for (uint32_t i = 0; types != NULL && i < n; i++) {
+        if (types[i] == 0)
+            continue;
+        cplrt_shape_failure sf;
+        int ok = CPLRT(shape_check)(rt, types[i], v[i], &sf);
+        int nomem = !ok && sf.pointer.status != CPLRT_OK;
+        CPLRT(sbuf_free)(&sf.pointer);
+        if (nomem)
+            return CPLRT_NOMEM;
+        if (!ok)
+            return CPLRT_INVALID;
+    }
+    return CPLRT_OK;
 }
 
 int CPLRT(shape_check)(cplrt_runtime *rt, uint32_t type, cplrt_w v, cplrt_shape_failure *failure)

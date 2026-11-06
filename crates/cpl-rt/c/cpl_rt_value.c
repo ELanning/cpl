@@ -77,11 +77,100 @@ static cplrt_runtime *value_runtime_of(const void *p)
     return ((const value_block *)(const void *)((const char *)p - sizeof(value_block)))->rt;
 }
 
+/* ---- the small-object cache (2.4) ------------------------------------------------------------------------------ */
+
+/* While an evaluation runs, the small objects it frees (up to VALUE_CACHE_CLASSES * 16 bytes: a struct, an Option, a
+   short list, a small text) are kept on a free list per 16-byte size class and reused by the next allocation of that
+   class, instead of a malloc and a free with four atomic counter updates each. A cached block stays counted in
+   rt->live_bytes and rt->live_objects, so obj_new and release need not touch them; the cache is emptied, with the
+   counts returned, when the evaluation that claimed it ends, so the statistics between calls are exact. One thread
+   owns a runtime's cache at a time, claimed by its outermost evaluation when no other thread holds it (the threads of
+   a parallel section, or concurrent calls, allocate as before); the owner check is pthread_self, not a thread-local,
+   whose access from a shared library is a call. The cache is off for a runtime with a small heap budget, where the
+   cached bytes would move the point at which an evaluation runs out of memory. */
+#define VALUE_CACHE_CLASSES 4u
+#define VALUE_CACHE_MAX 256u
+#define VALUE_CACHE_MIN_BUDGET (UINT64_C(1) << 26)
+
+static inline uintptr_t value_thread(void)
+{
+    return (uintptr_t)pthread_self();
+}
+
+/* Whether the calling thread owns rt's cache, and the budget leaves it on (checked at each use: a budget lowered
+   during an evaluation turns the cache off from then on). */
+static inline int value_cache_mine(cplrt_runtime *rt)
+{
+    return atomic_load_explicit(&rt->cache_owner, memory_order_relaxed) == value_thread() &&
+           (rt->max_heap_bytes == 0 || rt->max_heap_bytes >= VALUE_CACHE_MIN_BUDGET);
+}
+
+static void value_cache_flush(cplrt_runtime *rt)
+{
+    for (uint32_t c = 0; c < VALUE_CACHE_CLASSES; c++) {
+        cplrt_obj *o = rt->cache_head[c];
+        while (o != NULL) {
+            cplrt_obj *next = o->u.next;
+            atomic_fetch_sub_explicit(&rt->live_objects, 1u, memory_order_relaxed);
+            CPLRT(free)(o);
+            o = next;
+        }
+        rt->cache_head[c] = NULL;
+        rt->cache_n[c] = 0;
+    }
+}
+
+/* An evaluation of rt begins on this thread (CPLRT(cx_begin)). */
+void CPLRT(value_cache_enter)(cplrt_runtime *rt)
+{
+    uintptr_t self = value_thread();
+    uintptr_t none = 0;
+    if (atomic_load_explicit(&rt->cache_owner, memory_order_relaxed) == self) {
+        rt->cache_depth++;
+    } else if ((rt->max_heap_bytes == 0 || rt->max_heap_bytes >= VALUE_CACHE_MIN_BUDGET) &&
+               atomic_compare_exchange_strong_explicit(&rt->cache_owner, &none, self, memory_order_acquire,
+                                                       memory_order_relaxed)) {
+        rt->cache_depth = 1;
+    }
+}
+
+/* An evaluation of rt ends (CPLRT(cx_end)); the owner's outermost empties the cache and gives it up. */
+void CPLRT(value_cache_leave)(cplrt_runtime *rt)
+{
+    if (atomic_load_explicit(&rt->cache_owner, memory_order_relaxed) != value_thread())
+        return;
+    if (rt->cache_depth > 1) {
+        rt->cache_depth--;
+        return;
+    }
+    rt->cache_depth = 0;
+    value_cache_flush(rt);
+    atomic_store_explicit(&rt->cache_owner, 0, memory_order_release);
+}
+
 /* ---- heap objects and release (2.3, 2.4) ----------------------------------------------------------------------- */
 
 cplrt_obj *CPLRT(obj_new)(cplrt_runtime *rt, uint8_t kind, uint32_t len, size_t size)
 {
-    cplrt_obj *o = (cplrt_obj *)CPLRT(alloc)(rt, size);
+    cplrt_obj *o = NULL;
+    if (size <= VALUE_CACHE_CLASSES * 16u) {
+        /* a size class: every block of the class can hold any request of it */
+        uint32_t c = size == 0 ? 0u : (uint32_t)((size - 1u) / 16u);
+        if (value_cache_mine(rt) && rt->cache_head[c] != NULL) { /* the owner alone reads the lists */
+            o = rt->cache_head[c];
+            rt->cache_head[c] = o->u.next;
+            rt->cache_n[c]--;
+            o->kind = kind;
+            o->flags = 0;
+            o->variant = 0;
+            o->len = len;
+            atomic_init(&o->u.live.rc, 1u);
+            o->u.live.def = 0;
+            return o; /* already counted */
+        }
+        size = (size_t)(c + 1u) * 16u;
+    }
+    o = (cplrt_obj *)CPLRT(alloc)(rt, size);
     if (o == NULL)
         return NULL;
     o->kind = kind;
@@ -122,6 +211,16 @@ void CPLRT(release_obj)(cplrt_obj *o)
             }
         }
         cplrt_runtime *rt = value_runtime_of(cur);
+        size_t size = CPLRT(alloc_size)(cur);
+        if (size <= VALUE_CACHE_CLASSES * 16u && size % 16u == 0u && size != 0u && value_cache_mine(rt)) {
+            uint32_t c = (uint32_t)(size / 16u) - 1u;
+            if (rt->cache_n[c] < VALUE_CACHE_MAX) {
+                cur->u.next = rt->cache_head[c]; /* still counted: see the cache above */
+                rt->cache_head[c] = cur;
+                rt->cache_n[c]++;
+                continue;
+            }
+        }
         atomic_fetch_sub_explicit(&rt->live_objects, 1u, memory_order_relaxed);
         CPLRT(free)(cur);
     }

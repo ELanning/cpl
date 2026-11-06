@@ -724,6 +724,9 @@ int CPLRT(cap_call_raw)(cplrt_cx *cx, uint32_t site, const cplrt_capref *h, uint
 {
     const cplrt_program *p = cx->program;
     const cplrt_op *opd = &p->defs[h->capability].ops[op];
+    /* an implementation reads nparams arguments: a caller with fewer is refused, not trusted */
+    if (n != opd->nparams)
+        return cap_protocol(cx, site, h, opd, CPLRT_MSG_DETAIL_BINDING_PROTOCOL_STATUS, CPL_E_INTERNAL);
     uint32_t local_slots[8];
     uint32_t *slots = local_slots;
     if (n > 8u) {

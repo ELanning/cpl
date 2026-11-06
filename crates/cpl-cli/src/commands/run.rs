@@ -258,12 +258,33 @@ pub fn run(ctx: &Ctx, args: &RunArgs) -> Result<Report<EngineRunOutput>, Failure
         .with_sources(sm))
 }
 
+/// The per-user directory of a project's build caches: `$XDG_CACHE_HOME/cpl/<project>` (else
+/// `$HOME/.cache/cpl/<project>`), `<project>` the blake3 of the root's canonical path. Never inside
+/// the project: a repository could commit cache entries (a compiled object, a driver) that a build
+/// would link or run unseen by any source review.
+pub(crate) fn user_cache_dir(root: &std::path::Path) -> std::path::PathBuf {
+    let base = std::env::var_os("XDG_CACHE_HOME")
+        .map(std::path::PathBuf::from)
+        .filter(|p| p.is_absolute())
+        .or_else(|| std::env::var_os("HOME").map(|h| std::path::PathBuf::from(h).join(".cache")));
+    let canonical = root.canonicalize().unwrap_or_else(|_| root.to_path_buf());
+    let key = blake3::hash(canonical.to_string_lossy().as_bytes()).to_hex();
+    match base {
+        Some(base) => base.join("cpl").join(&key[..32]),
+        // no home directory: a fresh private directory for this process (a shared, guessable
+        // one could be another user's), so nothing is cached across runs
+        None => cpl_diag::fsutil::private_temp_dir("cpl-cache")
+            .unwrap_or_else(|_| std::env::temp_dir().join(format!("cpl-cache-{}", std::process::id())))
+            .join(&key[..32]),
+    }
+}
+
 /// The driver configuration of `cpl run --engine native` and `cpl test --engine native` (toolchain 7.2, T73): the
-/// optimized profile, cached under the project's `.cpl/cache/c` (spec/parallelism.md).
+/// optimized profile, cached in the project's per-user cache directory (`user_cache_dir`).
 pub(crate) fn driver_config(project: &cpl_project::Project) -> cpl_emit_c::package::DriverConfig {
     let cache_dir = match &project.root {
-        Some(root) => root.join(".cpl").join("cache").join("c"),
-        None => std::env::temp_dir().join("cpl-cache-c"),
+        Some(root) => user_cache_dir(root).join("c"),
+        None => user_cache_dir(&std::env::temp_dir()).join("c"),
     };
     let runtime = match std::env::var_os("CPL_RUNTIME_DIR") {
         Some(dir) => cpl_rt::RuntimeSource::Dir(dir.into()),

@@ -619,6 +619,8 @@ pub struct Text(TextRepr);
 enum TextRepr {
     Static(&'static str),
     Shared(Arc<str>),
+    /// A text being appended to: spare capacity, used in place while nothing else holds it.
+    Growing(Arc<String>),
 }
 
 impl Text {
@@ -641,7 +643,25 @@ impl Text {
         match &self.0 {
             TextRepr::Static(s) => s,
             TextRepr::Shared(s) => s,
+            TextRepr::Growing(s) => s,
         }
+    }
+    /// `self = self ++ more`: in place when `self` alone holds a buffer with room, else into a
+    /// new buffer of twice the length, so a loop of appends is linear.
+    pub fn append_mut(&mut self, more: &str) {
+        if more.is_empty() {
+            return;
+        }
+        if let TextRepr::Growing(s) = &mut self.0 {
+            if let Some(s) = Arc::get_mut(s) {
+                s.push_str(more);
+                return;
+            }
+        }
+        let mut s = String::with_capacity((self.len() + more.len()) * 2);
+        s.push_str(self);
+        s.push_str(more);
+        self.0 = TextRepr::Growing(Arc::new(s));
     }
 }
 impl std::ops::Deref for Text {
@@ -1869,6 +1889,105 @@ impl FromJson for ForeignError {
             message: field(j, "message")?,
             details: field(j, "details")?,
         })
+    }
+}
+
+/// A field, payload, or wrapped value that holds a value of its own declaration (`spec/hosts.md`
+/// H6): shared like an `Arc`, and dropped without recursion. Dropping the last holder of a value
+/// nested a million levels deep (a list kept as a chain of nodes) would otherwise recurse once
+/// per level and exhaust the thread's stack; here each level is queued and dropped in turn.
+pub struct Boxed<T: 'static>(Option<Arc<T>>);
+
+impl<T: 'static> Boxed<T> {
+    pub fn new(v: T) -> Boxed<T> {
+        Boxed(Some(Arc::new(v)))
+    }
+}
+impl<T: 'static> std::ops::Deref for Boxed<T> {
+    type Target = T;
+    fn deref(&self) -> &T {
+        self.0.as_deref().expect("a live Boxed")
+    }
+}
+impl<T: 'static> Clone for Boxed<T> {
+    fn clone(&self) -> Boxed<T> {
+        Boxed(self.0.clone())
+    }
+}
+impl<T: PartialEq + 'static> PartialEq for Boxed<T> {
+    fn eq(&self, o: &Boxed<T>) -> bool {
+        match (&self.0, &o.0) {
+            (Some(a), Some(b)) => Arc::ptr_eq(a, b) || **a == **b,
+            _ => false,
+        }
+    }
+}
+impl<T: Eq + 'static> Eq for Boxed<T> {}
+impl<T: Hash + 'static> Hash for Boxed<T> {
+    fn hash<H: Hasher>(&self, h: &mut H) {
+        (**self).hash(h)
+    }
+}
+impl<T: fmt::Debug + 'static> fmt::Debug for Boxed<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Debug::fmt(&**self, f)
+    }
+}
+impl<T: 'static> Drop for Boxed<T> {
+    fn drop(&mut self) {
+        if let Some(Ok(v)) = self.0.take().map(Arc::try_unwrap) {
+            drop_nested(v);
+        }
+    }
+}
+
+/// How many levels of `Boxed` values are dropped by plain recursion before the rest are queued.
+const INLINE_DROP_DEPTH: u32 = 128;
+
+std::thread_local! {
+    static DROP_DEPTH: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
+    static PENDING: std::cell::RefCell<Vec<Box<dyn std::any::Any>>> =
+        const { std::cell::RefCell::new(Vec::new()) };
+}
+
+/// Drop `v`, the value of a `Boxed` that held its last reference. Up to `INLINE_DROP_DEPTH`
+/// levels deep this recurses as any drop does; deeper values are queued, and the outermost call
+/// drops the queue one value at a time, so the stack stays bounded however deep the value is.
+fn drop_nested<T: 'static>(v: T) {
+    // while the thread's locals are being destroyed (a value dropped at thread exit): plainly
+    let Ok(depth) = DROP_DEPTH.try_with(|d| d.get()) else {
+        return drop(v);
+    };
+    if depth >= INLINE_DROP_DEPTH {
+        // (if the queue is gone, the closure, and v in it, is dropped plainly)
+        let _ = PENDING.try_with(move |p| p.borrow_mut().push(Box::new(v)));
+        return;
+    }
+    DROP_DEPTH.with(|d| d.set(depth + 1));
+    drop(v);
+    DROP_DEPTH.with(|d| d.set(depth));
+    if depth == 0 {
+        while let Some(next) = PENDING.with(|p| p.borrow_mut().pop()) {
+            DROP_DEPTH.with(|d| d.set(1));
+            drop(next);
+            DROP_DEPTH.with(|d| d.set(0));
+        }
+    }
+}
+
+impl<T: ValueText + 'static> ValueText for Boxed<T> {
+    fn write_text(&self, out: &mut String) {
+        (**self).write_text(out)
+    }
+}
+impl<T: ToJson + 'static> ToJson for Boxed<T> {
+    fn to_json(&self) -> Json {
+        (**self).to_json()
+    }
+}
+impl<T: FromJson + 'static> FromJson for Boxed<T> {
+    fn from_json(j: &Json) -> Result<Boxed<T>, String> {
+        T::from_json(j).map(Boxed::new)
     }
 }
 

@@ -95,6 +95,13 @@ pub enum ScheduleError {
     UnknownPredecessor { task: String, predecessor: String },
     #[error("the `after` edges form a cycle: {}", .tasks.join(" -> "))]
     Cycle { tasks: Vec<String> },
+    /// A change of more than `reach::MAX_TASKS_PER_CHANGE` tasks.
+    #[error("change `{change}` declares {tasks} tasks; a change may declare at most {limit}")]
+    TooManyTasks {
+        change: String,
+        tasks: usize,
+        limit: usize,
+    },
     /// Two tasks that neither runs after the other (directly or through a
     /// chain of `after`) write one facet or add to overlapping namespaces;
     /// `overlap` names the shared facet or the two namespaces.
@@ -171,6 +178,7 @@ impl ScheduleError {
             ScheduleError::NotAuthorized { .. } => codes::WORK_NOT_AUTHORIZED,
             ScheduleError::UnknownPredecessor { .. } => codes::WORK_UNKNOWN_TASK,
             ScheduleError::Cycle { .. } => codes::WORK_CYCLE,
+            ScheduleError::TooManyTasks { .. } => codes::WORK_TOO_MANY_TASKS,
             ScheduleError::OverlappingWrites { .. } => codes::WORK_OVERLAPPING_WRITES,
             _ => return None,
         })
@@ -269,6 +277,13 @@ impl ChangeRun {
             return Err(ScheduleError::BadWorkers {
                 change: change.name.clone(),
                 workers: change.workers,
+            });
+        }
+        if tasks.len() > crate::reach::MAX_TASKS_PER_CHANGE {
+            return Err(ScheduleError::TooManyTasks {
+                change: change.name.clone(),
+                tasks: tasks.len(),
+                limit: crate::reach::MAX_TASKS_PER_CHANGE,
             });
         }
         let mut names = BTreeSet::new();
@@ -1209,7 +1224,16 @@ fn find_cycle(specs: &[&TaskSpec]) -> Option<Vec<String>> {
 /// [`ChangeRun::open`]). The `after` graph must be acyclic.
 fn find_overlap(tasks: &[(TaskSpec, Grant)]) -> Option<ScheduleError> {
     let specs: Vec<&TaskSpec> = tasks.iter().map(|(spec, _)| spec).collect();
-    let reaches = predecessors_reached(&specs);
+    let index: BTreeMap<&str, usize> = specs
+        .iter()
+        .enumerate()
+        .map(|(i, s)| (s.name.as_str(), i))
+        .collect();
+    let edges: Vec<Vec<usize>> = specs
+        .iter()
+        .map(|s| s.after.iter().filter_map(|p| index.get(p.as_str()).copied()).collect())
+        .collect();
+    let reach = crate::reach::Reach::new(&edges);
     let writes: Vec<BTreeSet<(StableId, Facet)>> = tasks
         .iter()
         .map(|(spec, grant)| write_set(spec, grant))
@@ -1220,7 +1244,7 @@ fn find_overlap(tasks: &[(TaskSpec, Grant)]) -> Option<ScheduleError> {
         .collect();
     for (i, first) in specs.iter().enumerate() {
         for (j, second) in specs.iter().enumerate().skip(i + 1) {
-            if reaches[i].contains(&j) || reaches[j].contains(&i) {
+            if reach.reaches(i, j) || reach.reaches(j, i) {
                 continue;
             }
             let overlap = if let Some((id, facet)) = writes[i].intersection(&writes[j]).next() {
@@ -1246,39 +1270,6 @@ fn find_overlap(tasks: &[(TaskSpec, Grant)]) -> Option<ScheduleError> {
         }
     }
     None
-}
-
-/// For each task, the indices of the tasks it reaches through `after`:
-/// its direct and indirect predecessors. The graph must be acyclic.
-fn predecessors_reached(specs: &[&TaskSpec]) -> Vec<BTreeSet<usize>> {
-    let index: BTreeMap<&str, usize> = specs
-        .iter()
-        .enumerate()
-        .map(|(i, s)| (s.name.as_str(), i))
-        .collect();
-    fn visit(
-        i: usize,
-        specs: &[&TaskSpec],
-        index: &BTreeMap<&str, usize>,
-        memo: &mut [Option<BTreeSet<usize>>],
-    ) -> BTreeSet<usize> {
-        if let Some(known) = &memo[i] {
-            return known.clone();
-        }
-        let mut reached = BTreeSet::new();
-        for predecessor in &specs[i].after {
-            if let Some(&j) = index.get(predecessor.as_str()) {
-                reached.insert(j);
-                reached.extend(visit(j, specs, index, memo));
-            }
-        }
-        memo[i] = Some(reached.clone());
-        reached
-    }
-    let mut memo = vec![None; specs.len()];
-    (0..specs.len())
-        .map(|i| visit(i, specs, &index, &mut memo))
-        .collect()
 }
 
 /// A task's write set at facet level for the overlap rule: every facet its

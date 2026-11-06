@@ -111,7 +111,9 @@ pub(crate) fn current_lock(project: &Project, revision: &Revision) -> Lock {
 /// Write `cpl.lock` under `root`.
 pub(crate) fn save_lock(root: &Path, lock: &Lock) -> Result<(), Diagnostic> {
     let path = root.join("cpl.lock");
-    std::fs::write(&path, render_lock(lock)).map_err(|e| {
+    // a cpl.lock the project committed as a link (even a dangling one) is replaced, never written
+    // through: the lock's source names are the project's, and could be made to read as a script
+    cpl_diag::fsutil::write_atomic(&path, render_lock(lock).as_bytes()).map_err(|e| {
         codes::internal(
             "io",
             format!("cpl.lock: cannot write {}: {e}", path.display()),

@@ -328,6 +328,12 @@ fn is_ident_char(b: u8) -> bool {
     b.is_ascii_alphanumeric() || b == b'_'
 }
 
+/// The Unicode bidirectional embedding, override, and isolate characters (U+202A-U+202E,
+/// U+2066-U+2069): D75 admits them in neither a comment nor a text literal.
+pub fn is_bidi_control(c: char) -> bool {
+    matches!(c, '\u{202a}'..='\u{202e}' | '\u{2066}'..='\u{2069}')
+}
+
 impl<'a> Lexer<'a> {
     fn span(&self, start: usize, end: usize) -> Span {
         Span::new(self.file, start as u32, end as u32)
@@ -455,6 +461,31 @@ impl<'a> Lexer<'a> {
         i
     }
 
+    /// D75: a control character (C0 other than tab and CR, which has its own error, and DEL) or a
+    /// bidirectional formatting character in `start..end` of a comment is `invalid_character`. A
+    /// comment is shown to the reader of the source and copied into generated code, where either
+    /// can make the text read differently from what it is (CVE-2021-42574, "Trojan Source").
+    fn hidden_characters(&mut self, start: usize, end: usize, place: &str) {
+        let mut bad = Vec::new();
+        for (i, c) in self.src[start..end].char_indices() {
+            let control = (c < ' ' && c != '\t' && c != '\r') || c == '\u{7f}';
+            if control || is_bidi_control(c) {
+                bad.push((start + i, c, control));
+            }
+        }
+        for (at, c, control) in bad {
+            let kind = if control {
+                "control character"
+            } else {
+                "bidirectional formatting character"
+            };
+            let span = self.span(at, at + c.len_utf8());
+            self.error(codes::INVALID_CHARACTER, format!("{kind} in {place}"), span)
+                .data
+                .insert("found".into(), format!("U+{:04X}", c as u32).into());
+        }
+    }
+
     fn comment(&mut self) {
         let start = self.pos;
         let mut slashes = 0;
@@ -470,6 +501,7 @@ impl<'a> Lexer<'a> {
                 self.lone_carriage_return(at);
             }
         }
+        self.hidden_characters(start, end, "comment");
         if slashes == 3 {
             if self.line_has_content {
                 let span = self.span(start, start + 3);
@@ -616,6 +648,19 @@ impl<'a> Lexer<'a> {
                 }
                 _ => {
                     let c = self.src[self.pos..].chars().next().unwrap_or('\u{fffd}');
+                    if is_bidi_control(c) {
+                        // D75: written raw, it reorders how the line displays; `\u{...}` keeps it
+                        let span = self.span(self.pos, self.pos + c.len_utf8());
+                        self.error(
+                            codes::INVALID_CHARACTER,
+                            format!("bidirectional formatting character in text literal (write it as \\u{{{:X}}})", c as u32),
+                            span,
+                        )
+                        .data
+                        .insert("found".into(), format!("U+{:04X}", c as u32).into());
+                        self.pos += c.len_utf8();
+                        continue;
+                    }
                     decoded.push(c);
                     self.pos += c.len_utf8().max(1);
                 }

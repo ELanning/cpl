@@ -1,4 +1,4 @@
-//! Internal: the object cache under `<project>/.cpl/cache/c/obj` (spec/cabi.md 1.6, step 5 of a package build). An
+//! Internal: the object cache under `<cache>/obj`, `<cache>` the per-user cache of `cpl build` (toolchain 7.2) (spec/cabi.md 1.6, step 5 of a package build). An
 //! object is cached by the blake3 of the unit's text, the compiler digest, and the unit's flags, together with its
 //! depfile and the blake3 of every file the depfile lists, and it is reused only while each of those files still has
 //! its recorded digest: a changed header (`cpl_rt.h`, `cpl.h`, a generated header, a vendored or a system header)
@@ -86,8 +86,10 @@ fn reusable(entry: &Path) -> bool {
     let Ok(deps) = std::fs::read_to_string(entry.join("deps")) else {
         return false;
     };
+    // every unit includes the runtime's headers: an entry that lists nothing was not written by a compile
     entry.join("o").is_file()
         && entry.join("d").is_file()
+        && !deps.trim().is_empty()
         && deps.lines().all(|l| {
             l.split_once(' ').is_some_and(|(digest, path)| {
                 file_digest(Path::new(path)).as_deref() == Some(digest)

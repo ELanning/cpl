@@ -115,9 +115,12 @@ way (H13), including the texts of a `ForeignError` it returns. Rust's
 | generics | type parameters bounded by `cpl::Value` | type parameters `any` | type parameters |
 
 **H6.** A field, payload, or wrapped value whose type contains its own
-declaration by value is held by reference where the host needs one: `Arc`
-in Rust (`enum Tree { Node(Arc<Tree>) }`), a pointer in Go for a struct (a
-Go enum is an interface, a reference already). Java needs none.
+declaration by value is held by reference where the host needs one:
+`cpl::Boxed` in Rust (`enum Tree { Node(cpl::Boxed<Tree>) }`), a shared
+reference like `Arc` whose drop does not recurse (a value nested a million
+levels deep, built by a CPL loop, is dropped on any stack: past 128 levels
+the rest is queued), a pointer in Go for a struct (a Go enum is an
+interface, a reference already). Java needs none.
 
 Every generated type has structural equality, CPL value text
 (semantics S40: `toString` in Java, `ValueText` in Rust, `cpl.ValueText` in
@@ -142,8 +145,20 @@ The path without a fault pays nothing for them.
 The host form checks the refinements and struct invariants reachable in its
 arguments (semantics S39, S81) and refuses an argument outside its type as
 `refinement_violation`, as the evaluator's boundary does. A generic `pub fn`
-is called with the host's own type arguments; its arguments are not
-checked, as no refinement can be named in them.
+is called with the host's own type arguments: a parameter whose type holds
+a type parameter is not checked (its check would need the type argument),
+and every other parameter is, as in any host form. The internal forms are
+not the host's to call: `pub(crate)` in Rust and unexported in Go; Java has
+no visibility across packages short of a module system, so its internal
+forms are public by necessity, named `x_` and `b_` and documented as
+internal. CPL has no null: a Java `null` or a Go `nil` (an enum, a
+capability, a recursive field) anywhere in an argument is outside its type,
+and the call ends in the fault `refinement_violation` ("an argument holds
+null") when the generated code reads it, never in a `NullPointerException`
+or a panic that escapes the host form. Lists cross by copy: a Go `ListOf`
+or `ListLit` and a Java `List.of` or `List.lit` copy the host's slice or
+array, and Go's `Items` returns a copy, so a host cannot change a list
+after a CPL function checked it.
 
 ### 3.4 Capabilities
 

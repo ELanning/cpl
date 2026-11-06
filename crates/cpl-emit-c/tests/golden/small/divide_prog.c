@@ -33,7 +33,7 @@ fail:
     st = CPLRT_FAULT;
 done:
     cplrt_release(t0); cplrt_release(rv);
-    return cplrt_leave(cx, &fr, st);
+    return cplrt_fast_leave(cx, &fr, st);
 }
 
 /* divide.ops.divide_exactly  [identity divide.ops.divide_exactly, DefId 67] */
@@ -43,17 +43,15 @@ static int cpl_f67(cplrt_cx *cx, uint32_t site, cplrt_w p0_a, cplrt_w p1_b, cplr
     cplrt_w t0 = 0, t1 = 0, t2 = 0, t3 = 0, t4 = 0, t5 = 0, rv = 0;
     cplrt_frame fr;
     const cplrt_w params[2] = { p0_a, p1_b };
-    if (cplrt_enter_fn(cx, &fr, CPL_D67, site, params, 2u) != CPLRT_OK)
+    if (cplrt_fast_enter_fn(cx, &fr, CPL_D67, site, params, 2u) != CPLRT_OK)
         return CPLRT_FAULT;
     if (cx->check_contracts) { /* obl requires/1: b != 0 */
-        if (cplrt_equal(cx, p1_b, cplrt_small(INT64_C(0)), &eq) != CPLRT_OK) { cplrt_claim(cx, CPL_CL6); goto fail; }
-        CPLRT_SET(t0, cplrt_bool(!eq));
+        CPLRT_SET(t0, cplrt_bool(!cplrt_int_eq(p1_b, cplrt_small(INT64_C(0)))));
         if (!cplrt_truth(t0)) { cplrt_requires_failed(cx, CPL_CL6); goto fail; }
     }
     if (cx->check_contracts) { /* obl requires/2: a % b == 0 */
         if (cplrt_int_rem(cx, CPL_S75, p0_a, p1_b, &t1) != CPLRT_OK) { cplrt_claim(cx, CPL_CL7); goto fail; }
-        if (cplrt_equal(cx, t1, cplrt_small(INT64_C(0)), &eq) != CPLRT_OK) { cplrt_claim(cx, CPL_CL7); goto fail; }
-        CPLRT_SET(t2, cplrt_bool(eq));
+        CPLRT_SET(t2, cplrt_bool(cplrt_int_eq(t1, cplrt_small(INT64_C(0)))));
         if (!cplrt_truth(t2)) { cplrt_requires_failed(cx, CPL_CL7); goto fail; }
     }
     if (cplrt_int_div(cx, CPL_S76, p0_a, p1_b, &t3) != CPLRT_OK) goto fail;
@@ -61,8 +59,7 @@ static int cpl_f67(cplrt_cx *cx, uint32_t site, cplrt_w p0_a, cplrt_w p1_b, cplr
 exit:
     if (cx->check_contracts) { /* obl ensures/1: result * b == a */
         if (cplrt_int_mul(cx, CPL_S78, rv, p1_b, &t4) != CPLRT_OK) { cplrt_claim(cx, CPL_CL8); goto fail; }
-        if (cplrt_equal(cx, t4, p0_a, &eq) != CPLRT_OK) { cplrt_claim(cx, CPL_CL8); goto fail; }
-        CPLRT_SET(t5, cplrt_bool(eq));
+        CPLRT_SET(t5, cplrt_bool(cplrt_int_eq(t4, p0_a)));
         if (!cplrt_truth(t5)) { cplrt_ensures_failed(cx, CPL_CL8, rv); goto fail; }
     }
     CPLRT_MOVE(*out, rv);
@@ -72,7 +69,7 @@ fail:
 done:
     cplrt_release(t0); cplrt_release(t1); cplrt_release(t2); cplrt_release(t3); cplrt_release(t4); cplrt_release(t5);
     cplrt_release(rv);
-    return cplrt_leave(cx, &fr, st);
+    return cplrt_fast_leave(cx, &fr, st);
 }
 
 

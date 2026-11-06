@@ -17,6 +17,7 @@ typedef struct driver_detail {
 /* One response of a scripted host. */
 typedef struct driver_response {
     char *op;
+    size_t op_len;                 /* the decoded name may hold U+0000: compared with its length */
     uint32_t nargs;
     cplrt_w *args;                 /* owned */
     int is_failure;
@@ -306,7 +307,8 @@ static cpl_status driver_script_invoke(const cplrt_capref *cap, cpl_call *call, 
     const cplrt_op *opd = &p->defs[cap->capability].ops[op];
     for (uint32_t i = 0; i < s->n; i++) {
         driver_response *r = &s->responses[i];
-        if (r->used || strcmp(r->op, opd->name) != 0 || r->nargs != opd->nparams)
+        if (r->used || r->op_len != strlen(opd->name) || memcmp(r->op, opd->name, r->op_len) != 0 ||
+            r->nargs != opd->nparams)
             continue;
         int all = 1;
         for (uint32_t k = 0; k < r->nargs && all; k++) {
@@ -412,6 +414,10 @@ static int driver_failure(const cplrt_jv *f, driver_response *r)
     r->message_len = msg->len;
     r->ndetails = details->n;
     r->details = details->n > 0 ? (driver_detail *)calloc(details->n, sizeof *r->details) : NULL;
+    if (r->message == NULL || (details->n > 0 && r->details == NULL)) {
+        r->ndetails = 0; /* out of memory: refused like a malformed response, and nothing half-built is read */
+        return 0;
+    }
     for (uint32_t i = 0; i < details->n; i++) {
         const cplrt_jv *pair = &details->items[i];
         if (pair->type != CPLRT_JSON_ARRAY || pair->n != 2u || pair->items[0].type != CPLRT_JSON_STRING ||
@@ -421,6 +427,8 @@ static int driver_failure(const cplrt_jv *f, driver_response *r)
         r->details[i].key_len = pair->items[0].len;
         r->details[i].value = driver_strdup(pair->items[1].str, pair->items[1].len);
         r->details[i].value_len = pair->items[1].len;
+        if (r->details[i].key == NULL || r->details[i].value == NULL)
+            return 0;
     }
     return 1;
 }
@@ -451,6 +459,12 @@ static void driver_bind_scripted(driver_state *st, const cplrt_jv *req)
     }
     s->n = responses->n;
     s->responses = responses->n > 0 ? (driver_response *)calloc(responses->n, sizeof *s->responses) : NULL;
+    if (responses->n > 0 && s->responses == NULL) {
+        s->n = 0;
+        driver_script_free(s);
+        driver_error(st, CPLRT_INTEROP_OUT_OF_MEMORY, NULL, 0);
+        return;
+    }
     for (uint32_t i = 0; i < responses->n; i++) {
         const cplrt_jv *r = &responses->items[i];
         driver_response *dr = &s->responses[i];
@@ -462,6 +476,12 @@ static void driver_bind_scripted(driver_state *st, const cplrt_jv *req)
             return;
         }
         dr->op = driver_strdup(op->str, op->len);
+        dr->op_len = op->len;
+        if (dr->op == NULL) {
+            driver_script_free(s);
+            driver_error(st, CPLRT_INTEROP_OUT_OF_MEMORY, NULL, 0);
+            return;
+        }
         if (CPLRT(nodes_read_all)(st->rt, CPLRT(json_member)(r, "args"), &dr->args, &dr->nargs, &detail) != CPLRT_OK) {
             driver_script_free(s);
             driver_invalid(st, "/responses", detail);
@@ -535,6 +555,21 @@ static void driver_bind(driver_state *st, const cplrt_jv *req)
 
 /* Every refined position of each argument, each in an evaluation of its own with a fresh deadline (run_function's
    check_arguments): CPLRT_OK when all hold; otherwise the response was sent. */
+/* A request's values against the declared types: as many as there are parameters, each of its parameter's type
+   (cabi.md 3.8: a malformed request answers interop_json_invalid); a type id of 0 (a type parameter) admits any value.
+   1 when they match; else 0, the answer sent. */
+static int driver_args_typed(driver_state *st, const char *where, const uint32_t *types, uint32_t expected,
+                             const cplrt_w *args, uint32_t n)
+{
+    int r = CPLRT(values_typed)(st->rt, types, expected, args, n);
+    if (r == CPLRT_NOMEM)
+        driver_error(st, CPLRT_INTEROP_OUT_OF_MEMORY, NULL, 0);
+    else if (r != CPLRT_OK)
+        driver_invalid(st, where, n != expected ? "the values do not match the parameters in number"
+                                                : "a value is not of its parameter's type");
+    return r == CPLRT_OK;
+}
+
 static int driver_check_arguments(driver_state *st, uint32_t f, const cplrt_w *args, uint32_t n)
 {
     const cplrt_program *p = st->rt->program;
@@ -572,9 +607,10 @@ static void driver_call(driver_state *st, const cplrt_jv *req)
         driver_invalid(st, "/using", "using is an array of handles");
         return;
     }
-    const cplrt_capref *refs[16];
-    if (using->n > 16u) {
-        driver_invalid(st, "/using", "too many using handles");
+    const cplrt_def *d = &p->defs[f];
+    const cplrt_capref *refs[16] = { 0 };
+    if (using->n > 16u || using->n != d->nusing) {
+        driver_invalid(st, "/using", "the handles do not match the using parameters in number");
         return;
     }
     for (uint32_t i = 0; i < using->n; i++) {
@@ -584,6 +620,10 @@ static void driver_call(driver_state *st, const cplrt_jv *req)
             return;
         }
         refs[i] = CPLRT(cap_ref)(st->handles[h]);
+        if (d->ucaps == NULL || refs[i]->capability != d->ucaps[i]) {
+            driver_invalid(st, "/using", "a handle of another capability than its using parameter's");
+            return;
+        }
     }
     cplrt_w *args = NULL;
     uint32_t n = 0;
@@ -595,6 +635,10 @@ static void driver_call(driver_state *st, const cplrt_jv *req)
     }
     if (r != CPLRT_OK) {
         driver_invalid(st, "/args", detail);
+        return;
+    }
+    if (!driver_args_typed(st, "/args", d->ptypes, d->nmembers, args, n)) {
+        CPLRT(words_release)(args, n);
         return;
     }
     if (check != NULL && check->type == CPLRT_JSON_TRUE && driver_check_arguments(st, f, args, n) != CPLRT_OK) {
@@ -636,6 +680,11 @@ static void driver_run_body(driver_state *st, const cplrt_jv *req)
             driver_error(st, CPLRT_INTEROP_OUT_OF_MEMORY, NULL, 0);
         else
             driver_invalid(st, "/binders", detail);
+        return;
+    }
+    /* a test has no binders; a property's are its members, of the types in ptypes */
+    if (!driver_args_typed(st, "/binders", p->defs[t].ptypes, p->defs[t].nmembers, binders, n)) {
+        CPLRT(words_release)(binders, n);
         return;
     }
     cplrt_cx cx;
@@ -682,6 +731,10 @@ static void driver_failing_refinement(driver_state *st, const cplrt_jv *req)
     if (ri == CPLRT_NONE) {
         cplrt_release(v);
         driver_send_text(st, "{\"ok\":null}");
+        return;
+    }
+    if (!driver_args_typed(st, "/value", &p->refinements[ri].base, 1, &v, 1)) {
+        cplrt_release(v);
         return;
     }
     cplrt_cx cx;
@@ -781,6 +834,11 @@ static void driver_cap_call(driver_state *st, const cplrt_jv *req)
             driver_error(st, CPLRT_INTEROP_OUT_OF_MEMORY, NULL, 0);
         else
             driver_invalid(st, "/args", detail);
+        return;
+    }
+    const cplrt_op *opd = &p->defs[ref->capability].ops[op];
+    if (!driver_args_typed(st, "/args", opd->ptypes, opd->nparams, args, n)) {
+        CPLRT(words_release)(args, n);
         return;
     }
     cplrt_cx cx;
@@ -971,6 +1029,8 @@ static int driver_close(driver_state *st)
     cpl_error *e = NULL;
     cpl_status s = CPLRT(api_table).cpl_runtime_close(&st->rt->pub, 0u, &e);
     CPLRT(api_table).cpl_error_release(e);
+    if (s == CPL_OK)
+        st->rt = NULL; /* closed: a failed reopen must not leave it to be used or closed again */
     return s == CPL_OK;
 }
 
@@ -1004,7 +1064,8 @@ static void driver_workers(driver_state *st, const cplrt_jv *req)
 {
     const cplrt_jv *py = CPLRT(json_member)(req, "python");
     const cplrt_jv *env = CPLRT(json_member)(req, "env");
-    if (py == NULL || py->type != CPLRT_JSON_STRING || py->len == 0 || (env != NULL && env->type != CPLRT_JSON_OBJECT)) {
+    if (py == NULL || py->type != CPLRT_JSON_STRING || py->len == 0 || memchr(py->str, '\0', py->len) != NULL ||
+        (env != NULL && env->type != CPLRT_JSON_OBJECT)) {
         driver_invalid(st, "", "workers takes python (a path) and env (an object of strings)");
         return;
     }
@@ -1015,9 +1076,11 @@ static void driver_workers(driver_state *st, const cplrt_jv *req)
         goto nomem;
     for (uint32_t i = 0; i < n; i++) {
         const cplrt_jv *k = &env->items[2u * i], *v = &env->items[2u * i + 1u];
-        if (v->type != CPLRT_JSON_STRING || memchr(k->str, '=', k->len) != NULL || k->len == 0) {
+        /* a NUL would end the C string early: "PATH\u0000x" must not set PATH */
+        if (v->type != CPLRT_JSON_STRING || memchr(k->str, '=', k->len) != NULL || k->len == 0 ||
+            memchr(k->str, '\0', k->len) != NULL || memchr(v->str, '\0', v->len) != NULL) {
             driver_workers_free(python, entries, n);
-            driver_invalid(st, "/env", "an environment entry is a name without '=' and a string");
+            driver_invalid(st, "/env", "an environment entry is a name without '=' or NUL and a string without NUL");
             return;
         }
         entries[i] = (char *)malloc(k->len + v->len + 2u);

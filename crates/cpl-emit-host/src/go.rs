@@ -96,6 +96,7 @@ pub fn emit(p: &Program, lowered: &Lowered, options: &Options) -> Package {
     let names = Names::new(p, lowered);
     let mut g = Printer {
         p,
+        cycles: crate::Cycles::new(p),
         names,
         validators: BTreeMap::new(),
         pending: Vec::new(),
@@ -353,6 +354,8 @@ fn generics_use(generics: &[String]) -> String {
 
 struct Printer<'p> {
     p: &'p Program,
+    /// The declarations whose own types may contain them (`boxed_*` asks `reaches` only there).
+    cycles: crate::Cycles,
     names: Names,
     validators: BTreeMap<String, String>,
     pending: Vec<(String, Ty)>,
@@ -431,7 +434,10 @@ impl<'p> Printer<'p> {
                 .def(d)
                 .kind
                 .as_struct()
-                .is_some_and(|s| crate::reaches(self.p, &s.fields[i].ty, d, false))
+                .is_some_and(|s| {
+                    self.cycles.may_contain_itself(d)
+                        && crate::reaches(self.p, &s.fields[i].ty, d, false)
+                })
     }
 
     fn boxed_wrapper(&self, d: DefId) -> bool {
@@ -439,7 +445,7 @@ impl<'p> Printer<'p> {
             .def(d)
             .kind
             .as_wrapper()
-            .is_some_and(|w| crate::reaches(self.p, &w.inner, d, false))
+            .is_some_and(|w| self.cycles.may_contain_itself(d) && crate::reaches(self.p, &w.inner, d, false))
     }
 
     fn is_unit(&self, t: &Ty) -> bool {
@@ -812,6 +818,7 @@ impl<'p> Printer<'p> {
             r: self,
             vars: &f.vars,
             generics: &f.generics,
+            text_bufs: BTreeSet::new(),
         };
         fx.stmts(&f.requires, 1, &mut w);
         if let Some((stmts, value, clause)) = &f.measure {
@@ -843,6 +850,12 @@ impl<'p> Printer<'p> {
         let mut params = fx.r.params(f);
         params.push("cx *cpl.Cx".into());
         let _ = writeln!(b, "func b_{short}{g}({}) {ret} {{", params.join(", "));
+        let mut bufs = BTreeSet::new();
+        appended_texts(fx.r.p, &f.body, &f.vars, &mut bufs);
+        for v in &bufs {
+            let _ = writeln!(b, "\tvar tb{v} cpl.TextBuf");
+        }
+        fx.text_bufs = bufs;
         fx.stmts(&f.body, 1, &mut b);
         // A body that diverges ends in a terminating statement in Go's sense (all breaks are
         // labeled, a match is a `switch` with a `default`), and nothing may follow it there.
@@ -884,11 +897,7 @@ impl<'p> Printer<'p> {
         );
         let symbol = go_str(def.stable_id.as_str());
         for q in &fd.params {
-            // a generic function's arguments get no validator; its plain texts are still checked
-            if !f.generics.is_empty() && matches!(erase(p, &q.ty), Ty::Text) {
-                let _ = writeln!(out, "\tif !cpl.ValidText({}) {{\n\t\treturn r__, cpl.RefinementFault(\"Text\", {symbol})\n\t}}", ident(&q.name));
-            }
-            if f.generics.is_empty() && needs_validation(p, &q.ty) {
+            if !crate::has_type_param(&q.ty) && needs_validation(p, &q.ty) {
                 let v = self.validator_name(&q.ty);
                 let _ = writeln!(
                     out,
@@ -924,6 +933,7 @@ impl<'p> Printer<'p> {
             r: self,
             vars: &q.vars,
             generics: &q.generics,
+            text_bufs: BTreeSet::new(),
         };
         let mut body = String::new();
         fx.stmts(&q.body, 1, &mut body);
@@ -976,7 +986,7 @@ impl<'p> Printer<'p> {
             }
             Ty::List(e) => {
                 let v = self.validator_name(e);
-                let _ = writeln!(body, "\tfor _, y := range x.Items() {{\n\t\tif !{v}(y, cx) {{\n\t\t\treturn false\n\t\t}}\n\t}}");
+                let _ = writeln!(body, "\tfor i := 0; i < x.Len(); i++ {{\n\t\tif !{v}(x.At(i), cx) {{\n\t\t\treturn false\n\t\t}}\n\t}}");
             }
             Ty::Wrapper(d) => {
                 if let Some(w) = p.def(*d).kind.as_wrapper() {
@@ -995,7 +1005,7 @@ impl<'p> Printer<'p> {
                     }
                     // the runtime's records hold texts a host may have made
                     (Some(StdType::ForeignError), _) => {
-                        let _ = writeln!(body, "\tif !cpl.ValidText(x.Message) {{\n\t\treturn false\n\t}}\n\tfor _, d := range x.Details.Items() {{\n\t\tif !cpl.ValidText(d.Key) || !cpl.ValidText(d.Value) {{\n\t\t\treturn false\n\t\t}}\n\t}}");
+                        let _ = writeln!(body, "\tif !cpl.ValidText(x.Message) {{\n\t\treturn false\n\t}}\n\tfor i := 0; i < x.Details.Len(); i++ {{\n\t\tif d := x.Details.At(i); !cpl.ValidText(d.Key) || !cpl.ValidText(d.Value) {{\n\t\t\treturn false\n\t\t}}\n\t}}");
                     }
                     (Some(StdType::ForeignDetail), _) => {
                         let _ = writeln!(body, "\tif !cpl.ValidText(x.Key) || !cpl.ValidText(x.Value) {{\n\t\treturn false\n\t}}");
@@ -1239,6 +1249,57 @@ struct Fx<'a, 'p> {
     r: &'a mut Printer<'p>,
     vars: &'a [VarDef],
     generics: &'a [String],
+    /// The text variables appended to through a `cpl.TextBuf` (`tb<var>`, declared at the
+    /// top of the body).
+    text_bufs: BTreeSet<Var>,
+}
+
+/// `x = x ++ a ++ b ...`: the variable and the parts, in order.
+fn append_chain(var: Var, value: &LExpr) -> Option<Vec<&LExpr>> {
+    let mut parts = Vec::new();
+    let mut e = value;
+    while let LExpr::Op {
+        op: Op::Concat,
+        args,
+        ..
+    } = e
+    {
+        parts.push(&args[1]);
+        e = &args[0];
+    }
+    if parts.is_empty() || !matches!(e, LExpr::Var(v) if *v == var) {
+        return None;
+    }
+    parts.reverse();
+    Some(parts)
+}
+
+/// The text variables of `stmts` that an assignment appends to.
+fn appended_texts(p: &Program, stmts: &[LStmt], vars: &[VarDef], out: &mut BTreeSet<Var>) {
+    for s in stmts {
+        match s {
+            LStmt::Assign { var, value } => {
+                if matches!(erase(p, &vars[*var as usize].ty), Ty::Text)
+                    && append_chain(*var, value).is_some()
+                {
+                    out.insert(*var);
+                }
+            }
+            LStmt::If { then, els, .. } => {
+                appended_texts(p, then, vars, out);
+                appended_texts(p, els, vars, out);
+            }
+            LStmt::Match { arms, .. } => {
+                for a in arms {
+                    appended_texts(p, &a.body, vars, out);
+                }
+            }
+            LStmt::Loop { body, .. } | LStmt::ForEach { body, .. } => {
+                appended_texts(p, body, vars, out)
+            }
+            _ => {}
+        }
+    }
 }
 
 impl Fx<'_, '_> {
@@ -1314,6 +1375,27 @@ impl Fx<'_, '_> {
                 );
             }
             LStmt::Assign { var, value } => {
+                // x = x ++ a ++ b ...: every part first (each sees x unchanged), then appended
+                // through the variable's buffer, so a loop of appends is linear
+                if self.text_bufs.contains(var) {
+                    if let Some(parts) = append_chain(*var, value) {
+                        let _ = writeln!(out, "{pad}{{");
+                        let names: Vec<String> = parts
+                            .iter()
+                            .map(|part| {
+                                let e = self.expr(part);
+                                let n = self.r.fresh("ap");
+                                let _ = writeln!(out, "{pad}\t{n} := {e}");
+                                n
+                            })
+                            .collect();
+                        for n in names {
+                            let _ = writeln!(out, "{pad}\tv{var} = tb{var}.Append(v{var}, {n})");
+                        }
+                        let _ = writeln!(out, "{pad}}}");
+                        return;
+                    }
+                }
                 let e = self.expr(value);
                 let _ = writeln!(out, "{pad}v{var} = {e}");
             }
@@ -1397,6 +1479,7 @@ impl Fx<'_, '_> {
             } => {
                 let l = self.expr(list);
                 let it = self.r.fresh("it");
+                let ls = self.r.fresh("ls");
                 let lab = format!("l{label}");
                 self.r.used_labels.remove(&lab);
                 let mut inner = String::new();
@@ -1408,7 +1491,9 @@ impl Fx<'_, '_> {
                 };
                 let _ = writeln!(
                     out,
-                    "{pad}{head}for _, {it} := range ({l}).Items() {{\n{pad}\tvar v{var} {} = {it}\n{pad}\t_ = v{var}\n{inner}{pad}}}",
+                    // by index: generated code never takes a list's backing slice, which the
+                    // host's Items copies, so no slice of a validated list is the host's to change
+                    "{pad}{head}for {it}, {ls} := 0, ({l}); {it} < {ls}.Len(); {it}++ {{\n{pad}\tvar v{var} {} = {ls}.At({it})\n{pad}\t_ = v{var}\n{inner}{pad}}}",
                     self.var_ty(*var)
                 );
             }

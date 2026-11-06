@@ -69,7 +69,7 @@ static const uint32_t o_esc[2] = { 0, 1 };
 
 static const uint32_t r_take[1] = { 0 }, r_drop[1] = { 1 }, r_split[1] = { 2 }, r_from_list[1] = { 3 };
 
-#define DEF(id, q, t, b, kind, n, m, o, st, nr, r) { id, q, t, b, kind, n, m, o, st, NULL, nr, r, NULL, NULL }
+#define DEF(id, q, t, b, kind, n, m, o, st, nr, r) { id, q, t, b, kind, n, m, o, st, NULL, nr, r, NULL, NULL, 0, NULL }
 static const cplrt_def defs[19] = {
     /* 0 */ DEF("std.prelude.Unit", "std.prelude.Unit", "Unit", "Unit", CPLRT_DEF_ENUM, 1, m_unit, o_unit, statics_unit,
                 0, NULL),

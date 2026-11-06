@@ -180,6 +180,9 @@ pub(crate) fn emit(
             _ => {}
         }
     }
+    for (d, v) in &names.statics {
+        let _ = writeln!(prog, "extern cplrt_obj CPLPKG(s{d}_{v});");
+    }
     prog.push('\n');
     for (k, key) in tables.consts.iter().enumerate() {
         prog.push_str(&lower::emit_const(k as u32, key));

@@ -241,6 +241,14 @@ impl Int {
         })))
     }
 
+    /// The magnitude, borrowed where it is a big one's (no copy for a read).
+    fn mag(&self) -> std::borrow::Cow<'_, [u32]> {
+        match &self.0 {
+            Repr::S(v) => std::borrow::Cow::Owned(mag_from_u64(v.unsigned_abs())),
+            Repr::B(b) => std::borrow::Cow::Borrowed(&b.mag),
+        }
+    }
+
     fn parts(&self) -> (bool, Vec<u32>) {
         match &self.0 {
             Repr::S(v) => (*v < 0, mag_from_u64(v.unsigned_abs())),
@@ -331,9 +339,8 @@ impl Int {
     #[cold]
     #[inline(never)]
     fn mul_big(&self, o: &Int) -> Int {
-        let (an, am) = self.parts();
-        let (bn, bm) = o.parts();
-        Int::from_parts(an != bn, mag_mul(&am, &bm))
+        let (am, bm) = (self.mag(), o.mag());
+        Int::from_parts(self.is_negative() != o.is_negative(), mag_mul(&am, &bm))
     }
 
     #[inline]
@@ -372,9 +379,8 @@ impl Int {
                 return Some((Int(Repr::S(q)), Int(Repr::S(r))));
             }
         }
-        let (an, am) = self.parts();
-        let (bn, bm) = o.parts();
-        let (q, r) = mag_divrem(&am, &bm);
+        let (an, bn) = (self.is_negative(), o.is_negative());
+        let (q, r) = mag_divrem(&self.mag(), &o.mag());
         Some((Int::from_parts(an != bn, q), Int::from_parts(an, r)))
     }
 
@@ -487,9 +493,8 @@ impl Int {
     #[cold]
     #[inline(never)]
     fn cmp_big(&self, o: &Int) -> Ordering {
-        let (an, am) = self.parts();
-        let (bn, bm) = o.parts();
-        match (an, bn) {
+        let (am, bm) = (self.mag(), o.mag());
+        match (self.is_negative(), o.is_negative()) {
             (false, true) => Ordering::Greater,
             (true, false) => Ordering::Less,
             (false, false) => mag_cmp(&am, &bm),
@@ -547,20 +552,29 @@ impl fmt::Display for Int {
         match &self.0 {
             Repr::S(v) => write!(f, "{v}"),
             Repr::B(b) => {
-                let mut chunks = Vec::new();
+                use std::fmt::Write as _;
+                // nine digits at a time, the magnitude divided in place
                 let mut m = b.mag.clone();
+                let mut chunks: Vec<u32> = Vec::with_capacity(m.len() * 32 / 29 + 1);
                 while !m.is_empty() {
-                    let (q, r) = mag_divrem_small(&m, 1_000_000_000);
-                    chunks.push(r);
-                    m = q;
+                    let mut r = 0u64;
+                    for x in m.iter_mut().rev() {
+                        let cur = (r << 32) | *x as u64;
+                        *x = (cur / 1_000_000_000) as u32;
+                        r = cur % 1_000_000_000;
+                    }
+                    while m.last() == Some(&0) {
+                        m.pop();
+                    }
+                    chunks.push(r as u32);
                 }
-                let mut s = String::new();
+                let mut s = String::with_capacity(chunks.len() * 9 + 1);
                 if b.neg {
                     s.push('-');
                 }
-                s.push_str(&chunks.last().copied().unwrap_or(0).to_string());
+                let _ = write!(s, "{}", chunks.last().copied().unwrap_or(0));
                 for c in chunks.iter().rev().skip(1) {
-                    s.push_str(&format!("{c:09}"));
+                    let _ = write!(s, "{c:09}");
                 }
                 f.write_str(&s)
             }
@@ -615,9 +629,14 @@ impl TryFrom<&Int> for i64 {
 #[derive(Clone)]
 pub struct Text(TextRepr);
 
+/// How many bytes a text holds inline, with no allocation (a word, a number): `Text` stays three words.
+const TEXT_INLINE: usize = 22;
+
 #[derive(Clone)]
 enum TextRepr {
     Static(&'static str),
+    /// A short text: its length and its bytes, always those of a `&str` (`Text::inline`).
+    Small(u8, [u8; TEXT_INLINE]),
     Shared(Arc<str>),
     /// A text being appended to: spare capacity, used in place while nothing else holds it.
     Growing(Arc<String>),
@@ -627,21 +646,56 @@ impl Text {
     pub const fn lit(s: &'static str) -> Text {
         Text(TextRepr::Static(s))
     }
+    /// `s` held inline, when it is short enough.
+    #[inline]
+    fn inline(s: &str) -> Option<Text> {
+        if s.len() > TEXT_INLINE {
+            return None;
+        }
+        let mut b = [0u8; TEXT_INLINE];
+        b[..s.len()].copy_from_slice(s.as_bytes());
+        Some(Text(TextRepr::Small(s.len() as u8, b)))
+    }
     pub fn new(s: &str) -> Text {
         if s.is_empty() {
             return Text::lit("");
         }
-        Text(TextRepr::Shared(Arc::from(s)))
+        Text::inline(s).unwrap_or_else(|| Text(TextRepr::Shared(Arc::from(s))))
     }
     pub fn from_string(s: String) -> Text {
         if s.is_empty() {
             return Text::lit("");
         }
-        Text(TextRepr::Shared(Arc::from(s)))
+        Text::inline(&s).unwrap_or_else(|| Text(TextRepr::Shared(Arc::from(s))))
     }
+    /// The decimal digits of `v`, inline (an `i64` has at most 20).
+    pub fn of_i64(v: i64) -> Text {
+        let mut b = [0u8; TEXT_INLINE];
+        let mut i = TEXT_INLINE;
+        let mut m = v.unsigned_abs();
+        loop {
+            i -= 1;
+            b[i] = b'0' + (m % 10) as u8;
+            m /= 10;
+            if m == 0 {
+                break;
+            }
+        }
+        if v < 0 {
+            i -= 1;
+            b[i] = b'-';
+        }
+        let n = TEXT_INLINE - i;
+        b.copy_within(i.., 0);
+        Text(TextRepr::Small(n as u8, b))
+    }
+    #[inline]
     pub fn as_str(&self) -> &str {
         match &self.0 {
             TextRepr::Static(s) => s,
+            // SAFETY: a `Small` holds the first `n` bytes of a `&str` (`inline`) or ASCII digits (`of_i64`), so they
+            // are valid UTF-8.
+            TextRepr::Small(n, b) => unsafe { std::str::from_utf8_unchecked(&b[..*n as usize]) },
             TextRepr::Shared(s) => s,
             TextRepr::Growing(s) => s,
         }
@@ -668,6 +722,11 @@ impl std::ops::Deref for Text {
     type Target = str;
     fn deref(&self) -> &str {
         self.as_str()
+    }
+}
+impl Default for Text {
+    fn default() -> Text {
+        Text::lit("")
     }
 }
 impl PartialEq for Text {
@@ -1036,6 +1095,8 @@ pub struct Cx {
     measures: Vec<(u32, Option<Int>)>,
     /// The owners of the contract expressions being evaluated, innermost last (S34).
     clauses: Stack<&'static str, 8>,
+    /// Speculative forms that bailed in this call (`q_ok`).
+    q_bails: u32,
 }
 
 /// A stack whose first `N` entries live in place: a call that nests no deeper allocates
@@ -1140,7 +1201,50 @@ impl Cx {
                 len: 0,
                 spill: Vec::new(),
             },
+            q_bails: 0,
         }
+    }
+    /// The speculative forms (spec/hosts.md): whether to try one (not after 16 bails in this call).
+    #[inline]
+    pub fn q_ok(&self) -> bool {
+        self.q_bails < 16
+    }
+    #[inline]
+    pub fn q_bail(&mut self) {
+        self.q_bails += 1;
+    }
+    /// The function activations in progress.
+    #[inline]
+    pub fn depth(&self) -> u32 {
+        self.depth
+    }
+    /// A speculative call's checks, `qd` the activations already in progress: the depth limit, and every 16
+    /// levels the stack's guard (a speculative frame is small; the guard keeps far more than 16 of them).
+    #[inline]
+    pub fn q_enter(&self, qd: u32) -> bool {
+        if qd >= self.limit {
+            return false;
+        }
+        if qd & 15 == 15 {
+            let here = 0u8;
+            if (&here as *const u8 as usize) < self.stack_floor {
+                return false;
+            }
+        }
+        true
+    }
+    /// The measure of the nearest activation of `f` as an `i64`: `i64::MIN` when there is none or it has none
+    /// yet, `i64::MAX` for a bigint (always positive, so above every `i64`).
+    pub fn q_prev(&self, f: u32) -> i64 {
+        for (g, m) in self.measures.iter().rev() {
+            if *g == f {
+                return match m {
+                    None => i64::MIN,
+                    Some(m) => m.to_i64().unwrap_or(i64::MAX),
+                };
+            }
+        }
+        i64::MIN
     }
     /// A function activation (semantics S38): the depth limit, and the native stack's guard.
     #[inline]
@@ -1896,17 +2000,56 @@ impl FromJson for ForeignError {
 /// H6): shared like an `Arc`, and dropped without recursion. Dropping the last holder of a value
 /// nested a million levels deep (a list kept as a chain of nodes) would otherwise recurse once
 /// per level and exhaust the thread's stack; here each level is queued and dropped in turn.
-pub struct Boxed<T: 'static>(Option<Arc<T>>);
+pub struct Boxed<T: 'static>(Option<BoxedRepr<T>>);
+
+enum BoxedRepr<T: 'static> {
+    Shared(Arc<T>),
+    /// A value that needs no allocation: an option's `None` (`Boxed::opt`), a leaf of a tree.
+    Static(&'static T),
+}
+
+impl<T: 'static> Clone for BoxedRepr<T> {
+    fn clone(&self) -> BoxedRepr<T> {
+        match self {
+            BoxedRepr::Shared(a) => BoxedRepr::Shared(a.clone()),
+            BoxedRepr::Static(s) => BoxedRepr::Static(s),
+        }
+    }
+}
 
 impl<T: 'static> Boxed<T> {
     pub fn new(v: T) -> Boxed<T> {
-        Boxed(Some(Arc::new(v)))
+        Boxed(Some(BoxedRepr::Shared(Arc::new(v))))
+    }
+}
+impl<X: 'static> Boxed<Option<X>> {
+    /// An option, held with no allocation when it is `None`.
+    #[inline]
+    pub fn opt(v: Option<X>) -> Boxed<Option<X>> {
+        match v {
+            None => Boxed(Some(BoxedRepr::Static(&None))),
+            v => Boxed::new(v),
+        }
     }
 }
 impl<T: 'static> std::ops::Deref for Boxed<T> {
     type Target = T;
+    #[inline]
     fn deref(&self) -> &T {
-        self.0.as_deref().expect("a live Boxed")
+        match self.0.as_ref().expect("a live Boxed") {
+            BoxedRepr::Shared(a) => a,
+            BoxedRepr::Static(s) => s,
+        }
+    }
+}
+impl<T: Clone + 'static> Boxed<T> {
+    /// The value, moved out where this is its only reference (no count of what it holds is taken), else a copy.
+    #[inline]
+    pub fn into_inner(mut self) -> T {
+        match self.0.take().expect("a live Boxed") {
+            BoxedRepr::Shared(a) => Arc::try_unwrap(a).unwrap_or_else(|a| (*a).clone()),
+            BoxedRepr::Static(s) => s.clone(),
+        }
     }
 }
 impl<T: 'static> Clone for Boxed<T> {
@@ -1917,7 +2060,8 @@ impl<T: 'static> Clone for Boxed<T> {
 impl<T: PartialEq + 'static> PartialEq for Boxed<T> {
     fn eq(&self, o: &Boxed<T>) -> bool {
         match (&self.0, &o.0) {
-            (Some(a), Some(b)) => Arc::ptr_eq(a, b) || **a == **b,
+            (Some(BoxedRepr::Shared(a)), Some(BoxedRepr::Shared(b))) if Arc::ptr_eq(a, b) => true,
+            (Some(_), Some(_)) => **self == **o,
             _ => false,
         }
     }
@@ -1935,8 +2079,10 @@ impl<T: fmt::Debug + 'static> fmt::Debug for Boxed<T> {
 }
 impl<T: 'static> Drop for Boxed<T> {
     fn drop(&mut self) {
-        if let Some(Ok(v)) = self.0.take().map(Arc::try_unwrap) {
-            drop_nested(v);
+        if let Some(BoxedRepr::Shared(a)) = self.0.take() {
+            if let Ok(v) = Arc::try_unwrap(a) {
+                drop_nested(v);
+            }
         }
     }
 }
@@ -2079,7 +2225,10 @@ pub fn flatten<T: Clone>(lists: List<List<T>>) -> List<T> {
 }
 
 pub fn int_to_text(v: Int) -> Text {
-    Text::from_string(v.to_string())
+    match v.to_i64() {
+        Some(x) => Text::of_i64(x),
+        None => Text::from_string(v.to_string()),
+    }
 }
 pub fn int_abs(v: Int) -> Int {
     v.abs()
@@ -2157,6 +2306,100 @@ pub fn list_push<T: Clone>(mut l: List<T>, v: T) -> List<T> {
 }
 pub fn list_get<T: Clone>(l: &List<T>, i: Int) -> Option<T> {
     i.to_usize().and_then(|i| l.get(i).cloned())
+}
+
+/// The list reads of the speculative forms (spec/hosts.md H14): element `i` as an `i64`, `Some(None)` past the
+/// ends, `None` (a bail) for an element that is a bigint.
+/// An element type of a list of lists in a speculative form: its empty list, shared.
+#[doc(hidden)]
+pub trait QLeaf: Sized + Clone + 'static {
+    fn q_empty() -> &'static List<Self>;
+}
+impl QLeaf for Int {
+    fn q_empty() -> &'static List<Int> {
+        static E: std::sync::OnceLock<List<Int>> = std::sync::OnceLock::new();
+        E.get_or_init(List::new)
+    }
+}
+impl QLeaf for bool {
+    fn q_empty() -> &'static List<bool> {
+        static E: std::sync::OnceLock<List<bool>> = std::sync::OnceLock::new();
+        E.get_or_init(List::new)
+    }
+}
+/// `xs.get(i).unwrap_or([])` of a list of lists, read in place (no count taken): the row, or the empty list.
+#[doc(hidden)]
+#[inline]
+pub fn q_row<T: QLeaf>(l: &List<List<T>>, i: i64) -> &List<T> {
+    if i < 0 || i as u64 >= l.len() as u64 {
+        return T::q_empty();
+    }
+    &l.as_slice()[i as usize]
+}
+#[doc(hidden)]
+#[inline]
+pub fn q_get(l: &List<Int>, i: i64) -> Option<Option<i64>> {
+    if i < 0 || i as u64 >= l.len() as u64 {
+        return Some(None);
+    }
+    l.as_slice()[i as usize].to_i64().map(Some)
+}
+#[doc(hidden)]
+#[inline]
+pub fn q_get_bool(l: &List<bool>, i: i64) -> Option<bool> {
+    if i < 0 || i as u64 >= l.len() as u64 {
+        return None;
+    }
+    Some(l.as_slice()[i as usize])
+}
+/// `take(k)` and `drop(k)`: `None` (a bail) for a negative count, whose fault the generic form raises.
+#[doc(hidden)]
+#[inline]
+pub fn q_take<T: Clone>(l: &List<T>, k: i64) -> Option<List<T>> {
+    if k < 0 {
+        return None;
+    }
+    Some(l.view(0, (k as u64).min(l.len() as u64) as usize))
+}
+#[doc(hidden)]
+#[inline]
+pub fn q_drop<T: Clone>(l: &List<T>, k: i64) -> Option<List<T>> {
+    if k < 0 {
+        return None;
+    }
+    Some(l.view((k as u64).min(l.len() as u64) as usize, l.len()))
+}
+#[doc(hidden)]
+#[inline]
+pub fn q_drop_last<T: Clone>(l: &List<T>) -> List<T> {
+    l.view(0, l.len().saturating_sub(1))
+}
+/// `xs = xs.take(k)`, `xs = xs.drop(k)`, `xs = xs.drop_last()` of a local: the view narrowed in place, with no
+/// count of its buffer taken or given back.
+#[doc(hidden)]
+#[inline]
+pub fn q_take_mut<T>(l: &mut List<T>, k: i64) -> Option<()> {
+    if k < 0 {
+        return None;
+    }
+    l.len = (k as u64).min(l.len as u64) as usize;
+    Some(())
+}
+#[doc(hidden)]
+#[inline]
+pub fn q_drop_mut<T>(l: &mut List<T>, k: i64) -> Option<()> {
+    if k < 0 {
+        return None;
+    }
+    let n = (k as u64).min(l.len as u64) as usize;
+    l.start += n;
+    l.len -= n;
+    Some(())
+}
+#[doc(hidden)]
+#[inline]
+pub fn q_drop_last_mut<T>(l: &mut List<T>) {
+    l.len = l.len.saturating_sub(1);
 }
 pub fn list_first<T: Clone>(l: &List<T>) -> Option<T> {
     l.get(0).cloned()

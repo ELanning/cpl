@@ -1,0 +1,160 @@
+module scalar_texts
+
+/// The scalar tier's texts (spec/cabi.md 1.3a): text locals, parameters, and results; records with text fields,
+/// alone, in lists, and in options; literals, `++` (in place on a local), `to_text`, `len`, equality, and text
+/// patterns; the business logic of a price list. Every record variable owns its texts: a leak or a double release
+/// shows in the runtime's counts and under the sanitizers.
+
+pub struct Item {
+    sku: Text
+    price: Int
+    qty: Int
+}
+
+pub struct Tagged {
+    item: Item
+    note: Text
+    hot: Bool
+}
+
+pub enum Disc {
+    NoDisc
+    Pct(Int)
+    Bogo(Int)
+}
+
+pub fn item_total(it: Item, d: Disc) -> Int
+    requires it.qty > 0
+    ensures result >= 0
+{
+    let gross = it.price * it.qty
+    match d {
+        NoDisc => gross
+        Pct(p) => gross - gross * p / 100
+        Bogo(n) => if n <= 0 { gross } else { gross - it.qty / (n + 1) * it.price }
+    }
+}
+
+pub fn business(n: Int) -> Int {
+    var items: List<Item> = []
+    var i = 0
+    while i < 50 {
+        items = items.push(Item { sku: "sku" ++ i.to_text(), price: 100 + i % 50, qty: 1 + i % 5 })
+        i = i + 1
+    }
+    var total = 0
+    var r = 0
+    while r < n {
+        var j = 0
+        while j < items.len {
+            let it = items.get(j).unwrap_or(Item { sku: "", price: 0, qty: 1 })
+            let d = if j % 3 == 0 { NoDisc } else if j % 3 == 1 { Pct(j % 30) } else { Bogo(j % 4) }
+            total = (total + item_total(it, d)) % 1000000007
+            j = j + 1
+        }
+        r = r + 1
+    }
+    total
+}
+
+pub fn label(it: Item) -> Text {
+    it.sku ++ " x" ++ it.qty.to_text() ++ " @ " ++ it.price.to_text()
+}
+
+pub fn shout(t: Text, n: Int) -> Text {
+    var out = ""
+    var i = 0
+    while i < n {
+        out = out ++ t
+        i = i + 1
+    }
+    out
+}
+
+pub fn kind(t: Text) -> Int {
+    match t {
+        "apple" => 1
+        "pear" => 2
+        other => other.len
+    }
+}
+
+pub fn tag(it: Item, note: Text) -> Tagged {
+    Tagged { item: it, note: note ++ "!", hot: it.price > 100 }
+}
+
+pub fn retag(t: Tagged) -> Tagged {
+    Tagged { ..t, note: t.note ++ t.item.sku }
+}
+
+pub fn same(a: Item, b: Item) -> Bool {
+    a == b and a.sku == b.sku
+}
+
+pub fn find(items: List<Item>, sku: Text) -> Int {
+    var i = 0
+    var found = -1
+    while i < items.len {
+        let it = items.get(i).unwrap_or(Item { sku: "", price: 0, qty: 1 })
+        if it.sku == sku {
+            found = it.price
+        }
+        i = i + 1
+    }
+    found
+}
+
+pub fn first_label(items: List<Item>) -> Text {
+    let o = items.first()
+    match o {
+        Some(it) => label(it)
+        None => "none"
+    }
+}
+
+pub fn priciest(items: List<Item>) -> Item {
+    var best = Item { sku: "none", price: -1, qty: 1 }
+    var rest = items
+    while rest.len > 0 {
+        let it = rest.first().unwrap_or(best)
+        if it.price > best.price {
+            best = it
+        }
+        rest = rest.drop(1)
+    }
+    best
+}
+
+pub fn build(n: Int) -> List<Item> {
+    var xs: List<Item> = []
+    var i = 0
+    while i < n {
+        xs = xs.push(Item { sku: "k" ++ (i * 7).to_text(), price: i * i, qty: i + 1 })
+        i = i + 1
+    }
+    xs
+}
+
+pub fn big(n: Int) -> Text {
+    (n * n * n * n * n).to_text()
+}
+
+pub fn chain(n: Int) -> Text {
+    var t = "<"
+    var i = 0
+    while i < n and i < 500 {
+        t = t ++ "w" ++ (i % 10).to_text() ++ t.len.to_text() ++ ";"
+        i = i + 1
+    }
+    t
+}
+
+pub fn doubled(n: Int) -> Text {
+    var t = "ab"
+    var i = 0
+    while i < n and t.len < 1000 {
+        t = t ++ t ++ "-"
+        i = i + 1
+    }
+    t
+}

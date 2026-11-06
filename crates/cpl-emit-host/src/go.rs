@@ -110,7 +110,19 @@ pub fn emit(p: &Program, lowered: &Lowered, options: &Options) -> Package {
             .collect(),
         counter: 0,
         used_labels: BTreeSet::new(),
+        q: crate::go_q::GoQ::new(p),
     };
+    // the generated names of the speculative forms' records and enums
+    for d in g.q.named() {
+        let n = g.type_name(d);
+        g.q.gen.insert(d, n);
+        if let Some(e) = p.def(d).kind.as_enum() {
+            for v in 0..e.variants.len() as u32 {
+                let vn = g.variant_name(d, v);
+                g.q.variants.insert((d, v), vn);
+            }
+        }
+    }
     let mut files = BTreeMap::new();
     files.insert(
         "go.mod".to_string(),
@@ -147,6 +159,8 @@ pub fn emit(p: &Program, lowered: &Lowered, options: &Options) -> Package {
         files.insert(format!("{stem}.cpl.go"), out);
     }
     let mut support = header.clone();
+    // The records of the speculative forms.
+    support.push_str(&g.q.records(p, &|d, i| g.field_name(d, i)));
     if options.driver {
         g.driver(lowered, &mut support);
         files.insert(
@@ -298,7 +312,7 @@ fn ident(name: &str) -> String {
 }
 
 /// A Go string literal: ASCII printable characters as they are, everything else escaped.
-fn go_str(s: &str) -> String {
+pub(crate) fn go_str(s: &str) -> String {
     let mut out = String::with_capacity(s.len() + 2);
     out.push('"');
     for c in s.chars() {
@@ -364,6 +378,8 @@ struct Printer<'p> {
     fn_ids: BTreeMap<DefId, u32>,
     counter: usize,
     used_labels: BTreeSet<String>,
+    /// The functions with a speculative form (`go_q.rs`).
+    q: crate::go_q::GoQ,
 }
 
 impl<'p> Printer<'p> {
@@ -808,9 +824,15 @@ impl<'p> Printer<'p> {
         let mut w = String::new();
         let _ = writeln!(
             w,
-            "func x_{short}{g}({}) {ret} {{\n\tcx.Enter()",
+            "func x_{short}{g}({}) {ret} {{",
             params.join(", ")
         );
+        if self.q.has(f.def) {
+            // the speculative form first (go_q.rs); on a bail the generic form below runs
+            let names: Vec<String> = f.params.iter().map(|v| format!("v{v}")).collect();
+            w.push_str(&self.q.wrapper(p, f.def, &names, id, &|d| self.short(d).to_string()));
+        }
+        w.push_str("\tcx.Enter()\n");
         if f.measure.is_some() {
             let _ = writeln!(w, "\tcx.MeasurePush({id})");
         }
@@ -865,6 +887,9 @@ impl<'p> Printer<'p> {
         b.push_str("}\n\n");
         out.push_str(&w);
         out.push_str(&b);
+        if self.q.has(f.def) {
+            out.push_str(&self.q.functions(p, f.def, &|d| self.short(d).to_string()));
+        }
     }
 
     /// The exported form of a `pub fn` (`spec/hosts.md` 3.3).
@@ -1255,7 +1280,7 @@ struct Fx<'a, 'p> {
 }
 
 /// `x = x ++ a ++ b ...`: the variable and the parts, in order.
-fn append_chain(var: Var, value: &LExpr) -> Option<Vec<&LExpr>> {
+pub(crate) fn append_chain(var: Var, value: &LExpr) -> Option<Vec<&LExpr>> {
     let mut parts = Vec::new();
     let mut e = value;
     while let LExpr::Op {
@@ -1275,7 +1300,7 @@ fn append_chain(var: Var, value: &LExpr) -> Option<Vec<&LExpr>> {
 }
 
 /// The text variables of `stmts` that an assignment appends to.
-fn appended_texts(p: &Program, stmts: &[LStmt], vars: &[VarDef], out: &mut BTreeSet<Var>) {
+pub(crate) fn appended_texts(p: &Program, stmts: &[LStmt], vars: &[VarDef], out: &mut BTreeSet<Var>) {
     for s in stmts {
         match s {
             LStmt::Assign { var, value } => {

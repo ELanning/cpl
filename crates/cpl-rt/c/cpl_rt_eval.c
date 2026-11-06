@@ -66,6 +66,9 @@ int CPLRT(cx_begin)(cplrt_cx *cx, cplrt_runtime *rt, cplrt_memory_record *memory
     eval_tl.n = depth + 1u;
     cx->stack_floor = floor;
     CPLRT(value_cache_enter)(rt); /* paired with cx_end, as eval_tl.n is: nothing below fails */
+    cx->q_ok = 1;
+    cx->q_bails = 0;
+    cx->q_late = 0;
 
     /* the deadline: a budget whose deadline would overflow is no budget (3.4) */
     cx->budget_ms = budget_ms;
@@ -77,26 +80,27 @@ int CPLRT(cx_begin)(cplrt_cx *cx, cplrt_runtime *rt, cplrt_memory_record *memory
             cx->deadline_ns = now + span;
     }
 
-    /* the preallocated memory record (3.3.1) */
-    memset(memory, 0, sizeof *memory);
-    memory->fault.kind = CPLRT_FK_RESOURCE_EXHAUSTION;
-    memory->fault.resource = CPLRT_RES_MEMORY;
-    memory->fault.span = CPLRT_NONE;
-    memory->fault.owner = CPLRT_NONE;
-    memory->fault.flags = CPLRT_FAULT_STATIC;
-    memory->fault.message = CPLRT_MSG_RESOURCE_MEMORY;
-    memory->fault.message_len = sizeof(CPLRT_MSG_RESOURCE_MEMORY) - 1u;
-    memory->fault.data = memory->data;
-    memory->fault.data_cap = 2;
-    memory->fault.frames = memory->frames;
-    memory->fault.frames_cap = CPLRT_MEMORY_FRAMES;
-    memory->data[0].key = "resource";
-    memory->data[0].form = CPLRT_DATUM_STRING;
-    memory->data[0].str = "memory";
-    memory->data[1].key = "limit";
-    memory->data[1].form = CPLRT_DATUM_NUMBER;
-    memory->data[1].num = rt->max_heap_bytes;
-    memory->fault.ndata = 2;
+    /* the preallocated memory record (3.3.1), every field set (no memset: a call of a small export is short): its
+       payload and frames are written by CPLRT(oom), which alone raises it */
+    cplrt_fault *m = &memory->fault;
+    m->kind = CPLRT_FK_RESOURCE_EXHAUSTION;
+    m->clause_kind = 0;
+    m->resource = CPLRT_RES_MEMORY;
+    m->facet = CPLRT_FACET_NONE;
+    m->span = CPLRT_NONE;
+    m->flags = CPLRT_FAULT_STATIC;
+    m->owner = CPLRT_NONE;
+    m->reserved = 0;
+    m->symbol = NULL;
+    m->qualified_name = NULL;
+    m->message = CPLRT_MSG_RESOURCE_MEMORY;
+    m->message_len = sizeof(CPLRT_MSG_RESOURCE_MEMORY) - 1u;
+    m->frames = memory->frames;
+    m->nframes = 0;
+    m->frames_cap = CPLRT_MEMORY_FRAMES;
+    m->data = memory->data;
+    m->ndata = 0;
+    m->data_cap = 2;
     cx->memory = &memory->fault;
     return CPLRT_OK;
 }
@@ -196,11 +200,82 @@ static int eval_time(cplrt_cx *cx, uint32_t site)
     return CPLRT_OK;
 }
 
+/* The scalar tier's poll (cpl_rt.h): whether eval_time would raise, raising nothing. */
+int cplrt_q_interrupted(const cplrt_cx *cx)
+{
+    if (cx->parallel_failure != NULL && cx->parallel_index > atomic_load_explicit(cx->parallel_failure, memory_order_acquire))
+        return 1;
+    if (cx->cancel != NULL && atomic_load_explicit((_Atomic uint32_t *)(uintptr_t)cx->cancel, memory_order_relaxed) != 0u)
+        return 1;
+    return cx->deadline_ns != 0 && CPLRT(clock_ns)() > cx->deadline_ns;
+}
+
+/* The scalar tier's periodic check (cpl_rt.h). */
+int cplrt_q_check(cplrt_cx *cx)
+{
+    if (CPLRT_FRAME_ADDRESS() < cx->stack_floor)
+        return 0;
+    if (cplrt_q_interrupted(cx)) {
+        cx->q_late = 1;
+        return 0;
+    }
+    return 1;
+}
+
+/* The measure of def's nearest activation, which a speculative call of def compares its own with (S35): none when
+   there is no activation of def or it has no measure yet; a bigint (always positive) is above every int64_t. */
+int64_t cplrt_q_prev(const cplrt_cx *cx, uint32_t def)
+{
+    for (const cplrt_frame *g = cx->top; g != NULL; g = g->prev) {
+        if (g->def == def) {
+            if (g->measure == 0)
+                return CPLRT_Q_NONE;
+            return cplrt_is_small(g->measure) ? cplrt_small_value(g->measure) : INT64_MAX;
+        }
+    }
+    return CPLRT_Q_NONE;
+}
+
+/* A speculative Int result as a word. */
+int cplrt_q_box(cplrt_cx *cx, int64_t v, cplrt_w *out)
+{
+    return CPLRT(int_from_i64)(cx->rt, v, out);
+}
+
+/* A struct of n fields for a speculative record whose fields the caller writes (every one before anything reads it):
+   NULL when out of memory. */
+cplrt_node *cplrt_q_node(cplrt_cx *cx, uint32_t def, uint32_t n)
+{
+    cplrt_node *node = (cplrt_node *)CPLRT(obj_new)(cx->rt, CPLRT_STRUCT, n, sizeof(cplrt_node) + (size_t)n * sizeof(cplrt_w));
+    if (node != NULL)
+        node->hdr.u.live.def = def;
+    return node;
+}
+
+/* A speculative record result as a struct value, its fields retained. */
+int cplrt_q_struct(cplrt_cx *cx, uint32_t def, const cplrt_w *fields, uint32_t n, cplrt_w *out)
+{
+    return CPLRT(node_make)(cx->rt, CPLRT_STRUCT, def, 0, fields, n, out);
+}
+
+/* A speculative enum result as an enum value, its payload retained (a payload-less variant: the static one). */
+int cplrt_q_enum(cplrt_cx *cx, uint32_t def, uint32_t variant, const cplrt_w *fields, uint32_t n, cplrt_w *out)
+{
+    return CPLRT(node_make)(cx->rt, CPLRT_ENUM, def, variant, fields, n, out);
+}
+
 /* mirrors cpl_eval::interp::Interpreter::enter_activation: the stack guard, then the time budget and cancellation */
 static int eval_enter(cplrt_cx *cx, uint32_t site)
 {
     if (CPLRT_UNLIKELY(CPLRT_FRAME_ADDRESS() < cx->stack_floor))
         return eval_exhausted(cx, site, CPLRT_RES_STACK, CPLRT_MSG_RESOURCE_STACK_GUARD, cx->max_call_depth, 1);
+    /* A scalar form that bailed on an interruption ran out of time inside its body, past the entry the evaluator
+       checked in time: the generic form re-entering it skips that one check, so the fault is raised at the body's
+       next poll (a loop's tick or a callee's entry), where the evaluator raises it (1.3a). */
+    if (CPLRT_UNLIKELY(cx->q_late)) {
+        cx->q_late = 0;
+        return CPLRT_OK;
+    }
     return eval_time(cx, site);
 }
 

@@ -18,6 +18,7 @@
 
 mod program;
 mod walk;
+pub mod scalar;
 
 #[cfg(test)]
 mod tests;

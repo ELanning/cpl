@@ -1,0 +1,118 @@
+module scalar_nested
+
+/// Lists of lists in the scalar tiers (spec/cabi.md 1.3a, hosts.md H14): a row read by `get`, `first`, or `last` and
+/// `unwrap_or`, in place or kept, with an empty or a non-empty default; rows built, pushed, and returned.
+
+pub fn cell(m: List<List<Int>>, i: Int, j: Int) -> Int {
+    m.get(i).unwrap_or([]).get(j).unwrap_or(-1)
+}
+
+pub fn cell_or(m: List<List<Int>>, i: Int, j: Int, d: List<Int>) -> Int {
+    m.get(i).unwrap_or(d).get(j).unwrap_or(-1)
+}
+
+pub fn row_len(m: List<List<Int>>, i: Int) -> Int {
+    m.get(i).unwrap_or([7, 8, 9]).len
+}
+
+pub fn edges(m: List<List<Int>>) -> Int {
+    let a = m.first().unwrap_or([]).len
+    let b = m.last().unwrap_or([]).len
+    let c = m.first().unwrap_or([]).first().unwrap_or(0)
+    let d = m.last().unwrap_or([]).last().unwrap_or(0)
+    a * 1000 + b * 100 + c * 10 + d
+}
+
+pub fn total(m: List<List<Int>>) -> Int {
+    var s = 0
+    var i = 0
+    while i < m.len {
+        let row = m.get(i).unwrap_or([])
+        var j = 0
+        while j < row.len {
+            s = s + row.get(j).unwrap_or(0)
+            j = j + 1
+        }
+        i = i + 1
+    }
+    s
+}
+
+pub fn product(a: List<List<Int>>, b: List<List<Int>>, n: Int) -> List<List<Int>> {
+    var out: List<List<Int>> = []
+    var i = 0
+    while i < n {
+        var row: List<Int> = []
+        var j = 0
+        while j < n {
+            var acc = 0
+            var k = 0
+            while k < n {
+                acc = acc + a.get(i).unwrap_or([]).get(k).unwrap_or(0) * b.get(k).unwrap_or([]).get(j).unwrap_or(0)
+                k = k + 1
+            }
+            row = row.push(acc)
+            j = j + 1
+        }
+        out = out.push(row)
+        i = i + 1
+    }
+    out
+}
+
+pub fn grid(n: Int) -> List<List<Int>> {
+    var g: List<List<Int>> = []
+    var i = 0
+    while i < n {
+        var row: List<Int> = []
+        var j = 0
+        while j < n {
+            row = row.push(i * n + j)
+            j = j + 1
+        }
+        g = g.push(row)
+        i = i + 1
+    }
+    g
+}
+
+pub fn alias(xs: List<List<Int>>) -> Int {
+    var row = xs.get(0).unwrap_or([])
+    row = row.push(99)
+    var ys = xs
+    ys = ys.push(row)
+    ys = ys.push([1, 2])
+    xs.get(0).unwrap_or([]).len * 1000 + ys.len * 10 + ys.get(ys.len - 2).unwrap_or([]).len
+}
+
+pub fn literal(k: Int) -> Int {
+    let m = [[1, 2, 3], [], [k]]
+    m.get(2).unwrap_or([]).get(0).unwrap_or(0) + m.get(1).unwrap_or([5]).len * 10 + m.len * 100
+}
+
+pub fn trues(m: List<List<Bool>>) -> Int {
+    var n = 0
+    var i = 0
+    while i < m.len {
+        let row = m.get(i).unwrap_or([false])
+        var j = 0
+        while j < row.len {
+            if row.get(j).unwrap_or(false) {
+                n = n + 1
+            }
+            j = j + 1
+        }
+        i = i + 1
+    }
+    n
+}
+
+pub fn diag(m: List<List<Int>>) -> List<Int> {
+    var d: List<Int> = []
+    var i = 0
+    while i < m.len {
+        d = d.push(m.get(i).unwrap_or([]).get(i).unwrap_or(0))
+        i = i + 1
+    }
+    d
+}

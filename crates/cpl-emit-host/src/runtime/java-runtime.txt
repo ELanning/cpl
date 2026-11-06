@@ -664,6 +664,122 @@ public enum Unit implements Value {
         return Json.tagged("Unit", null, null);
     }
 }
+//// FILE: Q.java
+package __PKG__.cpl;
+
+/** The speculative forms of the scalar tier (spec/hosts.md H14): their bail and helpers. Internal. */
+public final class Q {
+    private Q() {
+    }
+
+    /** A speculative form gave up: the generic form runs instead. Thrown without a stack trace. */
+    public static final class Bail extends java.lang.RuntimeException {
+        private static final long serialVersionUID = 1L;
+
+        private Bail() {
+            super(null, null, false, false);
+        }
+    }
+
+    public static final Bail BAIL = new Bail();
+
+    /** The measure of no enclosing activation. */
+    public static final long NONE = java.lang.Long.MIN_VALUE;
+
+    /** A flat array's room doubled (8 at first): a bail past 2^30 elements. */
+    public static long[] grow(long[] a) {
+        if (a.length >= (1 << 30)) {
+            throw BAIL;
+        }
+        return java.util.Arrays.copyOf(a, java.lang.Math.max(8, a.length * 2));
+    }
+
+    public static boolean[] grow(boolean[] a) {
+        if (a.length >= (1 << 30)) {
+            throw BAIL;
+        }
+        return java.util.Arrays.copyOf(a, java.lang.Math.max(8, a.length * 2));
+    }
+
+    public static <T> T[] grow(T[] a) {
+        if (a.length >= (1 << 30)) {
+            throw BAIL;
+        }
+        return java.util.Arrays.copyOf(a, java.lang.Math.max(8, a.length * 2));
+    }
+
+    /** The list a speculative form built as a flat array of {@code n} elements, once nothing writes the array again. */
+    public static List<Int> freezeI(long[] a, int n) {
+        java.lang.Object[] o = new java.lang.Object[n];
+        for (int i = 0; i < n; i++) {
+            o[i] = Int.of(a[i]);
+        }
+        return List.wrap(o, n);
+    }
+
+    public static List<java.lang.Boolean> freezeB(boolean[] a, int n) {
+        java.lang.Object[] o = new java.lang.Object[n];
+        for (int i = 0; i < n; i++) {
+            o[i] = java.lang.Boolean.valueOf(a[i]);
+        }
+        return List.wrap(o, n);
+    }
+
+    public static <S, T> List<T> freeze(S[] a, int n, java.util.function.Function<S, T> f) {
+        java.lang.Object[] o = new java.lang.Object[n];
+        for (int i = 0; i < n; i++) {
+            o[i] = f.apply(a[i]);
+        }
+        return List.wrap(o, n);
+    }
+
+    /** a / b truncated, bailing where the quotient is no long (MIN / -1); a zero divisor throws ArithmeticException. */
+    public static long div(long a, long b) {
+        if (b == -1L && a == java.lang.Long.MIN_VALUE) {
+            throw BAIL;
+        }
+        return a / b;
+    }
+}
+//// FILE: TextBuf.java
+package __PKG__.cpl;
+
+/**
+ * A CPL {@code Text} variable that its function appends to: the appends go to a builder, and the
+ * {@code String} is made when the variable is read, so a loop of appends is linear. Internal.
+ */
+public final class TextBuf {
+    private java.lang.StringBuilder sb;
+    private java.lang.String text;
+
+    public TextBuf(java.lang.String text) {
+        this.text = text;
+    }
+
+    public java.lang.String get() {
+        if (text == null) {
+            text = sb.toString();
+        }
+        return text;
+    }
+
+    public void set(java.lang.String text) {
+        this.text = text;
+        sb = null;
+    }
+
+    public void append(java.lang.String more) {
+        if (more.isEmpty()) {
+            return;
+        }
+        if (sb == null) {
+            sb = new java.lang.StringBuilder(text.length() * 2 + more.length() + 16);
+            sb.append(text);
+        }
+        sb.append(more);
+        text = null;
+    }
+}
 //// FILE: ConstraintError.java
 package __PKG__.cpl;
 
@@ -855,6 +971,44 @@ public final class Cx {
 
     public void leave() {
         depth--;
+    }
+
+    /** Speculative forms that bailed in this call: none is tried after 16 (spec/hosts.md H14). */
+    private int qbails;
+
+    public boolean qOk() {
+        return qbails < 16;
+    }
+
+    public void qBail() {
+        qbails++;
+    }
+
+    /** The function activations in progress. */
+    public int depth() {
+        return depth;
+    }
+
+    /** A speculative call's depth check, {@code qd} activations in progress. */
+    public boolean qEnter(int qd) {
+        return qd < limit;
+    }
+
+    /**
+     * The measure of the nearest activation of {@code f} as a long: {@link Q#NONE} when there is
+     * none or it has none yet, {@code Long.MAX_VALUE} for a bigint (above every long).
+     */
+    public long qPrev(int f) {
+        for (int i = top - 1; i >= 0; i--) {
+            if (fns[i] == f) {
+                Int m = measures[i];
+                if (m == null) {
+                    return Q.NONE;
+                }
+                return m.fitsLong() ? m.toLong() : java.lang.Long.MAX_VALUE;
+            }
+        }
+        return Q.NONE;
     }
 
     /** The activation of function {@code f}, which has a decreases clause, begins. */

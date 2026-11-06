@@ -1,0 +1,105 @@
+module scalar_built
+
+/// Lists built by `[]` and their own pushes, then read as lists (cpl_hir::scalar::built_locals): the hosts build them
+/// flat and make the list once, before the first statement that reads it as one.
+
+pub struct Pt {
+    x: Int
+    y: Int
+}
+
+pub fn squares(n: Int) -> List<Int> {
+    var xs: List<Int> = []
+    var i = 0
+    while i < n {
+        xs = xs.push(i * i)
+        i = i + 1
+    }
+    xs
+}
+
+pub fn evens(n: Int) -> Int {
+    var xs: List<Int> = []
+    var i = 0
+    while i < n {
+        if i % 2 == 0 {
+            xs = xs.push(i)
+        }
+        if xs.len > 5 {
+            xs = []
+        }
+        i = i + 1
+    }
+    let ys = xs.push(1000)
+    var s = 0
+    var j = 0
+    while j < ys.len {
+        s = s * 3 + ys.get(j).unwrap_or(0)
+        j = j + 1
+    }
+    s + xs.len * 100000
+}
+
+pub fn early(n: Int) -> Int {
+    var xs: List<Int> = []
+    var i = 0
+    while i < 10 {
+        if i == n {
+            return 0 - i
+        }
+        xs = xs.push(i)
+        i = i + 1
+    }
+    sum(xs) + xs.first().unwrap_or(0 - 1)
+}
+
+fn sum(xs: List<Int>) -> Int {
+    var s = 0
+    var i = 0
+    while i < xs.len {
+        s = s + xs.get(i).unwrap_or(0)
+        i = i + 1
+    }
+    s
+}
+
+pub fn points(n: Int) -> List<Pt> {
+    var ps: List<Pt> = []
+    var i = 0
+    while i < n {
+        ps = ps.push(Pt { x: i, y: n - i })
+        i = i + 1
+    }
+    if n > 3 { ps } else { ps.push(Pt { x: 0 - 1, y: 0 - 1 }) }
+}
+
+pub fn flags(n: Int) -> List<Bool> {
+    var fs: List<Bool> = []
+    var i = 0
+    while i < n {
+        fs = fs.push(i % 3 == 0)
+        i = i + 1
+    }
+    fs
+}
+
+pub fn checked(n: Int, big: Int) -> Int {
+    var xs: List<Int> = []
+    var i = 0
+    while i < n {
+        xs = xs.push(big * i)
+        i = i + 1
+    }
+    let t = sum(xs)
+    t + xs.len + xs.last().unwrap_or(7)
+}
+
+pub fn late(n: Int) -> Int {
+    var k = n * 2
+    var xs: List<Int> = []
+    xs = xs.push(k)
+    xs = xs.push(xs.len)
+    let a = xs.get(1).unwrap_or(0 - 5)
+    let ys = xs
+    a * 1000 + ys.len + sum(ys)
+}

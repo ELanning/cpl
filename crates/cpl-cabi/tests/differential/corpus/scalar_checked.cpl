@@ -1,0 +1,70 @@
+module scalar_checked
+
+/// Records with an invariant in the scalar tier (spec/cabi.md 1.3a): read, compared, passed, returned, and kept in
+/// lists, never built (a literal of one stays generic, where the invariant is checked: `make`).
+
+pub struct Line {
+    sku: Text
+    price: Int
+    qty: Int
+}
+    where self.qty > 0
+
+pub enum Discount {
+    NoDiscount
+    PercentOff(Int)
+    Bogo(Int)
+}
+
+pub fn line_total(line: Line, d: Discount) -> Int
+    ensures result >= 0
+{
+    let gross = line.price * line.qty
+    match d {
+        NoDiscount => gross
+        PercentOff(p) => gross - gross * p / 100
+        Bogo(n) => if n <= 0 { gross } else { gross - line.qty / (n + 1) * line.price }
+    }
+}
+
+pub fn subtotal(lines: List<Line>, d: Discount) -> Int {
+    var s = 0
+    var i = 0
+    while i < lines.len {
+        match lines.get(i) {
+            Some(l) => {
+                s = s + line_total(l, d)
+            }
+            None => {}
+        }
+        i = i + 1
+    }
+    s
+}
+
+pub fn pick(lines: List<Line>, i: Int, fallback: Line) -> Line {
+    lines.get(i).unwrap_or(fallback)
+}
+
+pub fn same_sku(a: Line, b: Line) -> Bool {
+    a.sku == b.sku and a != b
+}
+
+pub fn keep_big(lines: List<Line>, min: Int) -> List<Line> {
+    var out: List<Line> = []
+    var i = 0
+    while i < lines.len {
+        match lines.get(i) {
+            Some(l) => if l.price * l.qty >= min {
+                out = out.push(l)
+            }
+            None => {}
+        }
+        i = i + 1
+    }
+    out
+}
+
+pub fn make(q: Int) -> Line {
+    Line { sku: "made", price: 10, qty: q }
+}

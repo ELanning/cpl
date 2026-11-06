@@ -246,9 +246,12 @@ uint64_t rttest_runtime_fini(cplrt_runtime *rt)
             cplrt_release(rt->slots[i].u.value);
     CPLRT(free)(rt->slots);
     rt->slots = NULL;
+    CPLRT(value_settle)(rt);
+    uint64_t objects = atomic_load(&rt->live_objects);
+    CPLRT(value_pool_fini)(rt);
     pthread_mutex_destroy(&rt->lock);
     free(rt->identity);
-    return atomic_load(&rt->live_objects);
+    return objects;
 }
 
 /* ---- weak stand-ins for tracks R2 and R3 (overridden by the runtime's own definitions) ------------------------- */

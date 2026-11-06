@@ -1,0 +1,145 @@
+module scalar_flat
+
+/// Flat arrays of the scalar tier (spec/cabi.md 1.3a): a local list that only grows by its own `push` and is read
+/// by `len`, `is_empty`, `get`, `first`, and `last` is an array of its elements. Integers past the small range,
+/// booleans, records holding texts, emptying with `[]`, reads out of range, and bails while elements are held.
+
+pub struct Row {
+    label: Text
+    n: Int
+}
+
+pub fn sum_squares(n: Int) -> Int {
+    var xs: List<Int> = []
+    var i = 0
+    while i < n {
+        xs = xs.push(i * i)
+        i = i + 1
+    }
+    var s = 0
+    var j = 0
+    while j < xs.len {
+        s = s + xs.get(j).unwrap_or(0)
+        j = j + 1
+    }
+    s + xs.first().unwrap_or(-1) * 1000 + xs.last().unwrap_or(-1)
+}
+
+pub fn big_values(n: Int) -> Int {
+    var xs: List<Int> = []
+    var i = 0
+    while i < n {
+        xs = xs.push(4611686018427387000 + i)
+        i = i + 1
+    }
+    var s = 0
+    var j = 0
+    while j < xs.len {
+        s = s + xs.get(j).unwrap_or(0) % 1000
+        j = j + 1
+    }
+    s
+}
+
+pub fn flags(n: Int) -> Int {
+    var bs: List<Bool> = []
+    var i = 0
+    while i < n {
+        bs = bs.push(i % 3 == 0)
+        i = i + 1
+    }
+    var c = 0
+    var j = 0
+    while j < bs.len {
+        if bs.get(j).unwrap_or(false) {
+            c = c + 1
+        }
+        j = j + 1
+    }
+    c * 10 + (if bs.is_empty() { 1 } else { 0 })
+}
+
+pub fn rows(n: Int) -> Text {
+    var rs: List<Row> = []
+    var i = 0
+    while i < n {
+        rs = rs.push(Row { label: "r" ++ i.to_text(), n: i * 3 })
+        i = i + 1
+    }
+    var out = ""
+    var j = rs.len - 1
+    while j >= 0 {
+        let r = rs.get(j).unwrap_or(Row { label: "?", n: 0 })
+        out = out ++ r.label ++ "=" ++ r.n.to_text() ++ ","
+        j = j - 2
+    }
+    out
+}
+
+pub fn reset(n: Int) -> Int {
+    var xs: List<Int> = []
+    var total = 0
+    var i = 0
+    while i < n {
+        xs = xs.push(i)
+        if xs.len == 4 {
+            total = total + xs.get(0).unwrap_or(0) + xs.get(3).unwrap_or(0)
+            xs = []
+        }
+        i = i + 1
+    }
+    total * 100 + xs.len
+}
+
+pub fn row_reset(n: Int) -> Int {
+    var rs: List<Row> = []
+    var total = 0
+    var i = 0
+    while i < n {
+        rs = rs.push(Row { label: "x" ++ (i % 7).to_text(), n: i })
+        if rs.len == 3 {
+            total = total + rs.last().unwrap_or(Row { label: "", n: 0 }).label.len
+            rs = []
+        }
+        i = i + 1
+    }
+    total * 100 + rs.len
+}
+
+pub fn overflow_late(n: Int) -> Int {
+    var rs: List<Row> = []
+    var i = 0
+    var acc = 1
+    while i < n and i < 30 {
+        rs = rs.push(Row { label: "t" ++ i.to_text(), n: acc })
+        acc = acc * 1000
+        i = i + 1
+    }
+    rs.len + rs.first().unwrap_or(Row { label: "", n: 0 }).n
+}
+
+pub fn out_of_range(n: Int) -> Int {
+    var xs: List<Int> = []
+    var i = 0
+    while i < n {
+        xs = xs.push(i)
+        i = i + 1
+    }
+    xs.get(-1).unwrap_or(-7) + xs.get(n).unwrap_or(-9) + xs.last().unwrap_or(-11)
+}
+
+pub fn per_loop(n: Int) -> Int {
+    var total = 0
+    var i = 0
+    while i < n {
+        var ys: List<Int> = []
+        var k = 0
+        while k < i % 5 {
+            ys = ys.push(k * i)
+            k = k + 1
+        }
+        total = total + ys.len + ys.last().unwrap_or(0)
+        i = i + 1
+    }
+    total
+}

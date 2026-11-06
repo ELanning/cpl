@@ -1,0 +1,74 @@
+module scalar_enums
+
+/// The scalar tier's enums (spec/cabi.md 1.3a): enums whose payloads are Int and Bool, constructed, matched with
+/// literal and binding sub-patterns, compared, passed, returned, and boxed and unboxed at the boundary; and a
+/// payload that is a bigint, which the scalar form does not take.
+
+pub enum Disc {
+    NoDisc
+    Pct(Int)
+    Bogo(Int)
+    Pair(Int, Bool)
+}
+
+pub enum Light {
+    Red
+    Amber
+    Green
+}
+
+pub fn price(gross: Int, d: Disc) -> Int
+    ensures result >= 0
+{
+    match d {
+        NoDisc => gross
+        Pct(0) => gross
+        Pct(p) => gross - gross * p / 100
+        Bogo(n) => if n <= 0 { gross } else { gross - gross / (n + 1) }
+        Pair(k, true) => gross + k
+        Pair(_, false) => 0
+    }
+}
+
+pub fn pick(i: Int) -> Disc {
+    if i % 4 == 0 { NoDisc } else if i % 4 == 1 { Pct(i % 30) } else if i % 4 == 2 { Bogo(i % 5) } else { Pair(i, i > 10) }
+}
+
+pub fn total(n: Int) -> Int {
+    var t = 0
+    var i = 0
+    while i < n {
+        t = t + price(1000 + i, pick(i))
+        i = i + 1
+    }
+    t
+}
+
+pub fn next(l: Light) -> Light {
+    match l {
+        Red => Green
+        Green => Amber
+        Amber => Red
+    }
+}
+
+pub fn cycle(l: Light, n: Int) -> Light {
+    var c = l
+    var i = 0
+    while i < n {
+        c = next(c)
+        i = i + 1
+    }
+    c
+}
+
+pub fn same(a: Disc, b: Disc) -> Bool {
+    a == b
+}
+
+pub fn bumped(d: Disc) -> Disc {
+    match d {
+        Pct(p) => Pct(p * 1000000000000)
+        other => other
+    }
+}

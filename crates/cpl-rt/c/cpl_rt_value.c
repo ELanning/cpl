@@ -11,12 +11,51 @@
 /* ---- allocation (2.4, 4.7) ------------------------------------------------------------------------------------- */
 
 /* The hidden header before every block of CPLRT(alloc): its runtime and the size asked for, padded to the alignment
-   of max_align_t so that the block after it keeps that alignment. */
+   of max_align_t so that the block after it keeps that alignment. A slot of the object pool (below) has the same
+   header, with the low bit of rt set; a free slot links the next free slot through size. */
 typedef struct value_block {
     _Alignas(max_align_t) cplrt_runtime *rt;
     size_t size;
 } value_block;
 #define VALUE_ALIGN _Alignof(max_align_t)
+
+static inline value_block *value_block_of(const void *p)
+{
+    return (value_block *)(void *)((char *)(uintptr_t)p - sizeof(value_block));
+}
+
+static inline cplrt_runtime *value_block_rt(const value_block *b)
+{
+    return (cplrt_runtime *)((uintptr_t)b->rt & ~(uintptr_t)1u);
+}
+
+static inline int value_block_pooled(const value_block *b)
+{
+    return ((uintptr_t)b->rt & 1u) != 0u;
+}
+
+/* Count total more bytes in rt->live_bytes, within the budget, and the peak: 0 when the budget refuses them. */
+static int value_charge(cplrt_runtime *rt, uint64_t total)
+{
+    uint64_t live = atomic_load_explicit(&rt->live_bytes, memory_order_relaxed);
+    if (rt->max_heap_bytes != 0) {
+        do {
+            if (total > rt->max_heap_bytes || live > rt->max_heap_bytes - total)
+                return 0;
+        } while (!atomic_compare_exchange_weak_explicit(&rt->live_bytes, &live, live + total, memory_order_relaxed,
+                                                        memory_order_relaxed));
+    } else {
+        live = atomic_fetch_add_explicit(&rt->live_bytes, total, memory_order_relaxed);
+    }
+    uint64_t now = live + total;
+    uint64_t peak = atomic_load_explicit(&rt->peak_bytes, memory_order_relaxed);
+    while (now > peak && !atomic_compare_exchange_weak_explicit(&rt->peak_bytes, &peak, now, memory_order_relaxed,
+                                                                memory_order_relaxed)) {
+    }
+    return 1;
+}
+
+static void pool_release_block(value_block *b);
 
 void *CPLRT(alloc)(cplrt_runtime *rt, size_t size)
 {
@@ -25,25 +64,12 @@ void *CPLRT(alloc)(cplrt_runtime *rt, size_t size)
     if (size > SIZE_MAX - sizeof(value_block))
         return NULL;
     size_t total = size + sizeof(value_block);
-    uint64_t live = atomic_load_explicit(&rt->live_bytes, memory_order_relaxed);
-    if (rt->max_heap_bytes != 0) {
-        do {
-            if ((uint64_t)total > rt->max_heap_bytes || live > rt->max_heap_bytes - (uint64_t)total)
-                return NULL;
-        } while (!atomic_compare_exchange_weak_explicit(&rt->live_bytes, &live, live + (uint64_t)total,
-                                                        memory_order_relaxed, memory_order_relaxed));
-    } else {
-        live = atomic_fetch_add_explicit(&rt->live_bytes, (uint64_t)total, memory_order_relaxed);
-    }
+    if (!value_charge(rt, (uint64_t)total))
+        return NULL;
     void *raw = rt->allocator.alloc ? rt->allocator.alloc(rt->allocator.user, total, VALUE_ALIGN) : malloc(total);
     if (raw == NULL) {
         atomic_fetch_sub_explicit(&rt->live_bytes, (uint64_t)total, memory_order_relaxed);
         return NULL;
-    }
-    uint64_t now = live + (uint64_t)total;
-    uint64_t peak = atomic_load_explicit(&rt->peak_bytes, memory_order_relaxed);
-    while (now > peak && !atomic_compare_exchange_weak_explicit(&rt->peak_bytes, &peak, now, memory_order_relaxed,
-                                                                memory_order_relaxed)) {
     }
     value_block *b = (value_block *)raw;
     b->rt = rt;
@@ -55,7 +81,11 @@ void CPLRT(free)(void *p)
 {
     if (p == NULL)
         return;
-    value_block *b = (value_block *)(void *)((char *)p - sizeof(value_block));
+    value_block *b = value_block_of(p);
+    if (value_block_pooled(b)) {
+        pool_release_block(b);
+        return;
+    }
     cplrt_runtime *rt = b->rt;
     size_t total = b->size + sizeof(value_block);
     if (rt->allocator.alloc) {
@@ -67,85 +97,439 @@ void CPLRT(free)(void *p)
     atomic_fetch_sub_explicit(&rt->live_bytes, (uint64_t)total, memory_order_relaxed);
 }
 
+/* Grow the block of the unique object o to size bytes: in place where the allocator can (realloc, with the default
+   allocator; a large block then moves without a copy), else a new block with the old bytes copied and the old one
+   freed (a pool slot always moves out of the pool). The budget and the statistics count the difference, as alloc and
+   free would. The object, perhaps moved, or NULL with o unchanged. */
+cplrt_obj *CPLRT(obj_grow)(cplrt_runtime *rt, cplrt_obj *o, size_t size)
+{
+    value_block *b = value_block_of(o);
+    size_t old = b->size;
+    if (size <= old)
+        return o;
+    if (rt->allocator.alloc != NULL || value_block_pooled(b)) {
+        cplrt_obj *n = (cplrt_obj *)CPLRT(alloc)(rt, size);
+        if (n == NULL)
+            return NULL;
+        memcpy(n, o, old);
+        if (value_block_pooled(b)) /* the object now counts as a general block, and its slot as freed */
+            atomic_fetch_add_explicit(&rt->live_objects, 1u, memory_order_relaxed);
+        CPLRT(free)(o);
+        return n;
+    }
+    if (size > SIZE_MAX - sizeof(value_block))
+        return NULL;
+    uint64_t delta = (uint64_t)(size - old);
+    if (!value_charge(rt, delta))
+        return NULL;
+    value_block *g = (value_block *)realloc(b, size + sizeof(value_block));
+    if (g == NULL) {
+        atomic_fetch_sub_explicit(&rt->live_bytes, delta, memory_order_relaxed);
+        return NULL;
+    }
+    g->size = size;
+    return (cplrt_obj *)(void *)((char *)g + sizeof(value_block));
+}
+
 size_t CPLRT(alloc_size)(const void *p)
 {
-    return ((const value_block *)(const void *)((const char *)p - sizeof(value_block)))->size;
+    return value_block_of(p)->size;
 }
 
-static cplrt_runtime *value_runtime_of(const void *p)
+/* ---- the object pool (2.4) ------------------------------------------------------------------------------------- */
+
+/* While an evaluation runs, its thread owns the runtime's object pool, and every object of up to POOL_CLASSES * 16
+   bytes (a struct, an Option, a short list, a small text) it makes is a slot of a 64 KiB page of the pool, one page
+   per 16-byte size class at a time: taken from the page's free slots or the untouched rest of it, with no malloc and
+   no atomic counter update, and freed onto its page's free slots by the owner the same way. A page counts whole in
+   rt->live_bytes (the budget sees it at once), and the objects of the pool count in rt->live_objects through
+   rt->pool_net, which the owner adds when its ownership ends, so the statistics between calls are exact. A page left
+   with no objects is kept as a spare for the next pages, uncounted, while the spares are fewer than the most pages
+   in use since the ownership began (at least POOL_SPARE, at most POOL_SPARE_MAX: the memory of a heap that shrinks
+   and grows again is not returned to the system and faulted back in each time), and freed otherwise; when an
+   ownership ends, the spares past what it used are freed.
+
+   One thread owns the pool at a time: the outermost evaluation of the runtime on a thread, claimed when no other
+   thread holds it, or a release outside any evaluation for its own duration; the owner check is the thread pointer
+   (value_thread), not a thread-local, whose access from a shared library is a call. A thread that frees a slot while
+   another owns the pool (a parallel section's worker, a concurrent call) pushes it on its page's remote stack, which
+   the owner takes back when the page's other slots run out and, flagged by rt->pool_remote, when its ownership ends. The pool makes
+   nothing for a runtime with a host allocator (which sees every block) or a small heap budget (whose page-sized
+   steps would move the point at which an evaluation runs out of memory). Under AddressSanitizer a free slot is
+   poisoned, so that a use after free is still caught until the slot is reused. */
+#if defined(__SANITIZE_ADDRESS__)
+#define POOL_ASAN 1
+#elif defined(__has_feature)
+#if __has_feature(address_sanitizer)
+#define POOL_ASAN 1
+#endif
+#endif
+#ifdef POOL_ASAN
+#include <sanitizer/asan_interface.h>
+#define POOL_POISON(p, n) ASAN_POISON_MEMORY_REGION((p), (n))
+#define POOL_UNPOISON(p, n) ASAN_UNPOISON_MEMORY_REGION((p), (n))
+#else
+#define POOL_POISON(p, n) ((void)(p), (void)(n))
+#define POOL_UNPOISON(p, n) ((void)(p), (void)(n))
+#endif
+
+#define POOL_CLASSES 4u
+#define POOL_PAGE ((size_t)1 << 16)
+#define POOL_SPARE 4u
+#define POOL_SPARE_MAX 1024u /* 64 MiB */
+#define POOL_MIN_BUDGET (UINT64_C(1) << 26)
+
+typedef struct cplrt_pool_page {
+    struct cplrt_pool_page *prev, *next;   /* rt->pool_pages */
+    struct cplrt_pool_page *pprev, *pnext; /* rt->pool_partial[cls], while listed */
+    value_block *free;                     /* the owner's free slots, linked through size */
+    _Atomic uintptr_t remote;              /* the slots other threads freed, linked through size */
+    char *bump, *end;                      /* the slots never used: [bump, end) */
+    uint32_t used;                         /* slots taken and not yet freed onto free (remote ones included) */
+    uint32_t slot;                         /* the size of a slot: the header and 16 * (cls + 1) bytes */
+    uint8_t cls, listed;
+} pool_page;
+#define POOL_FIRST ((sizeof(pool_page) + 63u) & ~(size_t)63u)
+_Static_assert(POOL_FIRST % sizeof(value_block) == 0, "slots keep the alignment of a block");
+
+static inline pool_page *pool_page_of(const value_block *b)
 {
-    return ((const value_block *)(const void *)((const char *)p - sizeof(value_block)))->rt;
+    return (pool_page *)((uintptr_t)b & ~(uintptr_t)(POOL_PAGE - 1u));
 }
 
-/* ---- the small-object cache (2.4) ------------------------------------------------------------------------------ */
-
-/* While an evaluation runs, the small objects it frees (up to VALUE_CACHE_CLASSES * 16 bytes: a struct, an Option, a
-   short list, a small text) are kept on a free list per 16-byte size class and reused by the next allocation of that
-   class, instead of a malloc and a free with four atomic counter updates each. A cached block stays counted in
-   rt->live_bytes and rt->live_objects, so obj_new and release need not touch them; the cache is emptied, with the
-   counts returned, when the evaluation that claimed it ends, so the statistics between calls are exact. One thread
-   owns a runtime's cache at a time, claimed by its outermost evaluation when no other thread holds it (the threads of
-   a parallel section, or concurrent calls, allocate as before); the owner check is pthread_self, not a thread-local,
-   whose access from a shared library is a call. The cache is off for a runtime with a small heap budget, where the
-   cached bytes would move the point at which an evaluation runs out of memory. */
-#define VALUE_CACHE_CLASSES 4u
-#define VALUE_CACHE_MAX 256u
-#define VALUE_CACHE_MIN_BUDGET (UINT64_C(1) << 26)
-
+/* The calling thread's identity: its thread pointer where one instruction reads it (the TLS ABI of x86-64 and AArch64
+   Linux keeps it per thread and fixed for the thread's life), else pthread_self. */
 static inline uintptr_t value_thread(void)
 {
+#if defined(__linux__) && defined(__x86_64__)
+    uintptr_t t;
+    __asm__("mov %%fs:0, %0" : "=r"(t));
+    return t;
+#elif defined(__linux__) && defined(__aarch64__)
+    uintptr_t t;
+    __asm__("mrs %0, tpidr_el0" : "=r"(t));
+    return t;
+#else
     return (uintptr_t)pthread_self();
+#endif
 }
 
-/* Whether the calling thread owns rt's cache, and the budget leaves it on (checked at each use: a budget lowered
-   during an evaluation turns the cache off from then on). */
-static inline int value_cache_mine(cplrt_runtime *rt)
+static inline int pool_mine(cplrt_runtime *rt)
 {
-    return atomic_load_explicit(&rt->cache_owner, memory_order_relaxed) == value_thread() &&
-           (rt->max_heap_bytes == 0 || rt->max_heap_bytes >= VALUE_CACHE_MIN_BUDGET);
+    return atomic_load_explicit(&rt->cache_owner, memory_order_relaxed) == value_thread();
 }
 
-static void value_cache_flush(cplrt_runtime *rt)
+static inline int pool_owned_by(cplrt_runtime *rt, uintptr_t self)
 {
-    for (uint32_t c = 0; c < VALUE_CACHE_CLASSES; c++) {
-        cplrt_obj *o = rt->cache_head[c];
-        while (o != NULL) {
-            cplrt_obj *next = o->u.next;
-            atomic_fetch_sub_explicit(&rt->live_objects, 1u, memory_order_relaxed);
-            CPLRT(free)(o);
-            o = next;
+    return atomic_load_explicit(&rt->cache_owner, memory_order_relaxed) == self;
+}
+
+/* Whether the calling thread may make objects in rt's pool (checked at each use: a budget lowered during an
+   evaluation turns the pool off from then on). */
+static inline int pool_alloc_ok(cplrt_runtime *rt)
+{
+    return pool_mine(rt) && rt->allocator.alloc == NULL &&
+           (rt->max_heap_bytes == 0 || rt->max_heap_bytes >= POOL_MIN_BUDGET);
+}
+
+static void pool_list(cplrt_runtime *rt, pool_page *pg)
+{
+    pool_page **head = &rt->pool_partial[pg->cls];
+    pg->pprev = NULL;
+    pg->pnext = *head;
+    if (*head != NULL)
+        (*head)->pprev = pg;
+    *head = pg;
+    pg->listed = 1;
+}
+
+static void pool_unlist(cplrt_runtime *rt, pool_page *pg)
+{
+    if (pg->pprev != NULL)
+        pg->pprev->pnext = pg->pnext;
+    else
+        rt->pool_partial[pg->cls] = pg->pnext;
+    if (pg->pnext != NULL)
+        pg->pnext->pprev = pg->pprev;
+    pg->listed = 0;
+}
+
+/* How many spare pages to keep: the most pages in use lately, within [POOL_SPARE, POOL_SPARE_MAX]. */
+static inline uint32_t pool_spare_limit(const cplrt_runtime *rt)
+{
+    uint32_t n = rt->pool_peak;
+    return n < POOL_SPARE ? POOL_SPARE : n > POOL_SPARE_MAX ? POOL_SPARE_MAX : n;
+}
+
+/* A page with no objects left, not a class's current one: freed, or kept as a spare. */
+static void pool_page_drop(cplrt_runtime *rt, pool_page *pg)
+{
+    if (pg->listed)
+        pool_unlist(rt, pg);
+    if (pg->prev != NULL)
+        pg->prev->next = pg->next;
+    else
+        rt->pool_pages = pg->next;
+    if (pg->next != NULL)
+        pg->next->prev = pg->prev;
+    atomic_fetch_sub_explicit(&rt->live_bytes, (uint64_t)POOL_PAGE, memory_order_relaxed);
+    rt->pool_npages--;
+    if (rt->pool_nspare < pool_spare_limit(rt)) {
+        pg->next = rt->pool_spare;
+        rt->pool_spare = pg;
+        rt->pool_nspare++;
+    } else {
+        POOL_UNPOISON(pg, POOL_PAGE);
+        free(pg);
+    }
+}
+
+/* A page for class c, a spare or a new one, counted and linked: NULL when the budget or the system refuses it. */
+static pool_page *pool_page_new(cplrt_runtime *rt, uint32_t c)
+{
+    if (!value_charge(rt, (uint64_t)POOL_PAGE))
+        return NULL;
+    pool_page *pg = rt->pool_spare;
+    if (pg != NULL) {
+        rt->pool_spare = pg->next;
+        rt->pool_nspare--;
+    } else {
+        void *m = NULL;
+        if (posix_memalign(&m, POOL_PAGE, POOL_PAGE) != 0 || m == NULL) {
+            atomic_fetch_sub_explicit(&rt->live_bytes, (uint64_t)POOL_PAGE, memory_order_relaxed);
+            return NULL;
         }
-        rt->cache_head[c] = NULL;
-        rt->cache_n[c] = 0;
+        pg = (pool_page *)m;
+    }
+    pg->free = NULL;
+    atomic_init(&pg->remote, 0u);
+    pg->bump = (char *)pg + POOL_FIRST;
+    pg->end = (char *)pg + POOL_PAGE;
+    pg->used = 0;
+    pg->slot = (uint32_t)(sizeof(value_block) + 16u * (c + 1u));
+    pg->cls = (uint8_t)c;
+    pg->listed = 0;
+    pg->pprev = pg->pnext = NULL;
+    pg->prev = NULL;
+    pg->next = rt->pool_pages;
+    if (rt->pool_pages != NULL)
+        rt->pool_pages->prev = pg;
+    rt->pool_pages = pg;
+    if (++rt->pool_npages > rt->pool_peak)
+        rt->pool_peak = rt->pool_npages;
+    POOL_POISON(pg->bump, (size_t)(pg->end - pg->bump));
+    return pg;
+}
+
+static inline value_block *pool_take(pool_page *pg)
+{
+    value_block *b = pg->free;
+    if (b != NULL) {
+        pg->free = (value_block *)(uintptr_t)b->size;
+        pg->used++;
+        return b;
+    }
+    if ((size_t)(pg->end - pg->bump) >= pg->slot) {
+        b = (value_block *)(void *)pg->bump;
+        pg->bump += pg->slot;
+        pg->used++;
+        POOL_UNPOISON(b, sizeof *b);
+        return b;
+    }
+    return NULL;
+}
+
+/* The slots other threads freed on pg, onto its free slots. */
+static void pool_collect(cplrt_runtime *rt, pool_page *pg)
+{
+    uintptr_t h = atomic_exchange_explicit(&pg->remote, (uintptr_t)0, memory_order_acquire);
+    uint32_t n = 0;
+    while (h != 0) {
+        value_block *b = (value_block *)h;
+        h = (uintptr_t)b->size;
+        b->size = (size_t)(uintptr_t)pg->free;
+        pg->free = b;
+        n++;
+    }
+    pg->used -= n;
+    rt->pool_net -= (int64_t)n;
+}
+
+/* A slot of class c when the current page has none: its remote slots, another page with free slots, a new page. */
+static value_block *pool_refill(cplrt_runtime *rt, uint32_t c)
+{
+    pool_page *pg = rt->pool_cur[c];
+    value_block *b;
+    if (pg != NULL && atomic_load_explicit(&pg->remote, memory_order_relaxed) != 0) {
+        pool_collect(rt, pg);
+        if ((b = pool_take(pg)) != NULL)
+            return b;
+    }
+    /* the page being left is full: a free onto it lists it again */
+    while ((pg = rt->pool_partial[c]) != NULL) {
+        pool_unlist(rt, pg);
+        rt->pool_cur[c] = pg;
+        if ((b = pool_take(pg)) != NULL)
+            return b;
+    }
+    pg = pool_page_new(rt, c);
+    if (pg == NULL)
+        return NULL;
+    rt->pool_cur[c] = pg;
+    return pool_take(pg);
+}
+
+/* The owner frees slot b. */
+static void pool_free_local(cplrt_runtime *rt, value_block *b)
+{
+    pool_page *pg = pool_page_of(b);
+    POOL_POISON(b + 1, pg->slot - sizeof *b);
+    b->size = (size_t)(uintptr_t)pg->free;
+    pg->free = b;
+    pg->used--;
+    rt->pool_net--;
+    if (pg != rt->pool_cur[pg->cls]) {
+        if (pg->used == 0)
+            pool_page_drop(rt, pg);
+        else if (!pg->listed)
+            pool_list(rt, pg);
+    }
+}
+
+/* Another thread than the owner frees slot b: onto its page's remote stack. Until then b counts in pg->used, so the
+   page outlives the push. */
+static void pool_free_remote(cplrt_runtime *rt, value_block *b)
+{
+    pool_page *pg = pool_page_of(b);
+    POOL_POISON(b + 1, pg->slot - sizeof *b);
+    uintptr_t h = atomic_load_explicit(&pg->remote, memory_order_relaxed);
+    do {
+        b->size = (size_t)h;
+    } while (!atomic_compare_exchange_weak_explicit(&pg->remote, &h, (uintptr_t)b, memory_order_release,
+                                                    memory_order_relaxed));
+    atomic_store_explicit(&rt->pool_remote, 1u, memory_order_release);
+}
+
+static int pool_claim(cplrt_runtime *rt)
+{
+    uintptr_t none = 0;
+    if (!atomic_compare_exchange_strong_explicit(&rt->cache_owner, &none, value_thread(), memory_order_acquire,
+                                                 memory_order_relaxed))
+        return 0;
+    rt->cache_depth = 1;
+    return 1;
+}
+
+/* The owner's ownership ends: the remote slots taken back if any were pushed, the empty current pages dropped, and
+   the pool's objects counted in live_objects; then the pool is no thread's. */
+static void pool_unclaim(cplrt_runtime *rt)
+{
+    if (atomic_load_explicit(&rt->pool_remote, memory_order_relaxed) != 0u &&
+        atomic_exchange_explicit(&rt->pool_remote, 0u, memory_order_acquire) != 0u) {
+        pool_page *pg = rt->pool_pages;
+        while (pg != NULL) {
+            pool_page *next = pg->next;
+            if (atomic_load_explicit(&pg->remote, memory_order_relaxed) != 0) {
+                pool_collect(rt, pg);
+                if (pg != rt->pool_cur[pg->cls]) {
+                    if (pg->used == 0)
+                        pool_page_drop(rt, pg);
+                    else if (!pg->listed)
+                        pool_list(rt, pg);
+                }
+            }
+            pg = next;
+        }
+    }
+    for (uint32_t c = 0; c < POOL_CLASSES; c++) {
+        pool_page *pg = rt->pool_cur[c];
+        if (pg != NULL && pg->used == 0) {
+            rt->pool_cur[c] = NULL;
+            pool_page_drop(rt, pg);
+        }
+    }
+    if (rt->pool_net != 0) {
+        atomic_fetch_add_explicit(&rt->live_objects, (uint64_t)rt->pool_net, memory_order_relaxed);
+        rt->pool_net = 0;
+    }
+    /* the spares past what this ownership used are freed; the next one starts from the pages in use */
+    uint32_t keep = pool_spare_limit(rt);
+    while (rt->pool_nspare > keep) {
+        pool_page *pg = rt->pool_spare;
+        rt->pool_spare = pg->next;
+        rt->pool_nspare--;
+        POOL_UNPOISON(pg, POOL_PAGE);
+        free(pg);
+    }
+    rt->pool_peak = rt->pool_npages;
+    rt->cache_depth = 0;
+    atomic_store_explicit(&rt->cache_owner, 0, memory_order_release);
+}
+
+/* A slot freed outside release_obj's loop (CPLRT(free), obj_grow). */
+static void pool_release_block(value_block *b)
+{
+    cplrt_runtime *rt = value_block_rt(b);
+    if (pool_mine(rt)) {
+        pool_free_local(rt, b);
+    } else if (pool_claim(rt)) {
+        pool_free_local(rt, b);
+        pool_unclaim(rt);
+    } else {
+        pool_free_remote(rt, b);
     }
 }
 
 /* An evaluation of rt begins on this thread (CPLRT(cx_begin)). */
 void CPLRT(value_cache_enter)(cplrt_runtime *rt)
 {
-    uintptr_t self = value_thread();
-    uintptr_t none = 0;
-    if (atomic_load_explicit(&rt->cache_owner, memory_order_relaxed) == self) {
+    if (pool_mine(rt))
         rt->cache_depth++;
-    } else if ((rt->max_heap_bytes == 0 || rt->max_heap_bytes >= VALUE_CACHE_MIN_BUDGET) &&
-               atomic_compare_exchange_strong_explicit(&rt->cache_owner, &none, self, memory_order_acquire,
-                                                       memory_order_relaxed)) {
-        rt->cache_depth = 1;
-    }
+    else
+        (void)pool_claim(rt);
 }
 
-/* An evaluation of rt ends (CPLRT(cx_end)); the owner's outermost empties the cache and gives it up. */
+/* An evaluation of rt ends (CPLRT(cx_end)); the owner's outermost gives the pool up. */
 void CPLRT(value_cache_leave)(cplrt_runtime *rt)
 {
-    if (atomic_load_explicit(&rt->cache_owner, memory_order_relaxed) != value_thread())
+    if (!pool_mine(rt))
         return;
     if (rt->cache_depth > 1) {
         rt->cache_depth--;
         return;
     }
-    rt->cache_depth = 0;
-    value_cache_flush(rt);
-    atomic_store_explicit(&rt->cache_owner, 0, memory_order_release);
+    pool_unclaim(rt);
+}
+
+/* The statistics made exact (cpl_runtime_stats, a close): the remote slots taken back, when no thread owns the pool. */
+void CPLRT(value_settle)(cplrt_runtime *rt)
+{
+    if (atomic_load_explicit(&rt->pool_remote, memory_order_relaxed) != 0u && pool_claim(rt))
+        pool_unclaim(rt);
+}
+
+/* The runtime closes: every page freed, whatever it still holds. */
+void CPLRT(value_pool_fini)(cplrt_runtime *rt)
+{
+    pool_page *pg = rt->pool_pages;
+    while (pg != NULL) {
+        pool_page *next = pg->next;
+        atomic_fetch_sub_explicit(&rt->live_bytes, (uint64_t)POOL_PAGE, memory_order_relaxed);
+        POOL_UNPOISON(pg, POOL_PAGE);
+        free(pg);
+        pg = next;
+    }
+    pg = rt->pool_spare;
+    while (pg != NULL) {
+        pool_page *next = pg->next;
+        POOL_UNPOISON(pg, POOL_PAGE);
+        free(pg);
+        pg = next;
+    }
+    rt->pool_pages = rt->pool_spare = NULL;
+    rt->pool_nspare = rt->pool_npages = rt->pool_peak = 0;
+    for (uint32_t c = 0; c < POOL_CLASSES; c++)
+        rt->pool_cur[c] = rt->pool_partial[c] = NULL;
 }
 
 /* ---- heap objects and release (2.3, 2.4) ----------------------------------------------------------------------- */
@@ -153,22 +537,27 @@ void CPLRT(value_cache_leave)(cplrt_runtime *rt)
 cplrt_obj *CPLRT(obj_new)(cplrt_runtime *rt, uint8_t kind, uint32_t len, size_t size)
 {
     cplrt_obj *o = NULL;
-    if (size <= VALUE_CACHE_CLASSES * 16u) {
-        /* a size class: every block of the class can hold any request of it */
+    if (size <= POOL_CLASSES * 16u && pool_alloc_ok(rt)) {
         uint32_t c = size == 0 ? 0u : (uint32_t)((size - 1u) / 16u);
-        if (value_cache_mine(rt) && rt->cache_head[c] != NULL) { /* the owner alone reads the lists */
-            o = rt->cache_head[c];
-            rt->cache_head[c] = o->u.next;
-            rt->cache_n[c]--;
+        pool_page *pg = rt->pool_cur[c];
+        value_block *b = pg != NULL ? pool_take(pg) : NULL;
+        if (b == NULL)
+            b = pool_refill(rt, c);
+        if (b != NULL) {
+            b->rt = (cplrt_runtime *)((uintptr_t)rt | 1u);
+            b->size = (size_t)(c + 1u) * 16u;
+            POOL_UNPOISON(b + 1, b->size);
+            rt->pool_net++;
+            o = (cplrt_obj *)(void *)(b + 1);
             o->kind = kind;
             o->flags = 0;
             o->variant = 0;
             o->len = len;
             atomic_init(&o->u.live.rc, 1u);
             o->u.live.def = 0;
-            return o; /* already counted */
+            return o;
         }
-        size = (size_t)(c + 1u) * 16u;
+        return NULL; /* no page: the budget, or the system, refused it */
     }
     o = (cplrt_obj *)CPLRT(alloc)(rt, size);
     if (o == NULL)
@@ -183,12 +572,30 @@ cplrt_obj *CPLRT(obj_new)(cplrt_runtime *rt, uint8_t kind, uint32_t len, size_t 
     return o;
 }
 
+/* Whether the dying object c holds no object: a text, bytes, a bigint, or a node whose children are all immediates. */
+static inline int value_leaf(const cplrt_obj *c)
+{
+    if (c->kind < CPLRT_LIST || c->kind > CPLRT_WRAPPER)
+        return 1;
+    if (c->flags & CPLRT_F_VIEW)
+        return 0;
+    const cplrt_w *items = ((const cplrt_node *)c)->item;
+    for (uint32_t i = 0; i < c->len; i++)
+        if (cplrt_is_obj(items[i]))
+            return 0;
+    return 1;
+}
+
 /* The last reference to o is gone. The dying objects form an intrusive list through u.next, and the children of each
-   are decremented from that list, so release never recurses on the depth of a value (2.4). An immortal child is left
-   alone, as cplrt_release leaves it. */
+   are decremented from that list, so release never recurses on the depth of a value (2.4). A dying child that holds
+   no object is freed at once, while it is in the cache (a list of a million structs is one pass, not two). An
+   immortal child is left alone, as cplrt_release leaves it. Outside an evaluation, the first slot of a pool claims
+   the pool for the rest. */
 void CPLRT(release_obj)(cplrt_obj *o)
 {
     cplrt_obj *pending = o;
+    cplrt_runtime *claimed = NULL;
+    uintptr_t self = 0; /* the calling thread, once a pool slot needs it */
     o->u.next = NULL;
     while (pending != NULL) {
         cplrt_obj *cur = pending;
@@ -203,27 +610,107 @@ void CPLRT(release_obj)(cplrt_obj *o)
                 if (!cplrt_is_obj(w))
                     continue;
                 cplrt_obj *c = cplrt_obj_of(w);
-                if (atomic_load_explicit(&c->u.live.rc, memory_order_relaxed) < CPLRT_RC_SATURATED &&
-                    atomic_fetch_sub_explicit(&c->u.live.rc, 1u, memory_order_acq_rel) == 1u) {
+                uint32_t rc = atomic_load_explicit(&c->u.live.rc, memory_order_relaxed);
+                if (rc >= CPLRT_RC_SATURATED)
+                    continue;
+                int last;
+                if (!(c->flags & CPLRT_F_SHARED)) {
+                    last = rc == 1u;
+                    if (!last)
+                        atomic_store_explicit(&c->u.live.rc, rc - 1u, memory_order_relaxed);
+                } else {
+                    last = atomic_fetch_sub_explicit(&c->u.live.rc, 1u, memory_order_acq_rel) == 1u;
+                }
+                if (last) {
+                    if (value_leaf(c)) {
+                        value_block *cb = value_block_of(c);
+                        cplrt_runtime *crt = value_block_rt(cb);
+                        if (value_block_pooled(cb)) {
+                            if (self == 0)
+                                self = value_thread();
+                            if (pool_owned_by(crt, self)) {
+                                pool_free_local(crt, cb);
+                                continue;
+                            }
+                        } else {
+                            atomic_fetch_sub_explicit(&crt->live_objects, 1u, memory_order_relaxed);
+                            CPLRT(free)(c);
+                            continue;
+                        }
+                    }
                     c->u.next = pending;
                     pending = c;
                 }
             }
         }
-        cplrt_runtime *rt = value_runtime_of(cur);
-        size_t size = CPLRT(alloc_size)(cur);
-        if (size <= VALUE_CACHE_CLASSES * 16u && size % 16u == 0u && size != 0u && value_cache_mine(rt)) {
-            uint32_t c = (uint32_t)(size / 16u) - 1u;
-            if (rt->cache_n[c] < VALUE_CACHE_MAX) {
-                cur->u.next = rt->cache_head[c]; /* still counted: see the cache above */
-                rt->cache_head[c] = cur;
-                rt->cache_n[c]++;
-                continue;
+        value_block *b = value_block_of(cur);
+        cplrt_runtime *rt = value_block_rt(b);
+        if (value_block_pooled(b)) {
+            if (self == 0)
+                self = value_thread();
+            if (pool_owned_by(rt, self)) {
+                pool_free_local(rt, b);
+            } else if (claimed == NULL && pool_claim(rt)) {
+                claimed = rt;
+                pool_free_local(rt, b);
+            } else {
+                pool_free_remote(rt, b);
             }
+            continue;
         }
         atomic_fetch_sub_explicit(&rt->live_objects, 1u, memory_order_relaxed);
         CPLRT(free)(cur);
     }
+    if (claimed != NULL)
+        pool_unclaim(claimed);
+}
+
+/* Mark w and everything it reaches CPLRT_F_SHARED (cpl_rt.h), before it can reach another thread. Marking stops at an
+   object already shared (all it reaches is) and at immortals. CPLRT_OK, or CPLRT_NOMEM with only part marked, which
+   is harmless: a shared object's count is merely updated atomically. */
+int CPLRT(value_share)(cplrt_runtime *rt, cplrt_w w)
+{
+    if (!cplrt_is_obj(w))
+        return CPLRT_OK;
+    /* the work stack starts on the C stack: sharing a small value allocates nothing */
+    cplrt_obj *local[64];
+    size_t cap = sizeof local / sizeof local[0], n = 0;
+    cplrt_obj **work = local;
+    work[n++] = cplrt_obj_of(w);
+    int st = CPLRT_OK;
+    while (n > 0) {
+        cplrt_obj *o = work[--n];
+        if ((o->flags & CPLRT_F_SHARED) ||
+            atomic_load_explicit(&o->u.live.rc, memory_order_relaxed) >= CPLRT_RC_SATURATED)
+            continue;
+        o->flags |= CPLRT_F_SHARED;
+        if (o->kind < CPLRT_LIST || o->kind > CPLRT_WRAPPER)
+            continue;
+        int view = (o->flags & CPLRT_F_VIEW) != 0;
+        const cplrt_w *children = view ? &((const cplrt_listview *)o)->base : ((const cplrt_node *)o)->item;
+        uint32_t count = view ? 1u : o->len;
+        for (uint32_t i = 0; i < count; i++) {
+            if (!cplrt_is_obj(children[i]))
+                continue;
+            if (n == cap) {
+                cplrt_obj **more = (cplrt_obj **)CPLRT(alloc)(rt, cap * 2u * sizeof *work);
+                if (more == NULL) {
+                    st = CPLRT_NOMEM;
+                    n = 0;
+                    break;
+                }
+                memcpy(more, work, n * sizeof *work);
+                if (work != local)
+                    CPLRT(free)(work);
+                work = more;
+                cap *= 2u;
+            }
+            work[n++] = cplrt_obj_of(children[i]);
+        }
+    }
+    if (work != local)
+        CPLRT(free)(work);
+    return st;
 }
 
 /* ---- value builders (2.3) -------------------------------------------------------------------------------------- */
@@ -238,8 +725,18 @@ cplrt_w CPLRT(enum_static)(const cplrt_program *p, uint32_t def, uint32_t varian
     return cplrt_word_of(d->statics[variant]);
 }
 
+/* node_make, taking the references of the items whose bits `moved` sets instead of retaining them (on success). */
+static int value_node_make_m(cplrt_runtime *rt, uint8_t kind, uint32_t def, uint32_t variant, const cplrt_w *items,
+                             uint32_t n, uint64_t moved, cplrt_w *out);
+
 int CPLRT(node_make)(cplrt_runtime *rt, uint8_t kind, uint32_t def, uint32_t variant, const cplrt_w *items, uint32_t n,
                      cplrt_w *out)
+{
+    return value_node_make_m(rt, kind, def, variant, items, n, 0u, out);
+}
+
+static int value_node_make_m(cplrt_runtime *rt, uint8_t kind, uint32_t def, uint32_t variant, const cplrt_w *items,
+                             uint32_t n, uint64_t moved, cplrt_w *out)
 {
     if (n == 0) {
         cplrt_w w = CPLRT_EMPTY;
@@ -268,7 +765,8 @@ int CPLRT(node_make)(cplrt_runtime *rt, uint8_t kind, uint32_t def, uint32_t var
         node->hdr.variant = (uint16_t)variant;
     }
     for (uint32_t i = 0; i < n; i++) {
-        cplrt_retain(items[i]);
+        if (i >= 64u || !((moved >> i) & 1u))
+            cplrt_retain(items[i]);
         node->item[at++] = items[i];
     }
     CPLRT_SET(*out, cplrt_word_of(&node->hdr));
@@ -290,6 +788,19 @@ int cplrt_enum_new(cplrt_cx *cx, uint32_t def, uint32_t variant, const cplrt_w *
 {
     return CPLRT(node_make)(cx->rt, CPLRT_ENUM, def, variant, payload, n, out) == CPLRT_OK ? CPLRT_OK
                                                                                            : CPLRT(oom)(cx);
+}
+
+int cplrt_struct_new_m(cplrt_cx *cx, uint32_t def, const cplrt_w *fields, uint32_t n, uint64_t moved, cplrt_w *out)
+{
+    return value_node_make_m(cx->rt, CPLRT_STRUCT, def, 0, fields, n, moved, out) == CPLRT_OK ? CPLRT_OK
+                                                                                                : CPLRT(oom)(cx);
+}
+
+int cplrt_enum_new_m(cplrt_cx *cx, uint32_t def, uint32_t variant, const cplrt_w *payload, uint32_t n, uint64_t moved,
+                     cplrt_w *out)
+{
+    return value_node_make_m(cx->rt, CPLRT_ENUM, def, variant, payload, n, moved, out) == CPLRT_OK ? CPLRT_OK
+                                                                                                     : CPLRT(oom)(cx);
 }
 
 int cplrt_wrap(cplrt_cx *cx, uint32_t def, cplrt_w inner, cplrt_w *out)
@@ -572,6 +1083,10 @@ static void value_count(cplrt_runtime *rt, uint32_t kind, int delta)
 
 int CPLRT(handle_put)(cplrt_runtime *rt, const cplrt_slot *entry, uint64_t bits[2])
 {
+    /* a handle can be used from any thread: what it holds is shared from now on */
+    if ((entry->kind == CPLRT_SLOT_VALUE || entry->kind == CPLRT_SLOT_BORROWED) &&
+        CPLRT(value_share)(rt, entry->u.value) != CPLRT_OK)
+        return CPLRT_NOMEM;
     pthread_mutex_lock(&rt->lock);
     uint32_t s = value_slot_take(rt);
     if (s == CPLRT_NONE) {

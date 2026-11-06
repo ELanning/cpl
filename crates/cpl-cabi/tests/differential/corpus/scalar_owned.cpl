@@ -1,0 +1,125 @@
+module scalar_owned
+
+/// Ownership in the scalar tier (spec/cabi.md 1.3a): records holding texts in options, in lists, nested, updated
+/// with a spread, compared, returned early from inside loops, and held while a later operation bails (an overflow, a
+/// division by zero, a failed assertion), so that every reference taken is given back on every path. A leak shows in
+/// the runtime's live objects at shutdown; a double release, under the sanitizers.
+
+pub struct Tag {
+    name: Text
+    weight: Int
+}
+
+pub struct Pair {
+    left: Tag
+    right: Tag
+    note: Text
+}
+
+pub fn pick_first(tags: List<Tag>, min: Int) -> Tag {
+    var i = 0
+    while i < tags.len {
+        let t = tags.get(i).unwrap_or(Tag { name: "none", weight: 0 })
+        if t.weight >= min {
+            return t
+        }
+        i = i + 1
+    }
+    Tag { name: "none", weight: -1 }
+}
+
+pub fn heaviest(tags: List<Tag>) -> Text {
+    let first = tags.first()
+    match first {
+        None => "empty"
+        Some(f) => {
+            var best = f
+            var rest = tags.drop(1)
+            while rest.len > 0 {
+                let t = rest.first().unwrap_or(best)
+                if t.weight > best.weight {
+                    best = t
+                }
+                rest = rest.drop(1)
+            }
+            best.name ++ "=" ++ best.weight.to_text()
+        }
+    }
+}
+
+pub fn pair_up(tags: List<Tag>) -> List<Pair> {
+    var out: List<Pair> = []
+    var i = 0
+    while i + 1 < tags.len {
+        let a = tags.get(i).unwrap_or(Tag { name: "?", weight: 0 })
+        let b = tags.get(i + 1).unwrap_or(Tag { name: "?", weight: 0 })
+        out = out.push(Pair { left: a, right: b, note: a.name ++ "&" ++ b.name })
+        i = i + 2
+    }
+    out
+}
+
+pub fn swap(p: Pair) -> Pair {
+    Pair { ..p, left: p.right, right: p.left }
+}
+
+pub fn renamed(p: Pair, name: Text) -> Pair {
+    Pair { ..p, left: Tag { ..p.left, name: name } }
+}
+
+pub fn balanced(p: Pair) -> Bool {
+    p.left.weight == p.right.weight and p.left != p.right
+}
+
+pub fn total_weight(ps: List<Pair>) -> Int {
+    var s = 0
+    var i = 0
+    while i < ps.len {
+        let p = ps.get(i).unwrap_or(Pair { left: Tag { name: "", weight: 0 }, right: Tag { name: "", weight: 0 }, note: "" })
+        s = s + p.left.weight * p.right.weight
+        i = i + 1
+    }
+    s
+}
+
+pub fn ratio_label(tags: List<Tag>, d: Int) -> Text {
+    var label = ""
+    var i = 0
+    while i < tags.len {
+        let t = tags.get(i).unwrap_or(Tag { name: "", weight: 0 })
+        label = label ++ t.name ++ ":" ++ (t.weight / d).to_text() ++ ";"
+        i = i + 1
+    }
+    label
+}
+
+pub fn checked_names(tags: List<Tag>) -> Text {
+    var out = ""
+    var i = 0
+    while i < tags.len {
+        let t = tags.get(i).unwrap_or(Tag { name: "", weight: 0 })
+        assert t.name != "bad"
+        out = out ++ t.name
+        i = i + 1
+    }
+    out
+}
+
+pub fn maybe_tag(n: Int) -> Int {
+    let o = if n > 0 { Some(Tag { name: "t" ++ n.to_text(), weight: n }) } else { None }
+    match o {
+        Some(t) => t.weight * 2 + t.name.len
+        None => 0
+    }
+}
+
+pub fn grow_weights(tags: List<Tag>, k: Int) -> List<Tag> {
+    var out: List<Tag> = []
+    var i = 0
+    while i < tags.len {
+        let t = tags.get(i).unwrap_or(Tag { name: "", weight: 0 })
+        out = out.push(Tag { ..t, weight: t.weight * k })
+        i = i + 1
+    }
+    out
+}

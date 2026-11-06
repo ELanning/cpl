@@ -183,3 +183,138 @@ pub fn bigint(n: Int) -> Int {
     }
     f.to_text().len
 }
+
+struct Tree {
+    left: Option<Tree>
+    right: Option<Tree>
+}
+
+fn make(d: Int) -> Tree
+    requires d >= 0
+    decreases d
+{
+    if d == 0 {
+        Tree { left: None, right: None }
+    } else {
+        Tree { left: Some(make(d - 1)), right: Some(make(d - 1)) }
+    }
+}
+
+fn count(t: Option<Tree>, d: Int) -> Int
+    decreases d
+{
+    match t {
+        None => 0
+        Some(node) => if d <= 0 { 1 } else { 1 + count(node.left, d - 1) + count(node.right, d - 1) }
+    }
+}
+
+/// Allocation: complete binary trees of depth 16, built and walked n times.
+pub fn trees(n: Int) -> Int {
+    var total = 0
+    var i = 0
+    while i < n {
+        total = total + count(Some(make(16)), 17)
+        i = i + 1
+    }
+    total
+}
+
+/// A list of records built, then read.
+pub fn records(n: Int) -> Int {
+    var ps: List<Point> = []
+    var i = 0
+    while i < n {
+        ps = ps.push(Point { x: i % 1000, y: i % 7 })
+        i = i + 1
+    }
+    var s = 0
+    var j = 0
+    while j < ps.len {
+        let p = ps.get(j).unwrap_or(Point { x: 0, y: 0 })
+        s = s + p.x * p.y
+        j = j + 1
+    }
+    s
+}
+
+struct Item {
+    sku: Text
+    price: Int
+    qty: Int
+}
+
+enum Disc {
+    NoDisc
+    Pct(Int)
+    Bogo(Int)
+}
+
+fn item_total(it: Item, d: Disc) -> Int
+    requires it.qty > 0
+    ensures result >= 0
+{
+    let gross = it.price * it.qty
+    match d {
+        NoDisc => gross
+        Pct(p) => gross - gross * p / 100
+        Bogo(n) => if n <= 0 { gross } else { gross - it.qty / (n + 1) * it.price }
+    }
+}
+
+/// Business logic: records with a Text field read from a list, enums with payloads, contracts, 1000 lines n times.
+pub fn business(n: Int) -> Int {
+    var items: List<Item> = []
+    var i = 0
+    while i < 1000 {
+        items = items.push(Item { sku: "sku" ++ i.to_text(), price: 100 + i % 50, qty: 1 + i % 5 })
+        i = i + 1
+    }
+    var total = 0
+    var r = 0
+    while r < n {
+        var j = 0
+        while j < items.len {
+            let it = items.get(j).unwrap_or(Item { sku: "", price: 0, qty: 1 })
+            let d = if j % 3 == 0 { NoDisc } else if j % 3 == 1 { Pct(j % 30) } else { Bogo(j % 4) }
+            total = (total + item_total(it, d)) % 1000000007
+            j = j + 1
+        }
+        r = r + 1
+    }
+    total
+}
+
+/// Nested lists: an n by n matrix product, checksummed.
+pub fn matrix(n: Int) -> Int {
+    var a: List<List<Int>> = []
+    var i = 0
+    while i < n {
+        var row: List<Int> = []
+        var j = 0
+        while j < n {
+            row = row.push((i * j + 1) % 10)
+            j = j + 1
+        }
+        a = a.push(row)
+        i = i + 1
+    }
+    var sum = 0
+    i = 0
+    while i < n {
+        let ai = a.get(i).unwrap_or([])
+        var j = 0
+        while j < n {
+            var acc = 0
+            var k = 0
+            while k < n {
+                acc = acc + ai.get(k).unwrap_or(0) * a.get(k).unwrap_or([]).get(j).unwrap_or(0)
+                k = k + 1
+            }
+            sum = (sum + acc) % 1000000007
+            j = j + 1
+        }
+        i = i + 1
+    }
+    sum
+}

@@ -323,6 +323,20 @@ int CPLRT(values_typed)(cplrt_runtime *rt, const uint32_t *types, uint32_t expec
     return CPLRT_OK;
 }
 
+/* Whether type is a leaf (Int, Bool, Text, Bytes): its value has no positions below it and no refinement. */
+static int boundary_leaf(const cplrt_program *p, uint32_t type)
+{
+    if (type >= p->ntypes)
+        return 0;
+    switch (p->types[type].form) {
+    case CPLRT_TY_INT:
+    case CPLRT_TY_BOOL:
+    case CPLRT_TY_TEXT:
+    case CPLRT_TY_BYTES: return 1;
+    default: return 0;
+    }
+}
+
 int CPLRT(shape_check)(cplrt_runtime *rt, uint32_t type, cplrt_w v, cplrt_shape_failure *failure)
 {
     const cplrt_program *p = rt->program;
@@ -330,6 +344,12 @@ int CPLRT(shape_check)(cplrt_runtime *rt, uint32_t type, cplrt_w v, cplrt_shape_
     failure->type = type;
     failure->reserved = 0;
     failure->found = NULL;
+    /* a leaf of the right form needs no walk (one of the wrong form takes it, for the failure's details) */
+    if (boundary_leaf(p, type)) {
+        boundary_work leaf = { BOUNDARY_VISIT, type, type, BOUNDARY_SEG_NONE, 0, NULL, v };
+        if (boundary_visit(NULL, p, &leaf))
+            return 1;
+    }
     boundary_walk w;
     boundary_init(&w, rt);
     boundary_work root = { BOUNDARY_VISIT, type, type, BOUNDARY_SEG_NONE, 0, NULL, v };
@@ -368,6 +388,8 @@ int CPLRT(refined_check)(cplrt_cx *cx, uint32_t site, uint32_t type, cplrt_w v, 
     failure->refinement = CPLRT_NONE;
     failure->declared = CPLRT_NONE;
     failure->actual = 0;
+    if (boundary_leaf(p, type))
+        return CPLRT_OK; /* no refined position */
     boundary_walk w;
     boundary_init(&w, cx->rt);
     boundary_work root = { BOUNDARY_VISIT, type, type, BOUNDARY_SEG_NONE, 0, NULL, v };

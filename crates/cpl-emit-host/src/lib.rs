@@ -20,11 +20,14 @@
 //! | [`java`] | the Java printer (sources for the JVM; Kotlin uses them through its Java interop) |
 
 pub mod go;
+mod go_q;
 pub mod java;
+mod java_q;
 pub mod lir;
 pub mod lower;
 mod moves;
 pub mod rust;
+mod rust_q;
 
 use cpl_diag::FileOrigin;
 use cpl_hir::{DefId, DefKind, DefStatus, Program, Ty};

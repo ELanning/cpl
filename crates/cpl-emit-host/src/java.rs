@@ -175,7 +175,28 @@ pub fn emit(p: &Program, lowered: &Lowered, options: &Options) -> Package {
                 .flatten()
                 .collect()
         },
+        q: crate::java_q::JavaQ::new(p, &base, &rt),
     };
+    // the generated names of the speculative forms' records and enums
+    for d in j.q.named() {
+        let n = j.fqn(d);
+        j.q.gen.insert(d, n);
+        match &p.def(d).kind {
+            cpl_hir::DefKind::Enum(e) => {
+                for v in 0..e.variants.len() as u32 {
+                    let vn = format!("{}.{}", j.fqn(d), j.variant_name(d, v));
+                    j.q.variants.insert((d, v), vn);
+                }
+            }
+            cpl_hir::DefKind::Struct(s) => {
+                for i in 0..s.fields.len() {
+                    let f = j.field_name(d, i);
+                    j.q.accessors.insert((d, i), f);
+                }
+            }
+            _ => {}
+        }
+    }
     let mut files = BTreeMap::new();
     let src = |pkg: &str, class: &str| format!("src/{}/{class}.java", pkg.replace('.', "/"));
     for part in include_str!("runtime/java-runtime.txt")
@@ -241,6 +262,8 @@ pub fn emit(p: &Program, lowered: &Lowered, options: &Options) -> Package {
         }
     }
     let mut support = String::new();
+    // the records of the speculative forms
+    support.push_str(&j.q.records(p));
     if options.driver {
         let mut driver = String::new();
         j.driver(lowered, &mut driver);
@@ -299,7 +322,7 @@ fn upper_first(s: &str) -> String {
     }
 }
 
-fn ident(name: &str) -> String {
+pub(crate) fn ident(name: &str) -> String {
     if RESERVED.contains(&name) {
         format!("{name}_")
     } else {
@@ -320,7 +343,7 @@ fn member(name: &str) -> String {
 
 /// A Java string literal: ASCII printable characters as they are, everything else escaped
 /// (octal below 0x80, `\uXXXX` above, which never makes a quote or line break).
-fn java_str(s: &str) -> String {
+pub(crate) fn java_str(s: &str) -> String {
     let mut out = String::with_capacity(s.len() + 2);
     out.push('"');
     for c in s.chars() {
@@ -382,6 +405,8 @@ struct Printer<'p> {
     /// The `pub fn`s whose camelCase name another `pub fn` of their module shares: they keep
     /// their CPL names (`foo_bar` and `fooBar` would both be `fooBar`).
     exact: BTreeSet<DefId>,
+    /// The functions with a speculative form (`java_q.rs`).
+    q: crate::java_q::JavaQ,
 }
 
 impl<'p> Printer<'p> {
@@ -715,9 +740,15 @@ impl<'p> Printer<'p> {
         let mut w = String::new();
         let _ = writeln!(
             w,
-            "    public static {gsp}{ret} x_{name}({}) {{\n        cx.enter();",
+            "    public static {gsp}{ret} x_{name}({}) {{",
             params.join(", ")
         );
+        if self.q.has(f.def) {
+            // the speculative form first (java_q.rs); on a bail the generic form below runs
+            let names: Vec<String> = f.params.iter().map(|v| format!("v{v}")).collect();
+            w.push_str(&self.q.wrapper(p, f.def, &names, id, &class, &name));
+        }
+        w.push_str("        cx.enter();\n");
         if f.measure.is_some() {
             let _ = writeln!(w, "        cx.measurePush({id});");
         }
@@ -725,6 +756,7 @@ impl<'p> Printer<'p> {
             r: self,
             vars: &f.vars,
             generics: &f.generics,
+            text_bufs: BTreeSet::new(),
         };
         let mut live = fx.stmts(&f.requires, 2, &mut w);
         if let (true, Some((stmts, value, clause))) = (live, &f.measure) {
@@ -767,6 +799,12 @@ impl<'p> Printer<'p> {
             "    public static {gsp}{ret} b_{name}({}) {{",
             params.join(", ")
         );
+        // the body's own text variables that it appends to (a parameter stays a String)
+        let mut bufs = BTreeSet::new();
+        crate::go::appended_texts(fx.r.p, &f.body, &f.vars, &mut bufs);
+        let mut defined = BTreeSet::new();
+        defined_vars(&f.body, &mut defined);
+        fx.text_bufs = bufs.intersection(&defined).copied().collect();
         if fx.stmts(&f.body, 2, &mut w) {
             let _ = writeln!(
                 w,
@@ -774,6 +812,9 @@ impl<'p> Printer<'p> {
             );
         }
         let _ = writeln!(w, "    }}\n");
+        if self.q.has(f.def) {
+            w.push_str(&self.q.functions(p, f.def, &|d| self.class_of(d)));
+        }
         out.push_str(&w);
     }
 
@@ -869,6 +910,7 @@ impl<'p> Printer<'p> {
             r: self,
             vars: &q.vars,
             generics: &q.generics,
+            text_bufs: BTreeSet::new(),
         };
         let mut body = String::new();
         if fx.stmts(&q.body, 2, &mut body) {
@@ -1206,6 +1248,31 @@ struct Fx<'a, 'p> {
     r: &'a mut Printer<'p>,
     vars: &'a [VarDef],
     generics: &'a [String],
+    /// The text variables appended to through a `cpl.TextBuf` (`v<var>` is then the buffer, read with `get()`), so
+    /// that a loop of appends is linear where a `String` would be copied whole by each.
+    text_bufs: BTreeSet<Var>,
+}
+
+/// The variables `stmts` defines with `Let` or `Decl`, at any depth.
+fn defined_vars(stmts: &[LStmt], out: &mut BTreeSet<Var>) {
+    for s in stmts {
+        match s {
+            LStmt::Let { var, .. } | LStmt::Decl { var } => {
+                out.insert(*var);
+            }
+            LStmt::If { then, els, .. } => {
+                defined_vars(then, out);
+                defined_vars(els, out);
+            }
+            LStmt::Match { arms, .. } => {
+                for a in arms {
+                    defined_vars(&a.body, out);
+                }
+            }
+            LStmt::Loop { body, .. } | LStmt::ForEach { body, .. } => defined_vars(body, out),
+            _ => {}
+        }
+    }
 }
 
 impl Fx<'_, '_> {
@@ -1265,15 +1332,44 @@ impl Fx<'_, '_> {
                     return true;
                 }
                 let e = self.expr(value);
+                if self.text_bufs.contains(var) {
+                    let _ = writeln!(out, "{pad}final {rt}.TextBuf v{var} = new {rt}.TextBuf({e});");
+                    return true;
+                }
                 let _ = writeln!(out, "{pad}{} v{var} = {e};", self.var_ty(*var));
                 true
             }
             LStmt::Decl { var } => {
                 let d = self.r.default_value(&self.vars[*var as usize].ty);
+                if self.text_bufs.contains(var) {
+                    let _ = writeln!(out, "{pad}final {rt}.TextBuf v{var} = new {rt}.TextBuf({d});");
+                    return true;
+                }
                 let _ = writeln!(out, "{pad}{} v{var} = {d};", self.var_ty(*var));
                 true
             }
             LStmt::Assign { var, value } => {
+                if self.text_bufs.contains(var) {
+                    // x = x ++ a ++ b ...: every part first (each sees x unchanged), then appended to the buffer
+                    if let Some(parts) = crate::go::append_chain(*var, value) {
+                        let names: Vec<String> = parts
+                            .iter()
+                            .map(|part| {
+                                let e = self.expr(part);
+                                let n = self.r.fresh("ap");
+                                let _ = writeln!(out, "{pad}final java.lang.String {n} = {e};");
+                                n
+                            })
+                            .collect();
+                        for n in names {
+                            let _ = writeln!(out, "{pad}v{var}.append({n});");
+                        }
+                        return true;
+                    }
+                    let e = self.expr(value);
+                    let _ = writeln!(out, "{pad}v{var}.set({e});");
+                    return true;
+                }
                 let e = self.expr(value);
                 let _ = writeln!(out, "{pad}v{var} = {e};");
                 true
@@ -1311,9 +1407,14 @@ impl Fx<'_, '_> {
                         break;
                     }
                     let mut opens = 0;
+                    let subject = if self.text_bufs.contains(scrutinee) {
+                        format!("v{scrutinee}.get()")
+                    } else {
+                        format!("v{scrutinee}")
+                    };
                     self.pattern(
                         &arm.pattern,
-                        &format!("v{scrutinee}"),
+                        &subject,
                         depth + 1,
                         &mut opens,
                         out,
@@ -1528,6 +1629,7 @@ impl Fx<'_, '_> {
         let p = self.r.p;
         let rt = self.r.rt.clone();
         match e {
+            LExpr::Var(v) if self.text_bufs.contains(v) => format!("v{v}.get()"),
             LExpr::Var(v) => format!("v{v}"),
             LExpr::Int(n) => self.int_lit(n),
             LExpr::Text(s) => java_str(s),

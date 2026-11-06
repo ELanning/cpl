@@ -1,0 +1,18 @@
+[
+{"function": "scalar_checked.line_total", "args": [{"$type": "scalar_checked.Line", "sku": "x", "price": 100, "qty": 3}, {"$type": "scalar_checked.Discount", "$variant": "NoDiscount"}]},
+{"function": "scalar_checked.line_total", "args": [{"$type": "scalar_checked.Line", "sku": "x", "price": 100, "qty": 3}, {"$type": "scalar_checked.Discount", "$variant": "PercentOff", "$payload": [10]}]},
+{"function": "scalar_checked.line_total", "args": [{"$type": "scalar_checked.Line", "sku": "x", "price": 100, "qty": 3}, {"$type": "scalar_checked.Discount", "$variant": "PercentOff", "$payload": [150]}]},
+{"function": "scalar_checked.line_total", "args": [{"$type": "scalar_checked.Line", "sku": "x", "price": 99999999999999999999, "qty": 3}, {"$type": "scalar_checked.Discount", "$variant": "Bogo", "$payload": [2]}]},
+{"function": "scalar_checked.line_total", "args": [{"$type": "scalar_checked.Line", "sku": "x", "price": 5, "qty": 0}, {"$type": "scalar_checked.Discount", "$variant": "NoDiscount"}]},
+{"function": "scalar_checked.subtotal", "args": [[{"$type": "scalar_checked.Line", "sku": "a", "price": 100, "qty": 2}, {"$type": "scalar_checked.Line", "sku": "b", "price": 250, "qty": 1}, {"$type": "scalar_checked.Line", "sku": "a", "price": 3, "qty": 7}], {"$type": "scalar_checked.Discount", "$variant": "Bogo", "$payload": [1]}]},
+{"function": "scalar_checked.subtotal", "args": [[], {"$type": "scalar_checked.Discount", "$variant": "NoDiscount"}]},
+{"function": "scalar_checked.pick", "args": [[{"$type": "scalar_checked.Line", "sku": "a", "price": 100, "qty": 2}, {"$type": "scalar_checked.Line", "sku": "b", "price": 250, "qty": 1}, {"$type": "scalar_checked.Line", "sku": "a", "price": 3, "qty": 7}], 1, {"$type": "scalar_checked.Line", "sku": "f", "price": 1, "qty": 1}]},
+{"function": "scalar_checked.pick", "args": [[{"$type": "scalar_checked.Line", "sku": "a", "price": 100, "qty": 2}, {"$type": "scalar_checked.Line", "sku": "b", "price": 250, "qty": 1}, {"$type": "scalar_checked.Line", "sku": "a", "price": 3, "qty": 7}], 9, {"$type": "scalar_checked.Line", "sku": "f", "price": 1, "qty": 1}]},
+{"function": "scalar_checked.same_sku", "args": [{"$type": "scalar_checked.Line", "sku": "a", "price": 100, "qty": 2}, {"$type": "scalar_checked.Line", "sku": "a", "price": 3, "qty": 7}]},
+{"function": "scalar_checked.same_sku", "args": [{"$type": "scalar_checked.Line", "sku": "a", "price": 100, "qty": 2}, {"$type": "scalar_checked.Line", "sku": "a", "price": 100, "qty": 2}]},
+{"function": "scalar_checked.keep_big", "args": [[{"$type": "scalar_checked.Line", "sku": "a", "price": 100, "qty": 2}, {"$type": "scalar_checked.Line", "sku": "b", "price": 250, "qty": 1}, {"$type": "scalar_checked.Line", "sku": "a", "price": 3, "qty": 7}], 200]},
+{"function": "scalar_checked.keep_big", "args": [[{"$type": "scalar_checked.Line", "sku": "a", "price": 100, "qty": 2}, {"$type": "scalar_checked.Line", "sku": "b", "price": 250, "qty": 1}, {"$type": "scalar_checked.Line", "sku": "a", "price": 3, "qty": 7}], 0]},
+{"function": "scalar_checked.make", "args": [3]},
+{"function": "scalar_checked.make", "args": [0]},
+{"function": "scalar_checked.make", "args": [-2]}
+]

@@ -192,26 +192,35 @@ static uint32_t text_decode(const unsigned char *p, size_t *len)
 /* ---- `++` (2.6) ------------------------------------------------------------------------------------------------- */
 
 /* Append assignments retain spare allocation space without changing the Text/Bytes layout. The allocator's hidden
-   size header is only read for unique dynamic objects, never immortal statics. Copy both inputs before releasing
-   the old slot: other may be that slot itself. A failed allocation leaves it and every snapshot unchanged. */
-static int text_bytes_append_owned(cplrt_cx *cx, cplrt_w *slot, cplrt_w other, int is_text)
+   size header is only read for unique dynamic objects, never immortal statics. A text that grew records the room its
+   block has for content in its header (CPLRT_F_CAPACITY, u.live.def), which cplrt_text_concat_fast reads without a
+   call. The appended bytes may come from the slot's own text (t = t ++ t): y is the object they belong to, NULL for
+   a buffer of the caller's. A failed allocation leaves the slot and every snapshot unchanged. */
+static int text_bytes_append_raw(cplrt_cx *cx, cplrt_w *slot, const char *src, size_t ny, size_t ys, cplrt_w other,
+                                 int is_text, int quiet)
 {
     cplrt_obj *x = cplrt_obj_of(*slot);
-    const cplrt_obj *y = cplrt_obj_of(other);
+    const cplrt_obj *y = other != 0 ? cplrt_obj_of(other) : NULL;
     size_t nx = is_text ? ((const cplrt_text *)x)->bytes : ((const cplrt_bytes *)x)->len;
-    size_t ny = is_text ? ((const cplrt_text *)y)->bytes : ((const cplrt_bytes *)y)->len;
     if (ny == 0)
         return CPLRT_OK;
     if (nx == 0) {
-        CPLRT_COPY(*slot, other);
+        if (y != NULL) {
+            CPLRT_COPY(*slot, other);
+            return CPLRT_OK;
+        }
+        cplrt_w made = 0;
+        if (CPLRT(text_make)(cx->rt, src, ny, &made) != CPLRT_OK)
+            return quiet ? CPLRT_NOMEM : CPLRT(oom)(cx);
+        CPLRT_MOVE(*slot, made);
         return CPLRT_OK;
     }
     size_t prefix = is_text ? sizeof(cplrt_text) : sizeof(cplrt_bytes);
     size_t overhead = prefix + (is_text ? 1u : 0u);
     if (ny > SIZE_MAX - overhead || nx > SIZE_MAX - overhead - ny)
-        return CPLRT(oom)(cx);
+        return quiet ? CPLRT_NOMEM : CPLRT(oom)(cx);
     size_t needed = nx + ny;
-    size_t scalars = is_text ? ((const cplrt_text *)x)->scalars + ((const cplrt_text *)y)->scalars : 0;
+    size_t scalars = is_text ? ((const cplrt_text *)x)->scalars + ys : 0;
     int unique = atomic_load_explicit(&x->u.live.rc, memory_order_acquire) == 1u;
     cplrt_obj *out = x;
     if (!unique || CPLRT(alloc_size)(x) - overhead < needed) {
@@ -220,12 +229,30 @@ static int text_bytes_append_owned(cplrt_cx *cx, cplrt_w *slot, cplrt_w other, i
             capacity = 64u;
         if (capacity < needed)
             capacity = needed;
-        out = CPLRT(obj_new)(cx->rt, x->kind, 0u, overhead + capacity);
-        if (out == NULL)
-            return CPLRT(oom)(cx);
-        memcpy((char *)out + prefix, (const char *)x + prefix, nx);
+        if (unique) {
+            /* the slot's own text grows its block: realloc moves a large one without copying it */
+            int self = y == x; /* t = t ++ t: the appended text is this one, which may move */
+            out = CPLRT(obj_grow)(cx->rt, x, overhead + capacity);
+            if (out == NULL)
+                return quiet ? CPLRT_NOMEM : CPLRT(oom)(cx);
+            *slot = cplrt_word_of(out);
+            x = out;
+            if (self)
+                src = (const char *)out + prefix;
+        } else {
+            out = CPLRT(obj_new)(cx->rt, x->kind, 0u, overhead + capacity);
+            if (out == NULL)
+                return quiet ? CPLRT_NOMEM : CPLRT(oom)(cx);
+            memcpy((char *)out + prefix, (const char *)x + prefix, nx);
+        }
+        if (is_text && capacity <= UINT32_MAX) {
+            out->flags |= CPLRT_F_CAPACITY;
+            out->u.live.def = (uint32_t)capacity;
+        } else {
+            out->flags &= (uint8_t)~CPLRT_F_CAPACITY;
+        }
     }
-    memcpy((char *)out + prefix + nx, (const char *)y + prefix, ny);
+    memmove((char *)out + prefix + nx, src, ny);
     if (is_text) {
         cplrt_text *t = (cplrt_text *)out;
         t->bytes = needed;
@@ -237,6 +264,70 @@ static int text_bytes_append_owned(cplrt_cx *cx, cplrt_w *slot, cplrt_w other, i
     if (out != x)
         CPLRT_SET(*slot, cplrt_word_of(out));
     return CPLRT_OK;
+}
+
+static int text_bytes_append_owned(cplrt_cx *cx, cplrt_w *slot, cplrt_w other, int is_text)
+{
+    const cplrt_obj *y = cplrt_obj_of(other);
+    if (is_text) {
+        const cplrt_text *t = (const cplrt_text *)y;
+        return text_bytes_append_raw(cx, slot, t->utf8, t->bytes, t->scalars, other, 1, 0);
+    }
+    const cplrt_bytes *b = (const cplrt_bytes *)y;
+    return text_bytes_append_raw(cx, slot, (const char *)b->data, b->len, 0, other, 0, 0);
+}
+
+/* t = t ++ n.to_text() without the text of n: its canonical decimal written into t (stdlib.md 2.3). */
+int cplrt_text_append_int(cplrt_cx *cx, cplrt_w *slot, cplrt_w n)
+{
+    if (cplrt_is_small(n)) {
+        char tmp[24];
+        int64_t v = cplrt_small_value(n);
+        uint64_t m = v < 0 ? (uint64_t)0 - (uint64_t)v : (uint64_t)v;
+        size_t k = sizeof tmp;
+        do {
+            tmp[--k] = (char)('0' + (int)(m % 10u));
+            m /= 10u;
+        } while (m != 0);
+        if (v < 0)
+            tmp[--k] = '-';
+        return text_bytes_append_raw(cx, slot, tmp + k, sizeof tmp - k, sizeof tmp - k, 0, 1, 0);
+    }
+    cplrt_sbuf b;
+    cplrt_sbuf_init(&b, cx->rt);
+    CPLRT(int_write)(&b, n);
+    if (b.status != CPLRT_OK || b.ptr == NULL) {
+        CPLRT(sbuf_free)(&b);
+        return CPLRT(oom)(cx);
+    }
+    int st = text_bytes_append_raw(cx, slot, b.ptr, b.len, b.len, 0, 1, 0);
+    CPLRT(sbuf_free)(&b);
+    return st;
+}
+
+/* The scalar tier's texts (spec/cabi.md 1.3a): t = t ++ other in place where t's text is unique with room, a new
+   text otherwise; CPLRT_OK, or CPLRT_NOMEM with nothing raised. */
+int cplrt_q_text_append(cplrt_cx *cx, cplrt_w *slot, cplrt_w other)
+{
+    const cplrt_text *t = cplrt_text_of(other);
+    return text_bytes_append_raw(cx, slot, t->utf8, t->bytes, t->scalars, other, 1, 1);
+}
+
+/* a ++ b as a new text (or one of them); CPLRT_OK, or CPLRT_NOMEM with nothing raised. */
+int cplrt_q_text_concat(cplrt_cx *cx, cplrt_w a, cplrt_w b, cplrt_w *out)
+{
+    return CPLRT(text_concat)(cx->rt, a, b, out);
+}
+
+/* The text of a speculative Int; CPLRT_OK, or CPLRT_NOMEM with nothing raised. */
+int cplrt_q_int_text(cplrt_cx *cx, int64_t v, cplrt_w *out)
+{
+    cplrt_w w = 0;
+    if (CPLRT(int_from_i64)(cx->rt, v, &w) != CPLRT_OK)
+        return CPLRT_NOMEM;
+    int st = CPLRT(int_text)(cx->rt, w, out);
+    cplrt_release(w);
+    return st;
 }
 
 /* mirrors cpl_eval::value::Value::append (Text) */
@@ -424,7 +515,9 @@ static size_t text_find(const char *hay, size_t hlen, size_t from, const char *n
 {
     if (from > hlen || nlen > hlen - from)
         return SIZE_MAX;
-    const char *hit = CPLRT(find_bytes)(hay + from, hlen - from, needle, nlen);
+    /* one byte (a space, a comma, a newline): memchr, without memmem's setup */
+    const char *hit = nlen == 1u ? (const char *)memchr(hay + from, (unsigned char)needle[0], hlen - from)
+                                 : CPLRT(find_bytes)(hay + from, hlen - from, needle, nlen);
     return hit == NULL ? SIZE_MAX : (size_t)(hit - hay);
 }
 
@@ -437,6 +530,63 @@ int CPLRT(bi_text_contains)(cplrt_cx *cx, uint32_t site, uint32_t stub, cplrt_w 
     return CPLRT_OK;
 }
 
+/* A piece of an ASCII text, of len > 0 bytes (as many scalars): NULL when out of memory. A short piece is copied
+   without a call. */
+static cplrt_text *text_ascii_piece(cplrt_runtime *rt, const char *src, size_t len)
+{
+    cplrt_text *piece = CPLRT(text_alloc)(rt, len, len);
+    if (piece == NULL)
+        return NULL;
+    if (len <= 16u) {
+        for (size_t k = 0; k < len; k++)
+            piece->utf8[k] = src[k];
+    } else {
+        memcpy(piece->utf8, src, len);
+    }
+    return piece;
+}
+
+/* split on a one-byte separator c of an ASCII text: one counting pass and one cutting pass over the bytes, with no
+   search call per piece. */
+static int text_split_ascii_byte(cplrt_cx *cx, uint32_t site, uint32_t stub, cplrt_w a0, char c, cplrt_w *out)
+{
+    const cplrt_text *t = cplrt_text_of(a0);
+    const char *s = t->utf8;
+    size_t n = t->bytes, count = 0;
+    for (size_t k = 0; k < n; k++)
+        count += s[k] == c;
+    if (count == 0) {
+        if (CPLRT(node_make)(cx->rt, CPLRT_LIST, 0u, 0u, &a0, 1u, out) != CPLRT_OK)
+            return text_oom(cx, site, stub);
+        return CPLRT_OK;
+    }
+    if (count >= UINT32_MAX)
+        return text_oom(cx, site, stub);
+    cplrt_node *list = CPLRT(list_alloc)(cx->rt, (uint32_t)(count + 1u));
+    if (list == NULL)
+        return text_oom(cx, site, stub);
+    cplrt_w empty = CPLRT(empty_text)();
+    size_t start = 0;
+    uint32_t i = 0;
+    for (size_t k = 0; k <= n; k++) {
+        if (k < n && s[k] != c)
+            continue;
+        if (k == start) {
+            list->item[i++] = empty;
+        } else {
+            cplrt_text *piece = text_ascii_piece(cx->rt, s + start, k - start);
+            if (piece == NULL) {
+                cplrt_release(cplrt_word_of(&list->hdr));
+                return text_oom(cx, site, stub);
+            }
+            list->item[i++] = cplrt_word_of(&piece->hdr);
+        }
+        start = k + 1u;
+    }
+    CPLRT_SET(*out, cplrt_word_of(&list->hdr));
+    return CPLRT_OK;
+}
+
 /* mirrors cpl_eval::builtins::text::split: the precondition first, then the pieces between leftmost-first,
    non-overlapping occurrences of sep, empty pieces kept (stdlib.md S24) */
 int CPLRT(bi_text_split)(cplrt_cx *cx, uint32_t site, uint32_t stub, cplrt_w a0, cplrt_w a1, cplrt_w *out)
@@ -446,6 +596,8 @@ int CPLRT(bi_text_split)(cplrt_cx *cx, uint32_t site, uint32_t stub, cplrt_w a0,
         cplrt_w args[2] = { a0, a1 };
         return CPLRT(builtin_leave)(cx, site, stub, CPLRT(raise_builtin_requires)(cx, stub, "text_split", 0, args, 2));
     }
+    if (sep->bytes == 1u && t->bytes == t->scalars)
+        return text_split_ascii_byte(cx, site, stub, a0, sep->utf8[0], out);
     size_t first = text_find(t->utf8, t->bytes, 0, sep->utf8, sep->bytes);
     if (first == SIZE_MAX) {
         if (CPLRT(node_make)(cx->rt, CPLRT_LIST, 0u, 0u, &a0, 1u, out) != CPLRT_OK)
@@ -461,12 +613,23 @@ int CPLRT(bi_text_split)(cplrt_cx *cx, uint32_t site, uint32_t stub, cplrt_w a0,
     cplrt_node *list = CPLRT(list_alloc)(cx->rt, (uint32_t)pieces);
     if (list == NULL)
         return text_oom(cx, site, stub);
+    /* an ASCII text's pieces are ASCII: each has as many scalars as bytes, with nothing to count */
+    int ascii = t->bytes == t->scalars;
     size_t start = 0;
     uint32_t i = 0;
     for (;;) {
         size_t at = start == 0 ? first : text_find(t->utf8, t->bytes, start, sep->utf8, sep->bytes);
         size_t stop = at == SIZE_MAX ? t->bytes : at;
-        if (CPLRT(text_make)(cx->rt, t->utf8 + start, stop - start, &list->item[i]) != CPLRT_OK) {
+        size_t len = stop - start;
+        if (ascii && len > 0) {
+            cplrt_text *piece = text_ascii_piece(cx->rt, t->utf8 + start, len);
+            if (piece != NULL)
+                list->item[i] = cplrt_word_of(&piece->hdr);
+            if (piece == NULL) {
+                cplrt_release(cplrt_word_of(&list->hdr));
+                return text_oom(cx, site, stub);
+            }
+        } else if (CPLRT(text_make)(cx->rt, t->utf8 + start, len, &list->item[i]) != CPLRT_OK) {
             cplrt_release(cplrt_word_of(&list->hdr));
             return text_oom(cx, site, stub);
         }

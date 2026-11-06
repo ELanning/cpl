@@ -16,6 +16,7 @@ import (
 	"fmt"
 	"math"
 	"math/big"
+	"math/bits"
 	"os"
 	"runtime"
 	"strconv"
@@ -820,6 +821,69 @@ type Cx struct {
 	nclauses int
 	clauses  [8]string
 	cspill   []string
+	// Speculative forms that bailed in this call (QOk).
+	qbails int
+}
+
+// The speculative forms (spec/hosts.md): QOk is whether to try one (not after 16 bails in
+// this call), QBail counts a bail, Depth is the activations in progress, QEnter a speculative
+// call's depth check with qd activations in progress.
+func (cx *Cx) QOk() bool      { return cx.qbails < 16 }
+func (cx *Cx) QBail()         { cx.qbails++ }
+func (cx *Cx) Depth() int     { return cx.depth }
+func (cx *Cx) QEnter(qd int) bool { return qd < cx.limit }
+
+// QNone is the measure of no enclosing activation.
+const QNone = math.MinInt64
+
+// QPrev is the measure of the nearest activation of f as an int64: QNone when there is
+// none or it has none yet, MaxInt64 for a bigint (always positive, so above every int64).
+func (cx *Cx) QPrev(f int) int64 {
+	for i := cx.nmeasures - 1; i >= 0; i-- {
+		if e := cx.measure(i); e.f == f {
+			if !e.set {
+				return QNone
+			}
+			if v, ok := e.m.Int64(); ok {
+				return v
+			}
+			return math.MaxInt64
+		}
+	}
+	return QNone
+}
+
+// QAdd and the others are checked int64 arithmetic: false where the result is not an int64
+// or the divisor is zero.
+func QAdd(a, b int64) (int64, bool) {
+	c := a + b
+	return c, (c > a) == (b > 0)
+}
+
+func QSub(a, b int64) (int64, bool) {
+	c := a - b
+	return c, (c < a) == (b > 0)
+}
+
+func QMul(a, b int64) (int64, bool) {
+	// the signed 128-bit product: the unsigned one less 2^64 times each negative operand's partner
+	hi, lo := bits.Mul64(uint64(a), uint64(b))
+	hi -= uint64(a>>63)&uint64(b) + uint64(b>>63)&uint64(a)
+	return int64(lo), int64(hi) == int64(lo)>>63
+}
+
+func QDiv(a, b int64) (int64, bool) {
+	if b == 0 || (b == -1 && a == math.MinInt64) {
+		return 0, false
+	}
+	return a / b, true
+}
+
+func QRem(a, b int64) (int64, bool) {
+	if b == 0 || (b == -1 && a == math.MinInt64) {
+		return 0, false
+	}
+	return a % b, true
 }
 
 func (cx *Cx) measure(i int) *measure {
@@ -1316,6 +1380,89 @@ func ListGet[T any](l List[T], i Int) Option[T] {
 	}
 	return None[T]()
 }
+
+// QOpt is an option of the speculative forms (spec/hosts.md H14).
+type QOpt[T any] struct {
+	V   T
+	Has bool
+}
+
+// QGetI is element i of a list of Int for a speculative form: its value and whether there is one, and false in
+// ok (a bail) for an element that does not fit in an int64.
+func QGetI(l List[Int], i int64) (v int64, has bool, ok bool) {
+	if i < 0 || i >= int64(len(l.s)) {
+		return 0, false, true
+	}
+	v, ok = l.s[i].Int64()
+	return v, ok, ok
+}
+
+// QGetB is element i of a list of Bool for a speculative form, and whether there is one.
+func QGetB(l List[bool], i int64) (bool, bool) {
+	if i < 0 || i >= int64(len(l.s)) {
+		return false, false
+	}
+	return l.s[i], true
+}
+
+// QGetP is element i of a list for a speculative form, read in place, or nil.
+func QGetP[T any](l List[T], i int64) *T {
+	if i < 0 || i >= int64(len(l.s)) {
+		return nil
+	}
+	return &l.s[i]
+}
+
+// QFreeze, QFreezeI, and QFreezeF make the list a speculative form built as a slice, once nothing writes the slice
+// again (the list copies on its first push).
+func QFreeze[T any](s []T) List[T] { return List[T]{s: s} }
+
+func QFreezeI(s []int64) List[Int] {
+	out := make([]Int, len(s))
+	for i, v := range s {
+		out[i] = I(v)
+	}
+	return List[Int]{s: out}
+}
+
+func QFreezeF[S, T any](s []S, f func(S) T) List[T] {
+	out := make([]T, len(s))
+	for i, v := range s {
+		out[i] = f(v)
+	}
+	return List[T]{s: out}
+}
+
+// QGetOr is element i of a list for a speculative form, or d when there is none (an element list of a list of
+// lists: `xs.get(i).unwrap_or(d)`).
+func QGetOr[T any](l List[T], i int64, d T) T {
+	if i < 0 || i >= int64(len(l.s)) {
+		return d
+	}
+	return l.s[i]
+}
+
+// QTake and QDrop are take and drop of a speculative form: false for a negative count (a bail: the generic form
+// raises its fault).
+func QTake[T any](l List[T], k int64) (List[T], bool) {
+	if k < 0 {
+		return l, false
+	}
+	return ListTake(l, I(k)), true
+}
+
+func QDrop[T any](l List[T], k int64) (List[T], bool) {
+	if k < 0 {
+		return l, false
+	}
+	return ListDrop(l, I(k)), true
+}
+
+// QTextLen is the length of a text in scalars.
+func QTextLen(s string) int64 { return int64(utf8.RuneCountInString(s)) }
+
+// QIntText is the text of an int64.
+func QIntText(v int64) string { return strconv.FormatInt(v, 10) }
 
 func ListFirst[T any](l List[T]) Option[T] {
 	if len(l.s) == 0 {

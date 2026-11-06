@@ -1,0 +1,20 @@
+[
+{"function": "scalar_enums.price", "args": [1000, {"$type": "scalar_enums.Disc", "$variant": "NoDisc"}]},
+{"function": "scalar_enums.price", "args": [1000, {"$type": "scalar_enums.Disc", "$variant": "Pct", "$payload": [15]}]},
+{"function": "scalar_enums.price", "args": [1000, {"$type": "scalar_enums.Disc", "$variant": "Pct", "$payload": [0]}]},
+{"function": "scalar_enums.price", "args": [1000, {"$type": "scalar_enums.Disc", "$variant": "Pct", "$payload": [500]}]},
+{"function": "scalar_enums.price", "args": [1000, {"$type": "scalar_enums.Disc", "$variant": "Pct", "$payload": [99999999999999999999]}]},
+{"function": "scalar_enums.price", "args": [1000, {"$type": "scalar_enums.Disc", "$variant": "Bogo", "$payload": [2]}]},
+{"function": "scalar_enums.price", "args": [1000, {"$type": "scalar_enums.Disc", "$variant": "Pair", "$payload": [5, true]}]},
+{"function": "scalar_enums.price", "args": [1000, {"$type": "scalar_enums.Disc", "$variant": "Pair", "$payload": [5, false]}]},
+{"function": "scalar_enums.pick", "args": [7]},
+{"function": "scalar_enums.pick", "args": [13]},
+{"function": "scalar_enums.pick", "args": [4]},
+{"function": "scalar_enums.total", "args": [1000]},
+{"function": "scalar_enums.cycle", "args": [{"$type": "scalar_enums.Light", "$variant": "Red"}, 7]},
+{"function": "scalar_enums.same", "args": [{"$type": "scalar_enums.Disc", "$variant": "Pct", "$payload": [3]}, {"$type": "scalar_enums.Disc", "$variant": "Pct", "$payload": [3]}]},
+{"function": "scalar_enums.same", "args": [{"$type": "scalar_enums.Disc", "$variant": "Pct", "$payload": [3]}, {"$type": "scalar_enums.Disc", "$variant": "Bogo", "$payload": [3]}]},
+{"function": "scalar_enums.bumped", "args": [{"$type": "scalar_enums.Disc", "$variant": "Pct", "$payload": [3]}]},
+{"function": "scalar_enums.bumped", "args": [{"$type": "scalar_enums.Disc", "$variant": "Pct", "$payload": [30000000]}]},
+{"function": "scalar_enums.bumped", "args": [{"$type": "scalar_enums.Disc", "$variant": "Pair", "$payload": [3, true]}]}
+]

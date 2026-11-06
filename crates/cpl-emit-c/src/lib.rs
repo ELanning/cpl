@@ -27,6 +27,7 @@ mod api;
 mod cache;
 mod cbind;
 mod emit;
+mod fast;
 mod header;
 mod lockgen;
 mod lower;

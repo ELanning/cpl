@@ -662,6 +662,7 @@ static cpl_status api_runtime_close(cpl_runtime *prt, uint32_t flags, cpl_error 
     }
     CPLRT(free)(rt->slots);
     rt->slots = NULL;
+    CPLRT(value_pool_fini)(rt);
     CPLRT(workers_fini)(rt);
     pthread_mutex_destroy(&rt->lock);
     cpl_allocator a = rt->allocator;
@@ -685,6 +686,7 @@ static void api_runtime_stats(cpl_runtime *prt, cpl_stats *out)
         return;
     cpl_stats s;
     memset(&s, 0, sizeof s);
+    CPLRT(value_settle)(rt);
     pthread_mutex_lock(&rt->lock);
     s.live_handles = rt->live_handles;
     s.live_caps = rt->live_caps;

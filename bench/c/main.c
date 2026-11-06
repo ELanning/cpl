@@ -22,7 +22,9 @@ int main(int argc, char **argv)
         { "collatz", bench_collatz, 300000 },      { "list_index", bench_list_index, 5000000 },
         { "list_walk", bench_list_walk, 5000000 }, { "sorting", bench_sorting, 500000 },
         { "structs", bench_structs, 20000000 },    { "text", bench_text, 1000000 },
-        { "bigint", bench_bigint, 5000 },
+        { "bigint", bench_bigint, 5000 },          { "trees", bench_trees, 20 },
+        { "records", bench_records, 2000000 },     { "matrix", bench_matrix, 150 },
+        { "business", bench_business, 2000 },
     };
     cpl_runtime *rt = NULL;
     if (bench_runtime_open(NULL, &rt, NULL) != CPL_OK) {

@@ -38,7 +38,7 @@ static int task(cplrt_cx *cx, cplrt_w item, const cplrt_w *captures, cplrt_w *ou
 static int nested(cplrt_cx *cx, cplrt_w item, const cplrt_w *captures, cplrt_w *out)
 {
     (void)item;
-    return cplrt_parallel_map(cx, CPLRT_NO_SITE, captures[1], task, captures, out);
+    return cplrt_parallel_map(cx, CPLRT_NO_SITE, captures[1], task, captures, 2u, out);
 }
 
 static void checkpoints(cplrt_runtime *rt)
@@ -92,7 +92,7 @@ int main(void)
         cplrt_w result = 0;
         rt.max_heap_bytes = pass == 0 ? 0 : bytes + (uint64_t)(pass - 1) * 1024u;
         CHECK(CPLRT(cx_begin)(&cx, &rt, &memory, 100, 1, 1000, 0, NULL) == CPLRT_OK);
-        int st = cplrt_parallel_map(&cx, CPLRT_NO_SITE, input, pass == 0 ? nested : task, captures, &result);
+        int st = cplrt_parallel_map(&cx, CPLRT_NO_SITE, input, pass == 0 ? nested : task, captures, 2u, &result);
         if (st == CPLRT_OK) {
             CHECK(cplrt_len(result) == 16);
         } else {
@@ -114,7 +114,7 @@ int main(void)
     _Atomic uint32_t cancel = 1;
     cplrt_w result = 0;
     CHECK(CPLRT(cx_begin)(&cx, &rt, &memory, 100, 1, 1000, 0, &cancel) == CPLRT_OK);
-    CHECK(cplrt_parallel_map(&cx, CPLRT_NO_SITE, input, task, captures, &result) == CPLRT_FAULT);
+    CHECK(cplrt_parallel_map(&cx, CPLRT_NO_SITE, input, task, captures, 2u, &result) == CPLRT_FAULT);
     CHECK(cx.cancelled && result == 0);
     CPLRT(cx_end)(&cx);
     cplrt_release(input);

@@ -119,8 +119,10 @@ declaration by value is held by reference where the host needs one:
 `cpl::Boxed` in Rust (`enum Tree { Node(cpl::Boxed<Tree>) }`), a shared
 reference like `Arc` whose drop does not recurse (a value nested a million
 levels deep, built by a CPL loop, is dropped on any stack: past 128 levels
-the rest is queued), a pointer in Go for a struct (a Go enum is an
-interface, a reference already). Java needs none.
+the rest is queued; `cpl::Boxed::opt` holds an `Option`'s `None` with no
+allocation, as the generated code does for a held field or payload of an
+`Option` type, so a tree's leaves cost nothing), a pointer in Go for a
+struct (a Go enum is an interface, a reference already). Java needs none.
 
 Every generated type has structural equality, CPL value text
 (semantics S40: `toString` in Java, `ValueText` in Rust, `cpl.ValueText` in
@@ -224,6 +226,58 @@ time (a liveness analysis of the body: the statement reads it once, or
 reads fields of it that do not overlap), a match arm after which the
 scrutinee is dead moves its bindings out of it, and a parameter that an
 `ensures` reads after the body is borrowed by the body, not copied for it.
+
+**H14.** The Rust, Go, and Java hosts give a function of the scalar subset (the
+analysis `cpl_hir::scalar` shares with the native engine, cabi.md 1.3a: no
+generics or capabilities; parameters, result, and locals of `Int`, `Bool`,
+or plain records of them; arithmetic, comparisons, `if`, `match` on
+literals and bindings, `while`, `assert`, contracts, a `decreases` on a
+function that is its own recursive group, and calls of such functions;
+and `Text` (records with `Text` fields included), enums whose payloads are
+`Int` and `Bool`, lists of `Int`, `Bool`, records, and lists of `Int` and
+`Bool`, and options of a non-list element: everything of cabi.md 1.3a but
+its words (`cpl_hir::scalar::Caps::HOSTS`), a list of lists' element read
+by `get`, `first`, or `last` and then `unwrap_or`) a *speculative form*
+on machine integers: `f__q`
+in Rust (an `Option` of an `i64`, a `bool`, a `cpl::Text`, the generic
+form's own list, or a struct or enum of the module `__q`, a record that
+holds texts being `Clone` and cloned where it is copied), `q_f` in Go (the
+value and an `ok`; texts are strings, options `cpl.QOpt`), `q_f` in Java
+(a `long`, `boolean`, `String`, list, or record `Support.QR<n>` or
+`Support.QE<n>`, an option being a pair of locals, bailing by throwing `cpl.Q.BAIL` or
+the `ArithmeticException` of `Math.addExact` and its kin, caught by the
+internal form with a `StackOverflowError`). Every operation that could do
+anything but compute the same value bails: an `i64` overflow (checked
+arithmetic, `MIN / -1` included), a zero divisor, a contract, assertion, or
+measure that does not hold, a literal past `i64`, the depth limit, and in
+Rust the native stack's guard (checked every 16 levels). The internal form
+tries the speculative one first when every argument fits (an `Int` that is
+not a bigint, a record whose `Int` fields are not) and, on a bail, runs
+itself from the start: the function is pure, so it computes what it always
+did and raises what it always raised. The measure handed to a speculative
+call is that of the nearest generic activation of the same function, as
+`MeasureSet` would compare (none while it is evaluating its `requires`),
+and within the speculative calls the caller's own. After 16 bails in one
+host call, the speculative forms are no longer tried in it. A list local
+that never leaves its function (`cpl_hir::scalar::flat_locals`: assigned
+only `[]` and its own `push`, read only by `len`, `is_empty`, `get`,
+`first`, and `last`) is a plain array of its speculative elements in each
+host: a Rust `Vec`, a Go slice, a Java array with a count (grown by
+doubling; a bail past 2^30 elements). A list local *built* that way and
+then used as a list (`cpl_hir::scalar::built_locals`: declared at the top
+of the body, flat by those rules in every top-level statement before some
+statement `k`, the body's value counting as the last, and never written
+from `k` on) is held the same way until `k`, and made the generic form's
+list once, just before `k` (a loop that builds a list and returns it pays
+no count or claim per push). Rust holds such a list of `Int` as a `Vec` of
+`cpl::Int`, which becomes the list without a copy; Go and Java hold
+`int64`s and `long`s (no pointer per element) and convert them once.
+
+A text variable that its function appends to (`t = t ++ a ++ b`, in the
+generic forms and the speculative ones) is appended in place in every host: Rust moves the `String` and pushes onto
+it, Go appends to a `cpl.TextBuf` whose bytes the string shares, and Java
+appends to a `cpl.TextBuf` builder whose `String` is made when the
+variable is read; so a loop of appends is linear, not quadratic.
 
 ## 6. Differential testing
 

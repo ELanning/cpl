@@ -1,0 +1,230 @@
+module scalar_tier
+
+/// The scalar tier (spec/cabi.md 1.3a) at each of its bails: int64 overflow, division by zero, contracts, measures,
+/// the depth limit, bigint list elements, element values past the small range, negative counts; and records,
+/// lists, and options crossing the boundary. Every function here is eligible; `mixed` is not (a Text local), so its
+/// unboxed Option local is reported by the generic form.
+
+pub struct V {
+    x: Int
+    y: Int
+}
+
+pub struct Seg {
+    a: V
+    b: V
+    open: Bool
+}
+
+pub fn square(x: Int) -> Int {
+    x * x
+}
+
+pub fn grow(n: Int) -> Int {
+    var a = 1
+    var i = 0
+    while i < n {
+        a = a * 3 - i
+        i = i + 1
+    }
+    a
+}
+
+pub fn ratio(a: Int, b: Int) -> Int {
+    a / b + a % b
+}
+
+pub fn negate(x: Int) -> Int {
+    -x
+}
+
+pub fn checked(n: Int) -> Int
+    requires n > 0
+    ensures result > n
+{
+    n + 1
+}
+
+pub fn broken(n: Int) -> Int
+    ensures result > n
+{
+    n - 1
+}
+
+pub fn down(n: Int) -> Int
+    requires n >= 0
+    decreases n
+{
+    if n == 0 { 0 } else { down(n - 1) + 2 }
+}
+
+pub fn stuck(n: Int) -> Int
+    decreases n
+{
+    if n <= 0 { 0 } else { stuck(n) + 1 }
+}
+
+pub fn asserted(n: Int) -> Int {
+    let doubled = n * 2
+    assert doubled != 6
+    doubled + 1
+}
+
+pub fn both(a: Bool, b: Bool) -> Bool {
+    a and not b or (b and not a)
+}
+
+pub fn classify(n: Int) -> Int {
+    match n % 4 {
+        0 => 10
+        1 => 20
+        k => k * 100
+    }
+}
+
+fn add(a: V, b: V) -> V {
+    V { x: a.x + b.x, y: a.y + b.y }
+}
+
+pub fn walk(n: Int) -> Int {
+    var v = V { x: 0, y: 0 }
+    var i = 0
+    while i < n {
+        v = add(v, V { x: i, y: i * i })
+        let target = V { x: 3, y: 5 }
+        if v == target {
+            v = V { ..v, y: 0 }
+        }
+        i = i + 1
+    }
+    v.x * 1000 + v.y
+}
+
+pub fn mk(a: Int) -> V {
+    V { x: a, y: a * a }
+}
+
+pub fn seg(a: Int, open: Bool) -> Seg {
+    let p = mk(a)
+    Seg { a: p, b: add(p, p), open: open and a > 0 }
+}
+
+pub fn seg_len(s: Seg) -> Int {
+    if s.open { s.b.x - s.a.x + s.b.y - s.a.y } else { 0 }
+}
+
+pub fn sum_list(xs: List<Int>) -> Int {
+    var s = 0
+    var i = 0
+    while i < xs.len {
+        s = s + xs.get(i).unwrap_or(0)
+        i = i + 1
+    }
+    s
+}
+
+pub fn build(n: Int) -> List<Int> {
+    var xs: List<Int> = []
+    var i = 0
+    while i < n {
+        xs = xs.push(i * n)
+        i = i + 1
+    }
+    xs
+}
+
+pub fn big_elem(n: Int) -> List<Int> {
+    [n, n * 2]
+}
+
+pub fn walk_sum(xs: List<Int>) -> Int {
+    var rest = xs
+    var s = 0
+    while rest.len > 0 {
+        s = s * 3 + rest.first().unwrap_or(0)
+        rest = rest.drop(1)
+    }
+    s
+}
+
+pub fn slices(xs: List<Int>, k: Int) -> List<Int> {
+    xs.take(k) ++ xs.drop(k) ++ xs.drop_last()
+}
+
+pub fn count_true(bs: List<Bool>) -> Int {
+    var n = 0
+    var i = 0
+    while i < bs.len {
+        if bs.get(i).unwrap_or(false) {
+            n = n + 1
+        }
+        i = i + 1
+    }
+    n + (if bs.is_empty() { 100 } else { 0 })
+}
+
+pub fn pick(xs: List<Int>, i: Int) -> Int {
+    let o = xs.get(i)
+    let last = xs.last()
+    let shown = match o {
+        None => -1
+        Some(0) => 1000
+        Some(v) => v * 2
+    }
+    if last.is_some() { shown + last.unwrap_or(0) } else { shown }
+}
+
+pub fn wrap(n: Int) -> Int {
+    let o = if n > 0 { Some(n) } else { None }
+    match o {
+        Some(v) => v + 1
+        None => 0
+    }
+}
+
+fn merge(a: List<Int>, b: List<Int>) -> List<Int> {
+    var out: List<Int> = []
+    var i = 0
+    var j = 0
+    while i < a.len or j < b.len {
+        let x = a.get(i)
+        let y = b.get(j)
+        match x {
+            None => {
+                out = out.push(y.unwrap_or(0))
+                j = j + 1
+            }
+            Some(u) => match y {
+                None => {
+                    out = out.push(u)
+                    i = i + 1
+                }
+                Some(v) => if u <= v {
+                    out = out.push(u)
+                    i = i + 1
+                } else {
+                    out = out.push(v)
+                    j = j + 1
+                }
+            }
+        }
+    }
+    out
+}
+
+pub fn sort(xs: List<Int>) -> List<Int>
+    decreases xs.len
+{
+    if xs.len <= 1 {
+        xs
+    } else {
+        let half = xs.len / 2
+        merge(sort(xs.take(half)), sort(xs.drop(half)))
+    }
+}
+
+pub fn mixed(xs: List<Int>, t: Text) -> Int {
+    let f = xs.first()
+    assert t.len > 0
+    f.unwrap_or(-1) + t.len
+}

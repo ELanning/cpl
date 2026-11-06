@@ -1024,6 +1024,7 @@ static void driver_release_handles(driver_state *st)
 static int driver_close(driver_state *st)
 {
     driver_release_handles(st);
+    CPLRT(value_settle)(st->rt);
     if (atomic_load(&st->rt->live_objects) != 0u)
         return 0;
     cpl_error *e = NULL;

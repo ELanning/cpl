@@ -1,0 +1,124 @@
+module scalar_edges
+
+/// The scalar tiers (spec/cabi.md 1.3a, spec/hosts.md) at their edges: a function that calls itself from its own
+/// `ensures` (compared with the recorded measure), early returns from loops and branches, literals past the small
+/// range, `i64::MIN` over -1, nested records with Bool fields, and record matches.
+
+pub struct P {
+    x: Int
+    on: Bool
+}
+
+pub struct Box2 {
+    a: P
+    b: P
+}
+
+pub fn bounce(n: Int) -> Int
+    requires n >= 0
+    decreases n
+    ensures n > 100 or helper(n) > 0
+{
+    if n == 0 { 1 } else { bounce(n - 1) + 1 }
+}
+
+pub fn helper(n: Int) -> Int {
+    bounce(n + 200)
+}
+
+pub fn settle(n: Int) -> Int
+    requires n >= 0
+    decreases n
+    ensures result > n
+{
+    if n == 0 { 1 } else { settle(n - 1) + 2 }
+}
+
+pub fn first_over(limit: Int, step: Int) -> Int {
+    var i = 0
+    while i < 1000 {
+        if i * step > limit {
+            return i
+        }
+        i = i + 1
+    }
+    -1
+}
+
+pub fn either(n: Int) -> Int {
+    if n > 0 {
+        return n * 2
+    } else {
+        return 0 - n
+    }
+}
+
+pub fn huge(n: Int) -> Int {
+    if n > 5 { n + 99999999999999999999 } else { n }
+}
+
+pub fn spin(n: Int) -> Int {
+    var i = 0
+    while i < 99999999999999999999 + n {
+        i = i + 1
+        if i > 10 {
+            return i
+        }
+    }
+    i
+}
+
+pub fn quot(a: Int, b: Int) -> Int {
+    let q = a / b
+    let r = a % b
+    q * 10 + r
+}
+
+pub fn neg_min(a: Int) -> Int {
+    let m = 0 - 9223372036854775807 - 1
+    if a == 0 { -m } else { m + a }
+}
+
+pub fn mk(x: Int, on: Bool) -> Box2 {
+    Box2 { a: P { x: x, on: on }, b: P { x: x * 3, on: not on } }
+}
+
+pub fn flip(b: Box2) -> Box2 {
+    Box2 { a: b.b, b: b.a }
+}
+
+pub fn score(b: Box2) -> Int {
+    let s = if b.a.on { b.a.x } else { 0 - b.a.x }
+    match b.b {
+        p => if p.on { s + p.x } else { s - p.x }
+    }
+}
+
+pub fn same(a: Box2, b: Box2) -> Bool {
+    a == b or a.a == b.b
+}
+
+pub fn pick(n: Int) -> Int {
+    match n {
+        0 => 100
+        1 => {
+            return 7
+        }
+        k => {
+            assert k != 13
+            k * k
+        }
+    }
+}
+
+pub fn even(n: Int) -> Bool
+    requires n >= 0
+{
+    if n == 0 { true } else { odd(n - 1) }
+}
+
+pub fn odd(n: Int) -> Bool
+    requires n >= 0
+{
+    if n == 0 { false } else { even(n - 1) }
+}

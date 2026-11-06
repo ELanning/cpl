@@ -1,0 +1,145 @@
+module scalar_words
+
+/// Words in the native engine's scalar tier (spec/cabi.md 1.3a): values of structs and enums with no scalar form,
+/// borrowed from parameters, read by field and by match, passed on, never built.
+
+pub struct Tree {
+    left: Option<Tree>
+    right: Option<Tree>
+    v: Int
+    on: Bool
+}
+
+pub enum Ex {
+    Num(Int)
+    Add(Option<Ex>, Option<Ex>)
+    Mul(Option<Ex>, Option<Ex>)
+    Neg(Option<Ex>)
+    Flag(Bool)
+}
+
+pub struct Node {
+    v: Int
+    next: Option<Node>
+}
+
+pub struct Pair<A, B> {
+    first: A
+    second: B
+}
+
+pub fn size(t: Option<Tree>, d: Int) -> Int
+    decreases d
+{
+    match t {
+        None => 0
+        Some(n) => if d <= 0 { 1 } else { 1 + size(n.left, d - 1) + size(n.right, d - 1) }
+    }
+}
+
+pub fn total(t: Tree, d: Int) -> Int
+    requires d >= 0
+    decreases d
+{
+    var s = t.v
+    if d > 0 {
+        match t.left {
+            Some(l) => { s = s + total(l, d - 1) }
+            None => {}
+        }
+        match t.right {
+            Some(r) => { s = s + total(r, d - 1) }
+            _ => {}
+        }
+    }
+    s
+}
+
+pub fn ons(t: Option<Tree>, d: Int) -> Int
+    decreases d
+{
+    if d <= 0 or t.is_none() {
+        0
+    } else {
+        match t {
+            Some(n) => (if n.on { 1 } else { 0 }) + ons(n.left, d - 1) + ons(n.right, d - 1)
+            None => 0
+        }
+    }
+}
+
+pub fn eval(e: Option<Ex>, d: Int) -> Int
+    decreases d
+{
+    match e {
+        None => 0 - 1000
+        Some(x) => if d <= 0 {
+            0
+        } else {
+            match x {
+                Num(n) => n
+                Add(a, b) => eval(a, d - 1) + eval(b, d - 1)
+                Mul(a, b) => eval(a, d - 1) * eval(b, d - 1)
+                Neg(a) => 0 - eval(a, d - 1)
+                Flag(f) => if f { 1 } else { 0 }
+            }
+        }
+    }
+}
+
+pub fn depth_of(e: Ex, d: Int) -> Int
+    decreases d
+{
+    if d <= 0 {
+        0
+    } else {
+        match e {
+            Add(a, b) => 1 + max2(sub_depth(a, d - 1), sub_depth(b, d - 1))
+            Mul(a, _) => 1 + sub_depth(a, d - 1)
+            Neg(x) => 1 + sub_depth(x, d - 1)
+            _ => 1
+        }
+    }
+}
+
+fn sub_depth(e: Option<Ex>, d: Int) -> Int
+    decreases d
+{
+    match e {
+        Some(x) => depth_of(x, d)
+        None => 0
+    }
+}
+
+fn max2(a: Int, b: Int) -> Int {
+    if a > b { a } else { b }
+}
+
+pub fn walk(head: Node, limit: Int) -> Int {
+    var s = head.v
+    var cur = head.next
+    var k = 0
+    while k < limit and cur.is_some() {
+        match cur {
+            Some(n) => {
+                s = s * 3 + n.v
+                cur = n.next
+            }
+            None => {}
+        }
+        k = k + 1
+    }
+    s
+}
+
+pub fn firsts(p: Pair<Tree, Int>) -> Int {
+    p.first.v * 100 + p.second
+}
+
+pub fn pick(t: Tree, left: Bool) -> Int {
+    let side = if left { t.left } else { t.right }
+    match side {
+        Some(x) => x.v
+        None => 0 - 1
+    }
+}

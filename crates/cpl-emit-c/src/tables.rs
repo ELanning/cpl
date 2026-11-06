@@ -99,6 +99,8 @@ pub(crate) struct Tables<'p> {
     pub p: &'p Program,
     pub with_tests: bool,
     pub optimize: bool,
+    /// The functions with a scalar form (`fast.rs`), planned once `optimize` is known.
+    pub fast: crate::fast::Plan,
     pub sites: Vec<Span>,
     site_ix: HashMap<(u32, u32, u32), u32>,
     pub clauses: Vec<ClauseRow>,
@@ -141,6 +143,7 @@ impl<'p> Tables<'p> {
             p,
             with_tests,
             optimize: false,
+            fast: crate::fast::Plan::default(),
             sites: Vec::new(),
             site_ix: HashMap::new(),
             clauses: Vec::new(),

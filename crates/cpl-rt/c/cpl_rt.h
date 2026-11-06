@@ -57,7 +57,9 @@ static inline int cplrt_truth(cplrt_w w) { return w == CPLRT_TRUE; }
 #define CPLRT_WRAPPER 7u
 #define CPLRT_F_NEGATIVE 0x01u         /* a negative bigint */
 #define CPLRT_F_WIDE 0x02u             /* an enum value whose variant index is the small Int in item[0] (2.3) */
+#define CPLRT_F_CAPACITY 0x04u         /* a List node with spare room: its capacity is u.live.def (cpl_rt_list.c) */
 #define CPLRT_F_VIEW 0x08u             /* a List that views len items of another list from u.live.def (2.3) */
+#define CPLRT_F_SHARED 0x10u           /* reachable from more than one thread: its count is updated atomically (2.4) */
 #define CPLRT_RC_SATURATED UINT32_C(0x80000000)   /* every count at or above it is immortal (2.4) */
 #define CPLRT_RC_IMMORTAL UINT32_C(0xC0000000)    /* the count of statics and of objects whose count saturated */
 typedef struct cplrt_obj {
@@ -83,25 +85,48 @@ static inline cplrt_obj *cplrt_obj_of(cplrt_w w) { return (cplrt_obj *)(uintptr_
 static inline cplrt_w cplrt_word_of(const cplrt_obj *o) { return (cplrt_w)(uintptr_t)o; }
 
 /* ---- reference counts and the slot macros (1.3, 2.4) -------------------------------------------------------- */
+/* An object only one thread can reach (the default: every object an evaluation makes) has its count updated by plain
+   loads and stores; one marked CPLRT_F_SHARED (everything a handle holds, and the input and captures of a parallel
+   section, with all they reach) by atomic read-modify-writes. The mark is never removed, and an object reachable
+   from a shared one is shared. Handing a local object to another thread after a join needs no mark: the join orders
+   the two threads' updates. */
 void CPLRT(release_obj)(cplrt_obj *o);                     /* the last reference is gone: iterative release */
-static inline void cplrt_retain(cplrt_w w)
+#if defined(__GNUC__) || defined(__clang__)
+#define CPLRT_ALWAYS_INLINE static inline __attribute__((always_inline))
+#else
+#define CPLRT_ALWAYS_INLINE static inline
+#endif
+CPLRT_ALWAYS_INLINE void cplrt_retain(cplrt_w w)
 {
     if (cplrt_is_obj(w)) {
         cplrt_obj *o = cplrt_obj_of(w);
-        if (atomic_load_explicit(&o->u.live.rc, memory_order_relaxed) < CPLRT_RC_SATURATED &&
-            atomic_fetch_add_explicit(&o->u.live.rc, 1u, memory_order_relaxed) >= CPLRT_RC_SATURATED - 1u)
+        uint32_t rc = atomic_load_explicit(&o->u.live.rc, memory_order_relaxed);
+        if (rc >= CPLRT_RC_SATURATED)
+            return;
+        if (!(o->flags & CPLRT_F_SHARED))
+            atomic_store_explicit(&o->u.live.rc, rc + 1u >= CPLRT_RC_SATURATED ? CPLRT_RC_IMMORTAL : rc + 1u,
+                                  memory_order_relaxed);
+        else if (atomic_fetch_add_explicit(&o->u.live.rc, 1u, memory_order_relaxed) >= CPLRT_RC_SATURATED - 1u)
             atomic_store_explicit(&o->u.live.rc, CPLRT_RC_IMMORTAL, memory_order_relaxed);   /* saturation */
     }
 }
-/* 0, immediates, and immortals: nothing. An acquire-release decrement and no standalone fence, which
-   ThreadSanitizer does not model (2.4). */
-static inline void cplrt_release(cplrt_w w)
+/* 0, immediates, and immortals: nothing. A shared object's decrement is acquire-release, with no standalone fence,
+   which ThreadSanitizer does not model (2.4). */
+CPLRT_ALWAYS_INLINE void cplrt_release(cplrt_w w)
 {
     if (cplrt_is_obj(w)) {
         cplrt_obj *o = cplrt_obj_of(w);
-        if (atomic_load_explicit(&o->u.live.rc, memory_order_relaxed) < CPLRT_RC_SATURATED &&
-            atomic_fetch_sub_explicit(&o->u.live.rc, 1u, memory_order_acq_rel) == 1u)
+        uint32_t rc = atomic_load_explicit(&o->u.live.rc, memory_order_relaxed);
+        if (rc >= CPLRT_RC_SATURATED)
+            return;
+        if (!(o->flags & CPLRT_F_SHARED)) {
+            if (rc == 1u)
+                CPLRT(release_obj)(o);
+            else
+                atomic_store_explicit(&o->u.live.rc, rc - 1u, memory_order_relaxed);
+        } else if (atomic_fetch_sub_explicit(&o->u.live.rc, 1u, memory_order_acq_rel) == 1u) {
             CPLRT(release_obj)(o);
+        }
     }
 }
 /* The only writes of a slot: store an owned word, store a retained borrowed word, move between slots. */
@@ -111,6 +136,9 @@ static inline void cplrt_release(cplrt_w w)
     do { cplrt_w cplrt_copy_ = (borrowed); cplrt_retain(cplrt_copy_); CPLRT_SET(slot, cplrt_copy_); } while (0)
 #define CPLRT_MOVE(dst, src) \
     do { cplrt_w cplrt_move_ = (src); (src) = 0; cplrt_release(dst); (dst) = cplrt_move_; } while (0)
+/* The slot's reference was given to a value built from it (cplrt_struct_new_m and the others): the slot holds
+   nothing now. */
+#define CPLRT_GIVE(slot) do { (slot) = 0; } while (0)
 
 /* ---- borrowed access (2.3, 2.6); every result is borrowed from v ---------------------------------------------- */
 static inline uint32_t cplrt_len(cplrt_w v) { return cplrt_obj_of(v)->len; }
@@ -204,6 +232,9 @@ typedef struct cplrt_cx {                       /* one top-level evaluation, on 
     cplrt_fault *fault;                         /* the fault being raised; NULL when none */
     cplrt_fault *violation;                     /* a copy of the last ensures, invariant, or decreases violation */
     cplrt_fault *memory;                        /* the preallocated resource_exhaustion (memory) record (4.7) */
+    int q_ok;                                   /* the scalar tier may be tried (1.3a); off after CPLRT_Q_MAX_BAILS */
+    uint32_t q_bails;                           /* scalar-tier attempts that bailed in this evaluation */
+    int q_late;                                 /* a scalar-tier poll saw an interruption: the next entry skips its own */
 } cplrt_cx;
 
 /* ---- the program tables, written by cpl-emit-c into <prefix>_tables.c (3.2) ---------------------------------- */
@@ -419,7 +450,7 @@ int cplrt_enter_act(cplrt_cx *cx, cplrt_frame *fr, uint32_t def, uint32_t site);
 int cplrt_leave(cplrt_cx *cx, cplrt_frame *fr, int st);    /* pop; on a fault append {def, site} to the backtrace */
 typedef int (*cplrt_parallel_task)(cplrt_cx *, cplrt_w, const cplrt_w *, cplrt_w *);
 #define cplrt_parallel_map CPLRT(parallel_map)
-int cplrt_parallel_map(cplrt_cx *, uint32_t, cplrt_w, cplrt_parallel_task, const cplrt_w *, cplrt_w *);
+int cplrt_parallel_map(cplrt_cx *, uint32_t, cplrt_w, cplrt_parallel_task, const cplrt_w *, uint32_t, cplrt_w *);
 int cplrt_tick(cplrt_cx *cx, uint32_t site);               /* before a loop condition: time and cancellation */
 
 #define cplrt_int_add CPLRT(int_add)
@@ -466,6 +497,13 @@ int cplrt_concat(cplrt_cx *cx, cplrt_w a, cplrt_w b, cplrt_w *out);     /* ++ on
 int cplrt_list_new(cplrt_cx *cx, const cplrt_w *items, uint32_t n, cplrt_w *out);
 int cplrt_struct_new(cplrt_cx *cx, uint32_t def, const cplrt_w *fields, uint32_t n, cplrt_w *out);
 int cplrt_enum_new(cplrt_cx *cx, uint32_t def, uint32_t variant, const cplrt_w *payload, uint32_t n, cplrt_w *out);
+/* cplrt_struct_new and cplrt_enum_new taking, on success, the references of the words whose bits `moved` sets
+   (item i: bit i, i < 64) instead of retaining them: the caller then gives up those slots (CPLRT_GIVE). */
+#define cplrt_struct_new_m CPLRT(struct_new_m)
+int cplrt_struct_new_m(cplrt_cx *cx, uint32_t def, const cplrt_w *fields, uint32_t n, uint64_t moved, cplrt_w *out);
+#define cplrt_enum_new_m CPLRT(enum_new_m)
+int cplrt_enum_new_m(cplrt_cx *cx, uint32_t def, uint32_t variant, const cplrt_w *payload, uint32_t n, uint64_t moved,
+                     cplrt_w *out);
 int cplrt_wrap(cplrt_cx *cx, uint32_t def, cplrt_w inner, cplrt_w *out);
 int cplrt_result_ok(cplrt_cx *cx, cplrt_w v, cplrt_w *out);
 int cplrt_result_err(cplrt_cx *cx, cplrt_w e, cplrt_w *out);
@@ -670,6 +708,138 @@ static inline int cplrt_fast_header_measure(cplrt_cx *cx, cplrt_frame *fr, uint3
     return cplrt_header_measure(cx, fr, clause, measure);
 }
 
+/* ---- the scalar tier (1.3a) ---------------------------------------------------------------------------------- */
+/* A pure function over Int and Bool also has a speculative form, cpl_q<n>, on int64_t and int: it returns ok 1 with its
+   result, or ok 0 ("bail") as soon as anything could differ from the generic form (an overflow, a division by zero,
+   a failed contract or assertion, the depth limit, the stack floor, a deadline or a cancellation). The generic form
+   tries it first and, on a bail, runs itself instead, which then raises exactly what it always raised. */
+typedef struct cplrt_qi {
+    int64_t v;
+    int ok;
+} cplrt_qi;
+typedef struct cplrt_qw { /* a speculative List result: an owned word */
+    cplrt_w v;
+    int ok;
+} cplrt_qw;
+typedef struct cplrt_qopt { /* a speculative Option<Int> or Option<Bool> */
+    int64_t v;
+    int has;
+} cplrt_qopt;
+#define CPLRT_Q_NONE INT64_MIN /* no measure of an enclosing activation (a measure is never negative) */
+#define CPLRT_Q_MAX_BAILS 16u  /* bails after which an evaluation stops trying the scalar tier */
+#define cplrt_q_interrupted CPLRT(q_interrupted)
+int cplrt_q_interrupted(const cplrt_cx *cx);           /* 1: the time budget, a cancellation, or a failed sibling */
+#define cplrt_q_prev CPLRT(q_prev)
+int64_t cplrt_q_prev(const cplrt_cx *cx, uint32_t def); /* the measure of def's nearest activation, as int64_t */
+#define cplrt_q_box CPLRT(q_box)
+int cplrt_q_box(cplrt_cx *cx, int64_t v, cplrt_w *out); /* CPLRT_OK, or CPLRT_NOMEM with nothing raised */
+#define cplrt_q_struct CPLRT(q_struct)
+int cplrt_q_struct(cplrt_cx *cx, uint32_t def, const cplrt_w *fields, uint32_t n, cplrt_w *out); /* likewise */
+/* A flat array of the scalar tier: a local list that never leaves its function, its elements in place (1.3a). */
+typedef struct cplrt_qbuf {
+    void *a;
+    uint32_t n, cap;
+} cplrt_qbuf;
+#define cplrt_q_buf_grow CPLRT(q_buf_grow)
+int cplrt_q_buf_grow(cplrt_cx *cx, cplrt_qbuf *b, size_t elem); /* room for one more: CPLRT_OK or CPLRT_NOMEM */
+#define cplrt_q_buf_free CPLRT(q_buf_free)
+void cplrt_q_buf_free(cplrt_qbuf *b);
+#define cplrt_q_text_append CPLRT(q_text_append)
+int cplrt_q_text_append(cplrt_cx *cx, cplrt_w *slot, cplrt_w other); /* *slot = *slot ++ other, in place if it can */
+#define cplrt_q_text_concat CPLRT(q_text_concat)
+int cplrt_q_text_concat(cplrt_cx *cx, cplrt_w a, cplrt_w b, cplrt_w *out);
+#define cplrt_q_int_text CPLRT(q_int_text)
+int cplrt_q_int_text(cplrt_cx *cx, int64_t v, cplrt_w *out);
+#define cplrt_q_enum CPLRT(q_enum)
+int cplrt_q_enum(cplrt_cx *cx, uint32_t def, uint32_t variant, const cplrt_w *fields, uint32_t n, cplrt_w *out);
+#define cplrt_q_node CPLRT(q_node)
+cplrt_node *cplrt_q_node(cplrt_cx *cx, uint32_t def, uint32_t n); /* a struct whose n fields the caller writes */
+/* Whether a speculative Int is a small word (cplrt_small). */
+static inline int cplrt_q_small(int64_t v) { return v >= CPLRT_SMALL_MIN && v <= CPLRT_SMALL_MAX; }
+/* The list operations of the scalar tier: CPLRT_OK, or CPLRT_NOMEM with nothing raised (the scalar form bails and the
+   generic form raises what it raises). *out is set as CPLRT_SET does. */
+#define cplrt_q_list CPLRT(q_list)
+int cplrt_q_list(cplrt_cx *cx, const cplrt_w *items, uint32_t n, cplrt_w *out);
+#define cplrt_q_push CPLRT(q_push)
+int cplrt_q_push(cplrt_cx *cx, cplrt_w xs, cplrt_w item, cplrt_w *out);   /* xs.push(item), xs borrowed */
+#define cplrt_q_push_owned CPLRT(q_push_owned)
+int cplrt_q_push_owned(cplrt_cx *cx, cplrt_w *xs, cplrt_w item);          /* xs = xs.push(item), in place if unique */
+#define cplrt_q_slice CPLRT(q_slice)
+int cplrt_q_slice(cplrt_cx *cx, cplrt_w xs, uint32_t from, uint32_t to, cplrt_w *out);
+#define cplrt_q_drop_owned CPLRT(q_drop_owned)
+int cplrt_q_drop_owned(cplrt_cx *cx, cplrt_w *xs, uint32_t n);            /* xs = xs.drop(n), n <= len */
+#define cplrt_q_concat CPLRT(q_concat)
+int cplrt_q_concat(cplrt_cx *cx, cplrt_w a, cplrt_w b, cplrt_w *out);
+#define cplrt_q_check CPLRT(q_check)
+int cplrt_q_check(cplrt_cx *cx); /* 1 when the stack is above its floor and nothing interrupts (out of line: its own
+                                    frame, one below the caller's, is what it measures) */
+/* Whether anything can interrupt the evaluation: a time budget, a cancellation flag, a parallel section. Plain loads,
+   so a loop or a recursion carries no dependency through memory. */
+static inline int cplrt_q_interruptible(const cplrt_cx *cx)
+{
+    return (cx->deadline_ns != 0) | (cx->parallel_failure != NULL) | (cx->cancel != NULL);
+}
+/* A loop iteration's check: 1 to go on (the poll only when something can interrupt). */
+static inline int cplrt_q_tick(cplrt_cx *cx)
+{
+    return !cplrt_q_interruptible(cx) || cplrt_q_check(cx);
+}
+/* cplrt_q_tick with cplrt_q_interruptible read once, on a scalar form's entry: what it reads is set with the
+   evaluation's context and never changes within it. */
+static inline int cplrt_q_tick_i(cplrt_cx *cx, int interruptible)
+{
+    return !interruptible || cplrt_q_check(cx);
+}
+/* A call's checks, depth the number of calls already active: the depth limit, deterministic, at every call; the stack
+   floor every 16 levels (a speculative frame is small, and the floor keeps a margin far above 16 of them); the poll
+   when something can interrupt. 1 to go on. */
+static inline int cplrt_q_enter(cplrt_cx *cx, uint32_t depth)
+{
+    if (depth >= cx->max_call_depth)
+        return 0;
+    if ((depth & 15u) == 15u || cplrt_q_interruptible(cx))
+        return cplrt_q_check(cx);
+    return 1;
+}
+/* int64_t arithmetic: 1 when the result does not fit (the generic form then takes over with a bigint). */
+static inline int cplrt_q_add(int64_t a, int64_t b, int64_t *r)
+{
+#if defined(__GNUC__) || defined(__clang__)
+    return __builtin_add_overflow(a, b, r);
+#else
+    if ((b > 0 && a > INT64_MAX - b) || (b < 0 && a < INT64_MIN - b))
+        return 1;
+    *r = a + b;
+    return 0;
+#endif
+}
+static inline int cplrt_q_sub(int64_t a, int64_t b, int64_t *r)
+{
+#if defined(__GNUC__) || defined(__clang__)
+    return __builtin_sub_overflow(a, b, r);
+#else
+    if ((b < 0 && a > INT64_MAX + b) || (b > 0 && a < INT64_MIN + b))
+        return 1;
+    *r = a - b;
+    return 0;
+#endif
+}
+static inline int cplrt_q_mul(int64_t a, int64_t b, int64_t *r)
+{
+#if defined(__GNUC__) || defined(__clang__)
+    return __builtin_mul_overflow(a, b, r);
+#else
+    if (a != 0 && b != 0) {
+        if ((a == -1 && b == INT64_MIN) || (b == -1 && a == INT64_MIN))
+            return 1;
+        if (a > 0 ? (b > 0 ? a > INT64_MAX / b : b < INT64_MIN / a) : (b > 0 ? a < INT64_MIN / b : a < INT64_MAX / b))
+            return 1;
+    }
+    *r = a * b;
+    return 0;
+#endif
+}
+
 /* Optimized lowering's fast paths preserve the arbitrary-precision fallback and its fault site. */
 static inline int cplrt_fast_add(cplrt_cx *cx, uint32_t site, cplrt_w a, cplrt_w b, cplrt_w *out)
 {
@@ -767,10 +937,73 @@ static inline cplrt_w cplrt_rem_w(cplrt_cx *cx, uint32_t site, cplrt_w a, cplrt_
 }
 #define cplrt_list_push_owned CPLRT(list_push_owned)
 int cplrt_list_push_owned(cplrt_cx *, uint32_t, uint32_t, cplrt_w *, cplrt_w);
+/* xs = xs.push(item) without a call while *xs is a unique node with room: the item stored, the length grown (what
+   cplrt_list_push_owned does then); anything else is that function's. */
+static inline int cplrt_list_push_fast(cplrt_cx *cx, uint32_t site, uint32_t stub, cplrt_w *xs, cplrt_w item)
+{
+    cplrt_obj *o = cplrt_obj_of(*xs);
+    if ((o->flags & (CPLRT_F_CAPACITY | CPLRT_F_VIEW)) == CPLRT_F_CAPACITY && o->len < o->u.live.def &&
+        atomic_load_explicit(&o->u.live.rc, memory_order_acquire) == 1u) {
+        cplrt_retain(item);
+        ((cplrt_node *)o)->item[o->len++] = item;
+        return CPLRT_OK;
+    }
+    return cplrt_list_push_owned(cx, site, stub, xs, item);
+}
+/* The shortest slice that is a view rather than a copy (cpl_rt_list.c; tests may define it as 0). */
+#ifndef CPLRT_LIST_VIEW_MIN
+#define CPLRT_LIST_VIEW_MIN 8u
+#endif
+/* cplrt_q_drop_owned without a call while *xs is a unique view that stays longer than CPLRT_LIST_VIEW_MIN. */
+static inline int cplrt_q_drop_fast(cplrt_cx *cx, cplrt_w *xs, uint32_t n)
+{
+    cplrt_obj *o = cplrt_obj_of(*xs);
+    if ((o->flags & CPLRT_F_VIEW) && o->len - n > CPLRT_LIST_VIEW_MIN &&
+        atomic_load_explicit(&o->u.live.rc, memory_order_acquire) == 1u) {
+        o->u.live.def += n;
+        o->len -= n;
+        return CPLRT_OK;
+    }
+    return cplrt_q_drop_owned(cx, xs, n);
+}
+/* cplrt_q_push_owned without a call while *xs is a unique node with room. */
+static inline int cplrt_q_push_fast(cplrt_cx *cx, cplrt_w *xs, cplrt_w item)
+{
+    cplrt_obj *o = cplrt_obj_of(*xs);
+    if ((o->flags & (CPLRT_F_CAPACITY | CPLRT_F_VIEW)) == CPLRT_F_CAPACITY && o->len < o->u.live.def &&
+        atomic_load_explicit(&o->u.live.rc, memory_order_acquire) == 1u) {
+        cplrt_retain(item);
+        ((cplrt_node *)o)->item[o->len++] = item;
+        return CPLRT_OK;
+    }
+    return cplrt_q_push_owned(cx, xs, item);
+}
+/* xs = xs.drop(k) for an owned local: a unique view is moved along in place instead of replaced by a new one (the
+   walk of a list with first() and drop(1) allocates nothing); anything else is list_drop's. */
+#define cplrt_list_drop_owned CPLRT(list_drop_owned)
+int cplrt_list_drop_owned(cplrt_cx *cx, uint32_t site, uint32_t stub, cplrt_w *xs, cplrt_w k);
 #define cplrt_list_concat_owned CPLRT(list_concat_owned)
 int cplrt_list_concat_owned(cplrt_cx *, cplrt_w *, cplrt_w);
 #define cplrt_text_concat_owned CPLRT(text_concat_owned)
 int cplrt_text_concat_owned(cplrt_cx *, cplrt_w *, cplrt_w);
+/* t = t ++ other without a call while t is a unique text with room recorded in its header (one that grew by appends):
+   the bytes copied, the counts grown, the NUL moved (what cplrt_text_concat_owned does then). */
+static inline int cplrt_text_concat_fast(cplrt_cx *cx, cplrt_w *slot, cplrt_w other)
+{
+    cplrt_text *x = (cplrt_text *)cplrt_obj_of(*slot);
+    const cplrt_text *y = cplrt_text_of(other);
+    if ((x->hdr.flags & CPLRT_F_CAPACITY) && (const cplrt_text *)x != y && y->bytes <= x->hdr.u.live.def &&
+        x->bytes <= x->hdr.u.live.def - y->bytes && atomic_load_explicit(&x->hdr.u.live.rc, memory_order_acquire) == 1u) {
+        memcpy(x->utf8 + x->bytes, y->utf8, y->bytes);
+        x->bytes += y->bytes;
+        x->scalars += y->scalars;
+        x->utf8[x->bytes] = '\0';
+        return CPLRT_OK;
+    }
+    return cplrt_text_concat_owned(cx, slot, other);
+}
+#define cplrt_text_append_int CPLRT(text_append_int)
+int cplrt_text_append_int(cplrt_cx *cx, cplrt_w *slot, cplrt_w n);         /* t = t ++ n.to_text(), in place */
 #define cplrt_bytes_concat_owned CPLRT(bytes_concat_owned)
 int cplrt_bytes_concat_owned(cplrt_cx *, cplrt_w *, cplrt_w);
 

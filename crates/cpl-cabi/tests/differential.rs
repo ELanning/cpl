@@ -516,6 +516,10 @@ fn corpus(gate: &mut Gate) {
         .filter_map(|n| n.strip_suffix(".diff.json").map(str::to_string))
         .collect();
     names.sort();
+    // CPL_DIFF_ONLY=a,b runs those corpus files alone (while one is written)
+    if let Ok(only) = std::env::var("CPL_DIFF_ONLY") {
+        names.retain(|n| only.split(',').any(|o| o == n));
+    }
     for name in &names {
         let started = std::time::Instant::now();
         let source =
@@ -738,6 +742,16 @@ fn gate_misses(gate: &Gate) -> Vec<String> {
 
 /// D1, D2, D4 (corpus, scripted, built), and D5 into one gate.
 fn run_suites(gate: &mut Gate) {
+    if std::env::var("CPL_DIFF_ONLY").is_ok() {
+        corpus(gate);
+        assert!(
+            gate.divergences.is_empty(),
+            "{} divergences:\n{}",
+            gate.divergences.len(),
+            gate.divergences.join("\n")
+        );
+        return;
+    }
     let t = std::time::Instant::now();
     d1(gate);
     println!("D1: {:?}", t.elapsed());

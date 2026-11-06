@@ -115,7 +115,7 @@ fn check_program(what: &str, project: &Project, cc: bool) -> Vec<String> {
         .expect("emits")
         .tables;
     // the model against the Program: a clause's site lies in its owner's declaration; a hole's site reads ?<name>;
-    // a refinement row names a refinement
+    // a refinement row names a checked predicate
     for (i, (text, _, site, owner, _, _)) in model.clause_rows.iter().enumerate() {
         let owner_span = p.def(DefId(*owner)).span;
         let span = model.site_spans[*site as usize];
@@ -136,9 +136,12 @@ fn check_program(what: &str, project: &Project, cc: bool) -> Vec<String> {
             out.push(format!("{what}: hole {id} {name} is at {source:?}"));
         }
     }
+    // a refinement row names a refinement, or a struct with an invariant (`checked_predicate`: both are checked
+    // predicates of the CPL_R table)
     for (def, _, declared) in &model.ref_rows {
         match &p.def(DefId(*def)).kind {
             DefKind::Refinement(_) if p.def(DefId(*def)).name.display() == *declared => {}
+            DefKind::Struct(s) if s.invariant.is_some() && p.def(DefId(*def)).name.display() == *declared => {}
             _ => out.push(format!(
                 "{what}: refinement row {def} names no refinement {declared}"
             )),

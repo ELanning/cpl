@@ -130,6 +130,138 @@ pub(crate) struct Lowerer<'a, 'p> {
     iter_vars: Vec<String>,
     /// binding sites of the body, by span: the locals in scope there, outermost first (`scope_at`)
     scopes: HashMap<(u32, u32, u32), Vec<LocalId>>,
+    /// The unboxed `Option` locals (`maybe_locals`): the slot holds the element, retained, or 0 for `None`.
+    maybe: BTreeSet<LocalId>,
+}
+
+/// Whether evaluating `e` can do nothing but compute a value (or run out of memory): literals, locals, field reads,
+/// constructors and literals of such parts, arithmetic but division, comparisons, `not`. Skipping such an expression
+/// (an `unwrap_or` default that is not needed) is not observable; anything that could fault must still run.
+fn cannot_fault(p: &Program, e: &Expr) -> bool {
+    let go = |x: &Expr| cannot_fault(p, x);
+    match &e.kind {
+        ExprKind::Lit(_) | ExprKind::Local(_) => true,
+        ExprKind::Field { base, .. } | ExprKind::Widen { expr: base, .. } => go(base),
+        ExprKind::Wrap { arg, .. } => go(arg),
+        ExprKind::Ctor { args, .. } | ExprKind::List(args) => args.iter().all(go),
+        ExprKind::StructLit {
+            def,
+            spread,
+            fields,
+            invariant_proven,
+        } => {
+            // an invariant still to check could fail
+            (*invariant_proven || p.def(*def).kind.checked_predicate().is_none())
+                && spread.as_deref().is_none_or(go)
+                && fields.iter().all(|(_, f)| go(f))
+        }
+        ExprKind::Unary { operand, .. } => go(operand),
+        ExprKind::Binary { op, lhs, rhs } => !matches!(op, BinaryOp::Div | BinaryOp::Rem) && go(lhs) && go(rhs),
+        _ => false,
+    }
+}
+
+/// The `let` locals of a function's body that hold `xs.get(i)`, `xs.first()`, or `xs.last()` and are used only as the
+/// scrutinee of a `match` whose arms are `Some(..)`, `None`, or `_`, as the receiver of `unwrap_or`, `is_some`, or
+/// `is_none`: such a local needs no `Option`. Its slot holds the element, retained, or 0 for `None` (no value is the
+/// word 0), and reading an element cannot fault, so nothing observable changes.
+fn maybe_locals(p: &Program, def: DefId) -> BTreeSet<LocalId> {
+    let mut out = BTreeSet::new();
+    let Some(fd) = p.def(def).kind.as_fn() else {
+        return out;
+    };
+    let FnBody::Block(body) = &fd.body else {
+        return out;
+    };
+    let builtin = |callee: DefId| -> Option<&str> {
+        match &p.defs.get(callee.0 as usize)?.kind.as_fn()?.body {
+            FnBody::Builtin(id) => Some(id.as_str()),
+            _ => None,
+        }
+    };
+    let option = p.std_defs.option;
+    let mutable: HashMap<LocalId, bool> = fd.locals.iter().map(|l| (l.id, l.mutable)).collect();
+    // the candidates: immutable lets of an element read
+    let mut cands = BTreeSet::new();
+    let mut note = |s: &Stmt| {
+        if let Stmt::Let { local, value } = s {
+            if let ExprKind::Call { callee, using, .. } = &value.kind {
+                if using.is_empty()
+                    && matches!(builtin(*callee), Some("list_get" | "list_first" | "list_last"))
+                    && mutable.get(local) == Some(&false)
+                    && matches!(&value.ty, Ty::Adt(d, _) if *d == option)
+                {
+                    cands.insert(*local);
+                }
+            }
+        }
+    };
+    let stmts = |b: &Block, note: &mut dyn FnMut(&Stmt)| {
+        for s in &b.stmts {
+            s.walk_stmts(&mut |x| note(x));
+        }
+        if let Some(t) = &b.tail {
+            t.walk(&mut |e| {
+                let blocks: Vec<&Block> = match &e.kind {
+                    ExprKind::If { then_block, else_block, .. } => {
+                        std::iter::once(then_block).chain(else_block.iter()).collect()
+                    }
+                    ExprKind::Match { arms, .. } => arms.iter().map(|a| &a.body).collect(),
+                    _ => Vec::new(),
+                };
+                for b in blocks {
+                    for s in &b.stmts {
+                        s.walk_stmts(&mut |x| note(x));
+                    }
+                }
+            });
+        }
+    };
+    stmts(body, &mut note);
+    if cands.is_empty() {
+        return out;
+    }
+    // every use of a candidate must be one of the allowed ones
+    let mut total: HashMap<LocalId, usize> = HashMap::new();
+    let mut allowed: HashMap<LocalId, usize> = HashMap::new();
+    let mut count = |e: &Expr| match &e.kind {
+        ExprKind::Local(x) => *total.entry(*x).or_default() += 1,
+        ExprKind::Match { scrutinee, arms } => {
+            if let ExprKind::Local(x) = &scrutinee.kind {
+                let shaped = arms.iter().all(|a| match &a.pattern.kind {
+                    PatternKind::Wildcard => true,
+                    PatternKind::Ctor { def, .. } => *def == option,
+                    _ => false,
+                });
+                if shaped {
+                    *allowed.entry(*x).or_default() += 1;
+                }
+            }
+        }
+        ExprKind::Call { callee, args, using, .. } => {
+            if using.is_empty()
+                && matches!(
+                    builtin(*callee),
+                    Some("option_unwrap_or" | "option_is_some" | "option_is_none")
+                )
+            {
+                if let Some(ExprKind::Local(x)) = args.first().map(|a| &a.kind) {
+                    *allowed.entry(*x).or_default() += 1;
+                }
+            }
+        }
+        _ => {}
+    };
+    body.walk(&mut count);
+    for c in fd.requires.iter().chain(&fd.ensures).chain(&fd.decreases) {
+        c.expr.walk(&mut count);
+    }
+    for x in cands {
+        if total.get(&x).copied().unwrap_or(0) == allowed.get(&x).copied().unwrap_or(0) {
+            out.insert(x);
+        }
+    }
+    out
 }
 
 /// Every HIR variant the coverage counters name (cabi.md 1.4), as `<enum>::<variant>`: what the coverage gate of
@@ -271,7 +403,11 @@ impl<'a, 'p> Lowerer<'a, 'p> {
             loops: 0,
             iter_vars: Vec::new(),
             scopes,
+            maybe: BTreeSet::new(),
         };
+        if l.t.optimize && matches!(ctx, Ctx::Fn) {
+            l.maybe = maybe_locals(p, def);
+        }
         // every local of the definition's table is a slot unless it is a parameter
         for ld in d.kind.locals() {
             let name = format!("l{}_{}", ld.id.0, ident(&ld.name));
@@ -381,7 +517,19 @@ impl<'a, 'p> Lowerer<'a, 'p> {
 
     /// `{ const cplrt_w visible[n] = {...}; <call with visible, n> }`, or NULL, 0 for none.
     fn with_visible(&mut self, scope: &[LocalId], call: impl FnOnce(&str, usize) -> String) {
-        let v = self.visible(scope);
+        let mut v = self.visible(scope);
+        // an unboxed Option local is reported as the Option it stands for: built here, for the report only
+        let option = self.p.std_defs.option;
+        for (i, id) in scope.iter().rev().enumerate() {
+            if self.maybe.contains(id) {
+                let slot = self.slot_of(*id);
+                let t = self.temp();
+                let none = self.variant_static(option, 1);
+                self.line(&format!("if ({slot} == 0) CPLRT_SET({t}, {none});"));
+                self.checked(&format!("({slot} == 0 ? CPLRT_OK : cplrt_option_some(cx, {slot}, &{t}))"));
+                v[i] = t;
+            }
+        }
         if v.is_empty() {
             let c = call("NULL", 0);
             self.line(&c);
@@ -422,6 +570,29 @@ impl<'a, 'p> Lowerer<'a, 'p> {
     }
 
     /// An array of borrowed words for a call: `{ const cplrt_w v[n] = {...}; <stmt> }`, or NULL for none.
+    /// A constructor call on `ops` that takes the references of the temporaries among them (`moved`, item i at bit i)
+    /// and gives those slots up after it succeeds; `stmt` gets the array, its length, and the mask.
+    fn moving_call(&mut self, ops: &[Op], stmt: impl FnOnce(&str, usize, u64) -> String) {
+        let mut moved = 0u64;
+        let mut give = String::new();
+        for (i, o) in ops.iter().enumerate().take(64) {
+            if let Op::Slot(t) = o {
+                moved |= 1u64 << i;
+                give.push_str(&format!(" CPLRT_GIVE({t});"));
+            }
+        }
+        if ops.is_empty() || moved == 0 {
+            return self.array_call(ops, |v, n| stmt(v, n, 0));
+        }
+        let items: Vec<&str> = ops.iter().map(Op::expr).collect();
+        let s = stmt("v", ops.len(), moved);
+        self.line(&format!(
+            "{{ const cplrt_w v[{}] = {{ {} }}; {s}{give} }}",
+            ops.len(),
+            items.join(", ")
+        ));
+    }
+
     fn array_call(&mut self, ops: &[Op], stmt: impl FnOnce(&str, usize) -> String) {
         if ops.is_empty() {
             let s = stmt("NULL", 0);
@@ -602,7 +773,7 @@ impl<'a, 'p> Lowerer<'a, 'p> {
         let out = self.temp();
         let site = self.site(body.span);
         let fail = self.fail.clone();
-        self.array_call(&ops, |v, _| format!("if (cplrt_parallel_map(cx, {site}, {input}, {name}, {v}, &{out}) != CPLRT_OK) {fail}"));
+        self.array_call(&ops, |v, n| format!("if (cplrt_parallel_map(cx, {site}, {input}, {name}, {v}, {n}u, &{out}) != CPLRT_OK) {fail}"));
         Op::Slot(out)
     }
 
@@ -658,10 +829,15 @@ impl<'a, 'p> Lowerer<'a, 'p> {
                 let d = self.def_name(*def);
                 let f = self.fail.clone();
                 let variant = *variant;
-                self.array_call(&ops, |v, n| {
-                    format!(
-                        "if (cplrt_enum_new(cx, {d}, {variant}u, {v}, {n}u, &{t}) != CPLRT_OK) {f}"
-                    )
+                // the payload's temporaries moved into the value
+                self.moving_call(&ops, |v, n, moved| {
+                    if moved == 0 {
+                        format!("if (cplrt_enum_new(cx, {d}, {variant}u, {v}, {n}u, &{t}) != CPLRT_OK) {f}")
+                    } else {
+                        format!(
+                            "if (cplrt_enum_new_m(cx, {d}, {variant}u, {v}, {n}u, UINT64_C({moved}), &{t}) != CPLRT_OK) {{ {f} }}"
+                        )
+                    }
                 });
                 Op::Slot(t)
             }
@@ -864,8 +1040,15 @@ impl<'a, 'p> Lowerer<'a, 'p> {
                 let t = self.temp();
                 let d = self.def_name(*def);
                 let f = self.fail.clone();
-                self.array_call(&ops, |v, n| {
-                    format!("if (cplrt_struct_new(cx, {d}, {v}, {n}u, &{t}) != CPLRT_OK) {f}")
+                // the fields' temporaries moved into the value
+                self.moving_call(&ops, |v, n, moved| {
+                    if moved == 0 {
+                        format!("if (cplrt_struct_new(cx, {d}, {v}, {n}u, &{t}) != CPLRT_OK) {f}")
+                    } else {
+                        format!(
+                            "if (cplrt_struct_new_m(cx, {d}, {v}, {n}u, UINT64_C({moved}), &{t}) != CPLRT_OK) {{ {f} }}"
+                        )
+                    }
                 });
                 if !invariant_proven && self.p.def(*def).kind.checked_predicate().is_some() {
                     let site = self.t.site(e.span);
@@ -1031,9 +1214,22 @@ impl<'a, 'p> Lowerer<'a, 'p> {
         } else {
             format!("((int64_t)cplrt_len({}) - 1)", xs.expr())
         };
-        let d = self.operand(&args[1], &[]);
         let t = self.temp();
-        let (xe, de) = (xs.expr().to_string(), d.expr().to_string());
+        let xe = xs.expr().to_string();
+        if cannot_fault(self.p, &args[1]) {
+            // the default is built only when there is no element (building it can do nothing but that)
+            self.line(&format!(
+                "{{ int64_t k_ = {index}; if (k_ >= 0 && (uint64_t)k_ < cplrt_len({xe})) {{ CPLRT_COPY({t}, cplrt_items({xe})[k_]); }} else {{"
+            ));
+            self.indent += 1;
+            let d = self.operand(&args[1], &[]);
+            self.line(&format!("CPLRT_COPY({t}, {});", d.expr()));
+            self.indent -= 1;
+            self.line("} }");
+            return Some(Op::Slot(t));
+        }
+        let d = self.operand(&args[1], &[]);
+        let de = d.expr().to_string();
         self.line(&format!(
             "{{ int64_t k_ = {index}; CPLRT_COPY({t}, (k_ >= 0 && (uint64_t)k_ < cplrt_len({xe})) ? cplrt_items({xe})[k_] : {de}); }}"
         ));
@@ -1044,6 +1240,55 @@ impl<'a, 'p> Lowerer<'a, 'p> {
         let p = self.p;
         if let Some(op) = self.list_read_or(callee, args) {
             return op;
+        }
+        // the Option builtins on an unboxed Option local
+        if let Some(ExprKind::Local(x)) = args.first().map(|a| &a.kind) {
+            if self.maybe.contains(x) && using.is_empty() {
+                let slot = self.slot_of(*x);
+                let form = match (self.builtin_of(callee), args.len()) {
+                    (Some("option_is_some"), 1) => Some(format!("cplrt_bool({slot} != 0)")),
+                    (Some("option_is_none"), 1) => Some(format!("cplrt_bool({slot} == 0)")),
+                    _ => None,
+                };
+                if let Some(form) = form {
+                    let t = self.temp();
+                    self.line(&format!("CPLRT_SET({t}, {form});"));
+                    return Op::Slot(t);
+                }
+                if self.builtin_of(callee) == Some("option_unwrap_or") && args.len() == 2 {
+                    let t = self.temp();
+                    if cannot_fault(self.p, &args[1]) {
+                        self.line(&format!("if ({slot} != 0) {{ CPLRT_COPY({t}, {slot}); }} else {{"));
+                        self.indent += 1;
+                        let d = self.operand(&args[1], &[]);
+                        self.line(&format!("CPLRT_COPY({t}, {});", d.expr()));
+                        self.indent -= 1;
+                        self.line("}");
+                        return Op::Slot(t);
+                    }
+                    let d = self.operand(&args[1], &[]);
+                    self.line(&format!("CPLRT_COPY({t}, {slot} != 0 ? {slot} : {});", d.expr()));
+                    return Op::Slot(t);
+                }
+            }
+        }
+        // a list's length is its header's: no call, no Option, no fault (optimized: the debug profile keeps the
+        // builtin's own code, which the coverage gate requires the corpus to run)
+        if args.len() == 1 && using.is_empty() && self.t.optimize {
+            let inline = match self.builtin_of(callee) {
+                Some("list_len") => Some(("cplrt_small((int64_t)cplrt_len(", "))")),
+                Some("list_is_empty") => Some(("cplrt_bool(cplrt_len(", ") == 0u)")),
+                // a text's scalar count is cached in it; a size is far below the small range
+                Some("text_len") => Some(("cplrt_small((int64_t)cplrt_text_of(", ")->scalars)")),
+                Some("bytes_len") => Some(("cplrt_small((int64_t)cplrt_bytes_of(", ")->len)")),
+                _ => None,
+            };
+            if let Some((open, close)) = inline {
+                let xs = self.operand(&args[0], &[]);
+                let t = self.temp();
+                self.line(&format!("CPLRT_SET({t}, {open}{}{close});", xs.expr()));
+                return Op::Slot(t);
+            }
         }
         let ops = self.lower_all(args);
         let handles: Vec<String> = using.iter().map(|u| self.using_arg(u)).collect();
@@ -1189,7 +1434,7 @@ impl<'a, 'p> Lowerer<'a, 'p> {
                     };
                     let fail = self.fail.clone();
                     self.line(&format!(
-                        "{{ cplrt_w r_ = {f}(cx, {site}, {ae}, {be}); if (r_ == 0) {fail} CPLRT_SET({t}, r_); }}"
+                        "{{ cplrt_w r_ = {f}(cx, {site}, {ae}, {be}); if (r_ == 0) {{ {fail} }} CPLRT_SET({t}, r_); }}"
                     ));
                 } else {
                     self.checked(&format!("{f}(cx, {site}, {ae}, {be}, &{t})"));
@@ -1252,10 +1497,26 @@ impl<'a, 'p> Lowerer<'a, 'p> {
     }
 
     fn lower_match(&mut self, scrutinee: &'p Expr, arms: &'p [Arm], span: Span) -> Op {
+        if let ExprKind::Local(x) = &scrutinee.kind {
+            if self.maybe.contains(x) {
+                return self.lower_maybe_match(*x, arms);
+            }
+        }
+        // a parameter or a `let` is never reassigned while the match runs: it is matched, and its parts bound, where it
+        // is, with no reference taken (the bindings are aliases for the parts, as a parameter is for its argument)
+        let stable = self.t.optimize
+            && match &scrutinee.kind {
+                ExprKind::Local(id) => match self.locals.get(id) {
+                    Some(LocalC::Param(_)) => true,
+                    Some(LocalC::Slot(_, mutable)) => !mutable && !self.maybe.contains(id),
+                    _ => false,
+                },
+                _ => false,
+            };
         let v = self.expr(scrutinee);
         let v = match v {
             Op::Imm(x) => Op::Borrowed(x),
-            Op::Borrowed(x) => Op::Slot(self.temp_of(Op::Borrowed(x))),
+            Op::Borrowed(x) if !stable => Op::Slot(self.temp_of(Op::Borrowed(x))),
             other => other,
         };
         let t = self.temp();
@@ -1265,6 +1526,11 @@ impl<'a, 'p> Lowerer<'a, 'p> {
             let mut tests = Vec::new();
             let mut binds = Vec::new();
             self.pattern(&arm.pattern, &ve, &mut tests, &mut binds);
+            if stable {
+                for (local, part) in std::mem::take(&mut binds) {
+                    self.locals.insert(local, LocalC::Param(part));
+                }
+            }
             let cond = if tests.is_empty() {
                 "1".to_string()
             } else {
@@ -1295,6 +1561,48 @@ impl<'a, 'p> Lowerer<'a, 'p> {
             self.line(&format!("    cplrt_no_match(cx, {site}, {ve}); {f}"));
             self.line("}");
         }
+        Op::Slot(t)
+    }
+
+    /// A `match` on an unboxed Option local (`maybe_locals`): `Some(p)` tests the slot for an element and matches `p`
+    /// against it, `None` tests for 0. The arms are exhaustive (the checker's), so the last one is the `else`.
+    fn lower_maybe_match(&mut self, x: LocalId, arms: &'p [Arm]) -> Op {
+        let slot = self.slot_of(x);
+        let t = self.temp();
+        for (n, arm) in arms.iter().enumerate() {
+            let mut tests = Vec::new();
+            let mut binds = Vec::new();
+            match &arm.pattern.kind {
+                PatternKind::Ctor { variant, args, .. } if *variant == 0 => {
+                    tests.push(format!("{slot} != 0"));
+                    if let Some(a) = args.first() {
+                        self.pattern(a, &slot, &mut tests, &mut binds);
+                    }
+                }
+                PatternKind::Ctor { .. } => tests.push(format!("{slot} == 0")),
+                _ => {}
+            }
+            let cond = if tests.is_empty() || n + 1 == arms.len() && tests.len() == 1 {
+                "1".to_string()
+            } else {
+                tests.join(" && ")
+            };
+            if n == 0 {
+                self.line(&format!("if ({cond}) {{"));
+            } else {
+                self.line(&format!("}} else if ({cond}) {{"));
+            }
+            self.indent += 1;
+            for (local, part) in binds {
+                if let Some(LocalC::Slot(name, _)) = self.locals.get(&local).cloned() {
+                    self.line(&format!("CPLRT_COPY({name}, {part});"));
+                }
+            }
+            let r = self.block(&arm.body);
+            self.store(&t, r);
+            self.indent -= 1;
+        }
+        self.line("}");
         Op::Slot(t)
     }
 
@@ -1424,7 +1732,20 @@ impl<'a, 'p> Lowerer<'a, 'p> {
                 {
                     let mut parts = Vec::with_capacity(rights.len());
                     for r in rights.into_iter().rev() {
-                        let part = self.expr(r);
+                        // `n.to_text()` appended to a text: the Int is kept and its digits written in place,
+                        // with no text built for them (to_text cannot fault, so nothing observable moves)
+                        let digits = match &r.kind {
+                            ExprKind::Call { callee, args, using, .. }
+                                if value.ty == Ty::Text
+                                    && using.is_empty()
+                                    && args.len() == 1
+                                    && self.builtin_of(*callee) == Some("int_to_text") =>
+                            {
+                                Some(&args[0])
+                            }
+                            _ => None,
+                        };
+                        let part = self.expr(digits.unwrap_or(r));
                         // a borrowed word is kept: a later operand may change what it borrows from
                         let part = match part {
                             Op::Borrowed(b) => {
@@ -1434,16 +1755,20 @@ impl<'a, 'p> Lowerer<'a, 'p> {
                             }
                             other => other.expr().to_string(),
                         };
-                        parts.push(part);
+                        parts.push((part, digits.is_some()));
                     }
                     let slot = self.slot_of(*local);
                     let helper = match value.ty {
-                        Ty::Text => "cplrt_text_concat_owned",
+                        Ty::Text => "cplrt_text_concat_fast",
                         Ty::Bytes => "cplrt_bytes_concat_owned",
                         _ => "cplrt_list_concat_owned",
                     };
-                    for part in parts {
-                        self.checked(&format!("{helper}(cx, &{slot}, {part})"));
+                    for (part, digits) in parts {
+                        if digits {
+                            self.checked(&format!("cplrt_text_append_int(cx, &{slot}, {part})"));
+                        } else {
+                            self.checked(&format!("{helper}(cx, &{slot}, {part})"));
+                        }
                     }
                     return;
                 }
@@ -1460,7 +1785,7 @@ impl<'a, 'p> Lowerer<'a, 'p> {
                         let other = self.expr(rhs);
                         let slot = self.slot_of(*local);
                         let helper = match value.ty {
-                            Ty::Text => "cplrt_text_concat_owned",
+                            Ty::Text => "cplrt_text_concat_fast",
                             Ty::Bytes => "cplrt_bytes_concat_owned",
                             _ => "cplrt_list_concat_owned",
                         };
@@ -1475,21 +1800,24 @@ impl<'a, 'p> Lowerer<'a, 'p> {
                     ..
                 } = &value.kind
                 {
-                    let push = self.p.def(*callee).kind.as_fn().is_some_and(
-                        |f| matches!(&f.body, FnBody::Builtin(id) if id == "list_push"),
-                    );
-                    if push
-                        && using.is_empty()
-                        && args.len() == 2
-                        && matches!(args[0].kind, ExprKind::Local(id) if id == *local)
-                        && !self.later_may_reassign(&args[1])
-                    {
+                    // xs = xs.push(item) and xs = xs.drop(k) on the local's own slot
+                    let helper = match self.builtin_of(*callee) {
+                        Some("list_push") => Some("cplrt_list_push_fast"),
+                        Some("list_drop") => Some("cplrt_list_drop_owned"),
+                        _ => None,
+                    };
+                    if let Some(helper) = helper.filter(|_| {
+                        using.is_empty()
+                            && args.len() == 2
+                            && matches!(args[0].kind, ExprKind::Local(id) if id == *local)
+                            && !self.later_may_reassign(&args[1])
+                    }) {
                         let item = self.expr(&args[1]);
                         let slot = self.slot_of(*local);
                         let site = self.site(value.span);
                         let stub = self.def_name(*callee);
                         self.checked(&format!(
-                            "cplrt_list_push_owned(cx, {site}, {stub}, &{slot}, {})",
+                            "{helper}(cx, {site}, {stub}, &{slot}, {})",
                             item.expr()
                         ));
                         return;
@@ -1498,6 +1826,27 @@ impl<'a, 'p> Lowerer<'a, 'p> {
             }
         }
         match s {
+            Stmt::Let { local, value } if self.maybe.contains(local) => {
+                // an unboxed Option local: the element, or 0
+                if let ExprKind::Call { callee, args, .. } = &value.kind {
+                    let which = self.builtin_of(*callee).unwrap_or("");
+                    let xs = self.operand(&args[0], &args[1..]);
+                    let index = match which {
+                        "list_get" => {
+                            let i = self.operand(&args[1], &[]);
+                            let ie = i.expr().to_string();
+                            format!("(cplrt_is_small({ie}) ? cplrt_small_value({ie}) : INT64_C(-1))")
+                        }
+                        "list_first" => "INT64_C(0)".to_string(),
+                        _ => format!("((int64_t)cplrt_len({}) - 1)", xs.expr()),
+                    };
+                    let slot = self.slot_of(*local);
+                    let xe = xs.expr().to_string();
+                    self.line(&format!(
+                        "{{ int64_t k_ = {index}; CPLRT_COPY({slot}, (k_ >= 0 && (uint64_t)k_ < cplrt_len({xe})) ? cplrt_items({xe})[k_] : 0); }}"
+                    ));
+                }
+            }
             Stmt::Let { local, value } | Stmt::Assign { local, value } => {
                 let v = self.expr(value);
                 let slot = self.slot_of(*local);
@@ -1897,6 +2246,15 @@ pub(crate) fn emit_fn(t: &mut Tables<'_>, names: &mut Names, def: DefId) -> Stri
             "    const cplrt_w params[{np}] = {{ {} }};",
             names.join(", ")
         );
+    }
+    if l.t.fast.has(def) {
+        // the scalar tier first (fast.rs); on a bail the generic body below runs
+        let names: Vec<String> = fd
+            .params
+            .iter()
+            .map(|x| param_name(x.local, &x.name))
+            .collect();
+        out.push_str(&l.t.fast.wrapper(p, def, &names, &dn));
     }
     let _ = writeln!(
         out,

@@ -98,7 +98,7 @@ static void *parallel_run(void *opaque)
 
 /* mirrors cpl_eval::interp::Interpreter::eval_parallel */
 int cplrt_parallel_map(cplrt_cx *cx, uint32_t site, cplrt_w input, cplrt_parallel_task task,
-                       const cplrt_w *captures, cplrt_w *out)
+                       const cplrt_w *captures, uint32_t ncaptures, cplrt_w *out)
 {
     uint32_t n = cplrt_len(input);
     if (n == 0) {
@@ -124,6 +124,15 @@ int cplrt_parallel_map(cplrt_cx *cx, uint32_t site, cplrt_w input, cplrt_paralle
         else
             cplrt_release(cplrt_word_of(&result->hdr));
         return st;
+    }
+    /* every task reads the input and the captures, on threads of their own: their counts become atomic */
+    int shared = CPLRT(value_share)(cx->rt, input);
+    for (uint32_t c = 0; c < ncaptures && shared == CPLRT_OK; c++)
+        shared = CPLRT(value_share)(cx->rt, captures[c]);
+    if (shared != CPLRT_OK) {
+        atomic_fetch_sub_explicit(&parallel_active, permits, memory_order_release);
+        cplrt_release(cplrt_word_of(&result->hdr));
+        return CPLRT(oom)(cx);
     }
     _Atomic uint32_t failure = UINT32_MAX;
     uint32_t workers = permits + 1u;

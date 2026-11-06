@@ -308,11 +308,14 @@ trampoline `cpl_e<n>` is a single `return` statement and is exempt:
    with `k` the `LocalId.0`, temporaries `t<k>`, clause temporaries
    `c<k>`, loop measures `m<k>`, the exit value `rv`), is declared at the
    top of the function and initialized to 0, which holds nothing.
-2. A slot owns at most one reference, and only three macros write it:
+2. A slot owns at most one reference, and only four macros write it:
    `CPLRT_SET(slot, owned)` (release the old content, store),
-   `CPLRT_COPY(slot, borrowed)` (retain, then `CPLRT_SET`), and
+   `CPLRT_COPY(slot, borrowed)` (retain, then `CPLRT_SET`),
    `CPLRT_MOVE(dst, src)` (transfer `src` into `dst`, releasing `dst`'s old
-   content, and zero `src`). Runtime operations that produce a value take
+   content, and zero `src`), and `CPLRT_GIVE(slot)` (zero a temporary whose
+   reference a constructor took: `cplrt_struct_new_m` and
+   `cplrt_enum_new_m` take the references of the temporaries among their
+   fields instead of retaining them). Runtime operations that produce a value take
    `cplrt_w *out` and have `CPLRT_SET` semantics. Arrays of borrowed words
    built for a call (`params`, `args`, `visible`) are not slots and are
    never released.
@@ -337,6 +340,91 @@ Together the rules give "no leak and no double release" for the function.
 Toolchain: the emitted-shape test checks them mechanically on the emitted
 text of every corpus program, and every differential corpus also runs
 under ASan, UBSan, and LSan (toolchain 12.6, T78).
+
+### 1.3a The scalar tier
+
+In the optimized profile every eligible function also has a speculative
+C form, `cpl_q<n>`, on unboxed values: `Int` as `int64_t`, `Bool` as
+`int`, `Text` as the runtime's text word, a record (a struct without type
+parameters whose fields are `Int`, `Bool`, `Text`, or records) as a C
+struct (a struct with an invariant included: a scalar form never builds
+one, its literal being outside the subset, so each value it holds is a
+copy of one the generic form checked), an enum without type parameters whose payloads
+are `Int` and `Bool` as a C struct of its tag and every variant's
+payload, `List<E>` as the
+runtime's list words for `E` an `Int`, a `Bool`, a record, or a list of
+`Int` or `Bool`, and `Option<E>` (locals and expressions only, never of a
+list) as `cplrt_qopt` or a C struct with a flag. It has no frame and no
+slot discipline, allocates no `Option`, makes a record a struct object
+only to put it in a list (filled in place when its `Int` fields are
+small), and reads list elements in place: an element list of a list of
+lists that an operation only reads (`a.get(k).unwrap_or([]).get(j)`) is
+borrowed from its list, with no reference taken. A value of any other
+struct or enum (a tree's node, an option of one, a syntax tree) is a
+*word*: the generic form's own word, borrowed, never retained or released.
+A word is only a parameter (never a result), a local, a field read (an
+`Int`, a `Bool`, or a word out of a struct word: an `Int` field holding a
+bigint bails), a `match` scrutinee (its variant tested, its payloads
+bound: each an `Int`, a `Bool`, or a word, an `Int` holding a bigint
+bailing), the operand of `is_some`/`is_none`, or an argument of an
+eligible function; the scalar form never builds, compares, returns, or
+keeps one in a list or record. Every word is held by a parameter's value
+(the parameter itself, or reached from it), which the caller keeps alive
+for the call, so a borrowed word outlives every use. A read-only
+traversal (a tree's size, an evaluator over a syntax tree, a walk down a
+linked list) runs in the scalar tier this way. A function is eligible when it has a block body,
+no type parameters and no `using`, every parameter, its result, and every
+local has one of these types (an `Option` never at the boundary), its body
+and contracts use only literals, locals, arithmetic, comparisons, the
+logical operators, `if`, `match` on an `Int`, a `Bool`, a `Text`, an
+enum (a variant with literal, binding, and `_` sub-patterns), or an
+`Option` (literal, binding, `Some`, `None`, and `_` patterns), `while` without
+clauses, `let`, assignment, `return`, `assert`, widening, record literals
+and field reads, list literals, `++` of lists, `Some`/`None`, the list
+builtins `len`, `is_empty`, `get`, `first`, `last`, `push`, `take`,
+`drop`, `drop_last`, the option builtins `unwrap_or`, `is_some`,
+`is_none`, the text operations `++`, `==`, `len`, `is_empty`, and `Int`'s
+`to_text`, enum constructors and `==`, and calls of eligible functions;
+and, when it has a
+`decreases` clause, it is its own recursive group, so the activation its
+measure is compared with is its caller or none.
+
+The scalar form returns a result or *bails*: it bails wherever the generic
+form could do anything but compute the same value (an `int64_t` overflow,
+a division by zero, a contract, assertion, or measure that does not hold,
+a negative count, a list element that is a bigint, an element value
+outside the small range, an allocation that fails, the depth limit, the
+stack floor, a deadline, a cancellation, a failed parallel sibling). The
+generic form `cpl_f<n>` calls it first, with its `Int` arguments when they
+are small and its records when every leaf is, boxes a result, and on a
+bail runs its own body, which raises exactly what it always raised: an
+eligible function is pure, so running it again computes the same thing.
+An evaluation stops trying the scalar tier after `CPLRT_Q_MAX_BAILS`
+bails. The depth limit is checked at every speculative call; the stack
+floor every 16 levels; the time budget, a cancellation, and a failed
+sibling at every call and loop iteration while the evaluation has any of
+them. A poll that sees one of those sets `q_late`, and the next entry check
+(the bailing function's generic re-entry) skips its time poll once: the
+time ran out inside that body, past the entry the evaluator found in time,
+so the fault is raised at the body's next poll, as the evaluator raises it.
+Each list or text a speculative local or temporary holds is a reference
+of its own, released on return and on a bail, and so is each text a
+record variable holds (taken when a record is copied, moved out of a
+temporary, given back when the variable is overwritten); a parameter's
+is the caller's. A text grows in place on `t = t ++ a ++ b ...` (every
+part evaluated first, so each sees the old `t`) where it is unique and has
+room; a field of a local is read without copying the record; and
+the default of `unwrap_or` is evaluated only when it is the value, when
+it can neither fault nor allocate (a literal, a local, or records, enums,
+and options of them). A list local that never leaves its function (it
+is assigned only `[]` and its own `push`, and read only by `len`,
+`is_empty`, `get`, `first`, and `last`) is a flat C array of its elements
+(`cplrt_qbuf`: an `int64_t`, an `int`, or a record's C struct each),
+grown in place within the heap budget and at most 64 MiB (past that the
+form bails, so that the generic form's list grows at the pace of its own
+steps), and freed on return and on a bail with the texts its records
+hold.
+Nothing a speculative form does is observable but its result.
 
 ### 1.4 Shape of generated code
 
@@ -592,6 +680,9 @@ evaluates them:
 | `Call` of a `fn` with a block body | `cpl_f<n>(cx, CPL_S<site>, args..., using..., &t)` |
 | `Call` of a `@builtin` stub | `cplrt_bi(<id>)(cx, CPL_S<site>, CPL_D<stub>, args..., &t)` (Section 2.7) |
 | `xs.get(i).unwrap_or(d)`, `xs.first().unwrap_or(d)`, `xs.last().unwrap_or(d)` (optimized profile) | the element read in place, or `d`: `cplrt_items(xs)[k]` when `0 <= k < cplrt_len(xs)`, retained; no `Option` is built (reading an element cannot fault, so `d` evaluated after the read is not observable) |
+| `let x = xs.get(i)` (or `first()`, `last()`) where `x` is only matched on (`Some(..)`, `None`, `_` arms), unwrapped with `unwrap_or`, or tested with `is_some`/`is_none` (optimized profile) | no `Option`: `x`'s slot holds the element, retained, or 0 for `None`, and those uses read it; where a binding site reports `x` (an assertion, a hole, a loop clause), the `Option` is built for the report |
+| `xs.len`, `xs.is_empty` (optimized profile) | the list header's length, inline |
+| `xs = xs.push(x)`, `xs = xs.drop(k)` on a `var`'s own list | `cplrt_list_push_fast` (inline while the list is a unique node with room), `cplrt_list_drop_owned` (a unique view moves along in place); a unique node or text that outgrows its block grows it (`realloc` with the default allocator, so a large one moves without a copy) |
 | `Call` of a `@builtin` stub whose id is not callable (`cpl_rtspec::builtins::spec(id).callable` is false), which only a hand-built HIR state contains | `cplrt_bi_uncallable(cx, CPL_S<site>, CPL_D<stub>, "<id>", args, n)` (Appendix B.1): for `gen_range` the precondition `lo <= hi` of its stub first, then `internal_error` kind `builtin_type_called` for a type id or `generator_not_a_value` for a generator id, with the detail of `crates/cpl-eval/src/builtins/gen.rs`, spanning the call, and the frame `{stub, site}`, as `call_builtin` reports it |
 | `Call` of a definition that is no function, or with an argument or handle count other than its declaration's (unreachable in a checked program) | `cplrt_internal(cx, CPL_S<site>, "not_a_function", ...)` or `cplrt_internal(cx, CPL_S<site>, "call_mismatch", ...)` with the detail that the evaluator's `call_fn` formats, computed at emit time (Section 3.2) |
 | `CapCall` | `cpl_o<cap>_<op>(cx, CPL_S<site>, handle, args..., &t)` |
@@ -1107,17 +1198,27 @@ O(1) `len` and `get`).
   quantity `cpl_stats.live_bytes` reports. The budget is deterministic for
   a runtime that one thread uses at a time; concurrent calls share it, so
   which of them meets it depends on their interleaving.
-- **The small-object cache.** While an evaluation runs, the objects of up
-  to 64 bytes it frees (16-byte size classes, at most 256 per class) are
-  kept for its next allocations of the same class instead of being
-  returned to the allocator: a block in the cache is still counted in
-  `live_bytes` and `live_objects`, and the cache is emptied, with the
-  counts returned, when the evaluation that claimed it ends, so between
-  calls the statistics are exact. One thread at a time owns a runtime's
-  cache (the first evaluation to begin while no other thread holds it,
-  until its outermost evaluation ends); the others allocate as without it.
-  A runtime whose `max_heap_bytes` is below 64 MiB has no cache, so the
-  cached blocks never decide where a small budget is met.
+- **The object pool.** While an evaluation runs, the objects of up to 64
+  bytes it makes (16-byte size classes) are slots of 64 KiB pages, one
+  page per class at a time: a slot comes from its page's free slots or its
+  untouched rest and goes back to its page's free slots, with no call to
+  the allocator and no atomic update. A page counts whole in `live_bytes`
+  from its allocation to its release (so the budget meets a page at once);
+  the pool's objects count in `live_objects` when the evaluation that
+  owns the pool ends, so between calls the statistics are exact. A page
+  left with no objects is freed, or kept as one of 4 spares (uncounted)
+  for the next pages; `cpl_runtime_close` frees them all. One thread at a
+  time owns a runtime's pool: the first evaluation to begin while no other
+  thread holds it, until its outermost evaluation ends, or, outside any
+  evaluation, a release for its own duration. Another thread that frees a
+  slot (a parallel section's worker, a concurrent call) pushes it onto
+  its page's remote stack, which the owner takes back when the page's
+  other slots run out and when its ownership ends; `cpl_runtime_stats`
+  takes them back first when no evaluation runs. The pool makes nothing
+  for a runtime with a host allocator (which sees every block) or with a
+  `max_heap_bytes` below 64 MiB (whose page-sized steps would move where a
+  small budget is met). Under AddressSanitizer a free slot stays poisoned
+  until it is reused, so a use after free is still reported.
 
 Decision: [D-294] C8. The runtime manages values by atomic reference
 counts, with relaxed increments, acquire-release decrements, saturation
@@ -4250,6 +4351,9 @@ typedef struct cplrt_cx {                       /* one top-level evaluation, on 
     cplrt_fault *fault;                         /* the fault being raised; NULL when none */
     cplrt_fault *violation;                     /* a copy of the last ensures, invariant, or decreases violation */
     cplrt_fault *memory;                        /* the preallocated resource_exhaustion (memory) record (4.7) */
+    int q_ok;                                   /* the scalar tier may be tried (1.3a); off after CPLRT_Q_MAX_BAILS */
+    uint32_t q_bails;                           /* scalar-tier attempts that bailed in this evaluation */
+    int q_late;                                 /* a scalar-tier poll saw an interruption: the next entry skips its own */
 } cplrt_cx;
 
 /* ---- the program tables, written by cpl-emit-c into <prefix>_tables.c (3.2) ---------------------------------- */

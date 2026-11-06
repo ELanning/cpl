@@ -117,6 +117,37 @@ static uint32_t int_mag_sub(uint32_t *r, const uint32_t *a, uint32_t na, const u
 /* r = a * b (schoolbook); r has na + nb limbs, zeroed here. */
 static void int_mag_mul(uint32_t *r, const uint32_t *a, uint32_t na, const uint32_t *b, uint32_t nb)
 {
+    /* the shorter operand outside: a bigint times a small one is one pass over the bigint */
+    if (na > nb) {
+        const uint32_t *t = a;
+        a = b;
+        b = t;
+        uint32_t tn = na;
+        na = nb;
+        nb = tn;
+    }
+    if (na == 1) {
+        /* one pass, with nothing to add in: two limbs at a time as one 64-bit word where the compiler has 128-bit
+           products (the limbs are little-endian: the low one first) */
+        uint64_t m = a[0], carry = 0;
+        uint32_t j = 0;
+#if defined(__SIZEOF_INT128__)
+        for (; j + 2u <= nb; j += 2u) {
+            uint64_t w = (uint64_t)b[j] | ((uint64_t)b[j + 1u] << 32);
+            unsigned __int128 t = (unsigned __int128)w * m + carry;
+            r[j] = (uint32_t)t;
+            r[j + 1u] = (uint32_t)((uint64_t)t >> 32);
+            carry = (uint64_t)(t >> 64); /* below m */
+        }
+#endif
+        for (; j < nb; j++) {
+            uint64_t t = m * b[j] + carry;
+            r[j] = (uint32_t)t;
+            carry = t >> 32;
+        }
+        r[nb] = (uint32_t)carry;
+        return;
+    }
     memset(r, 0, ((size_t)na + nb) * sizeof(uint32_t));
     for (uint32_t i = 0; i < na; i++) {
         uint64_t carry = 0, ai = a[i];
@@ -129,6 +160,45 @@ static void int_mag_mul(uint32_t *r, const uint32_t *a, uint32_t na, const uint3
         }
         r[i + nb] = (uint32_t)carry;
     }
+}
+
+#if defined(__SIZEOF_INT128__)
+/* <hi, lo> / 10^19 for hi < 10^19, the remainder in *rem: a division by an invariant through its reciprocal (Moller
+   and Granlund, "Improved division by invariant integers", algorithm 4; 10^19 has its top bit set, so it needs no
+   shift), two multiplications where a 128-bit division would be a call. */
+#define INT_D19 UINT64_C(10000000000000000000)
+#define INT_V19 UINT64_C(0xd83c94fb6d2ac34a) /* floor((2^128 - 1) / 10^19) - 2^64 */
+static inline uint64_t int_div19(uint64_t hi, uint64_t lo, uint64_t *rem)
+{
+    unsigned __int128 q = (unsigned __int128)INT_V19 * hi;
+    q += ((unsigned __int128)(hi + 1u) << 64) | lo;
+    uint64_t q1 = (uint64_t)(q >> 64), q0 = (uint64_t)q;
+    uint64_t r = lo - q1 * INT_D19;
+    if (r > q0) {
+        q1--;
+        r += INT_D19;
+    }
+    if (r >= INT_D19) {
+        q1++;
+        r -= INT_D19;
+    }
+    *rem = r;
+    return q1;
+}
+#endif
+
+/* int_mag_divmod1 by 10^9, the decimal writer's divisor: a constant, which the compiler turns into a multiplication
+   where a variable divisor is a division instruction per limb. */
+static uint32_t int_mag_divmod_1e9(uint32_t *q, const uint32_t *u, uint32_t n)
+{
+    uint64_t rem = 0;
+    for (uint32_t i = n; i > 0; i--) {
+        uint64_t cur = (rem << 32) | u[i - 1];
+        uint64_t qq = cur / UINT64_C(1000000000);
+        q[i - 1] = (uint32_t)qq;
+        rem = cur - qq * UINT64_C(1000000000);
+    }
+    return (uint32_t)rem;
 }
 
 /* q = u / d and returns u % d for one limb d != 0; q has n limbs (q may be u). */
@@ -398,6 +468,54 @@ void CPLRT(int_write)(cplrt_sbuf *b, cplrt_w v)
     }
     int_view x;
     int_view_of(&x, v);
+#if defined(__SIZEOF_INT128__)
+    {
+        /* 64-bit words of two limbs each, divided by 10^19 a pass: 19 digits a pass over half as many words */
+        uint32_t n = (x.n + 1u) / 2u;
+        size_t cap = (size_t)n * 2u + 2u; /* 64 bits are less than 2 decimal chunks of 19 digits */
+        uint64_t *work = (uint64_t *)CPLRT(alloc)(b->rt, (size_t)n * sizeof(uint64_t));
+        uint64_t *chunks = (uint64_t *)CPLRT(alloc)(b->rt, cap * sizeof(uint64_t));
+        if (work == NULL || chunks == NULL) {
+            CPLRT(free)(work);
+            CPLRT(free)(chunks);
+            b->status = CPLRT_NOMEM;
+            return;
+        }
+        for (uint32_t i = 0; i < n; i++)
+            work[i] = (uint64_t)x.limb[2u * i] | (2u * i + 1u < x.n ? (uint64_t)x.limb[2u * i + 1u] << 32 : 0u);
+        while (n > 0 && work[n - 1] == 0)
+            n--;
+        size_t nchunks = 0;
+        while (n > 0) {
+            uint64_t rem = 0;
+            for (uint32_t i = n; i > 0; i--)
+                work[i - 1] = int_div19(rem, work[i - 1], &rem);
+            chunks[nchunks++] = rem;
+            while (n > 0 && work[n - 1] == 0)
+                n--;
+        }
+        if (x.neg)
+            CPLRT(sbuf_putc)(b, '-');
+        for (size_t c = nchunks; c > 0; c--) {
+            uint64_t chunk = chunks[c - 1];
+            size_t k = sizeof tmp;
+            size_t width = 0;
+            do {
+                tmp[--k] = (char)('0' + (int)(chunk % 10u));
+                chunk /= 10u;
+                width++;
+            } while (chunk != 0);
+            while (c != nchunks && width < 19u) {
+                tmp[--k] = '0';
+                width++;
+            }
+            CPLRT(sbuf_put)(b, tmp + k, sizeof tmp - k);
+        }
+        CPLRT(free)(work);
+        CPLRT(free)(chunks);
+        return;
+    }
+#endif
     size_t nchunks_cap = (size_t)x.n * 2u + 2u; /* 32 bits are less than 2 decimal chunks of 9 digits */
     uint32_t *work = (uint32_t *)CPLRT(alloc)(b->rt, (size_t)x.n * sizeof(uint32_t));
     uint32_t *chunks = (uint32_t *)CPLRT(alloc)(b->rt, nchunks_cap * sizeof(uint32_t));
@@ -411,7 +529,7 @@ void CPLRT(int_write)(cplrt_sbuf *b, cplrt_w v)
     uint32_t n = x.n;
     size_t nchunks = 0;
     while (n > 0) {
-        chunks[nchunks++] = int_mag_divmod1(work, work, n, 1000000000u);
+        chunks[nchunks++] = int_mag_divmod_1e9(work, work, n);
         while (n > 0 && work[n - 1] == 0)
             n--;
     }

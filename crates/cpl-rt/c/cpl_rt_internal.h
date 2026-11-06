@@ -153,12 +153,19 @@ struct cplrt_runtime {                   /* declared in cpl_rt.h; what <prefix>_
                                             CPL_PYTHON, else python3; guarded by lock */
     char **worker_env;                   /* "KEY=VALUE" entries set in every Python worker's environment */
     uint32_t nworker_env;
-    /* the small-object cache of cpl_rt_value.c: one thread at a time owns it, for its outermost evaluation of this
-       runtime; only the owner reads or writes the members after cache_owner */
+    /* the object pool of cpl_rt_value.c: one thread at a time owns it, for its outermost evaluation of this runtime
+       or for one release; only the owner reads or writes the members after cache_owner */
     _Atomic uintptr_t cache_owner;       /* (uintptr_t)pthread_self() of the owner; 0: none */
+    _Atomic uint32_t pool_remote;        /* 1: a thread freed a pool object while another owned the pool */
     uint32_t cache_depth;                /* the owner's evaluations in progress */
-    uint32_t cache_n[4];
-    cplrt_obj *cache_head[4];            /* the cached blocks of each 16-byte size class, linked through u.next */
+    uint32_t pool_nspare;
+    uint32_t pool_npages;                /* pages with objects */
+    uint32_t pool_peak;                  /* the most pages with objects since the owner's ownership began */
+    int64_t pool_net;                    /* pool objects made less those freed, not yet in live_objects */
+    struct cplrt_pool_page *pool_cur[4]; /* each 16-byte size class's page being allocated from */
+    struct cplrt_pool_page *pool_partial[4]; /* each class's other pages with free slots */
+    struct cplrt_pool_page *pool_pages;  /* every page with objects, linked */
+    struct cplrt_pool_page *pool_spare;  /* empty pages kept for reuse (uncounted in live_bytes) */
 };
 
 /* ---- a growable text buffer, the target of every writer --------------------------------------------------------- */
@@ -205,7 +212,9 @@ typedef struct cplrt_jv {
    runtime is: error objects, which outlive their runtime (4.3), are allocated by R3 so that they can be. */
 void *CPLRT(alloc)(cplrt_runtime *rt, size_t size);
 void CPLRT(free)(void *p);                                  /* NULL: nothing */
-size_t CPLRT(alloc_size)(const void *p);                     /* a live allocation, never an immortal static */
+size_t CPLRT(alloc_size)(const void *p);
+cplrt_obj *CPLRT(obj_grow)(cplrt_runtime *rt, cplrt_obj *o, size_t size); /* a unique object's block, grown */
+int CPLRT(value_share)(cplrt_runtime *rt, cplrt_w w);      /* mark w and all it reaches shared (cpl_rt.h) */                     /* a live allocation, never an immortal static */
 
 /* The first byte subsequence, or NULL. The platform implementation also accepts empty needles and embedded NULs. */
 const char *CPLRT(find_bytes)(const char *hay, size_t hlen, const char *needle, size_t nlen);
@@ -370,6 +379,8 @@ void CPLRT(cx_end)(cplrt_cx *cx);
 /* The small-object cache of cpl_rt_value.c, entered by cx_begin and left by cx_end. */
 void CPLRT(value_cache_enter)(cplrt_runtime *rt);
 void CPLRT(value_cache_leave)(cplrt_runtime *rt);
+void CPLRT(value_settle)(cplrt_runtime *rt);    /* the pool's counts made exact, when no evaluation owns it */
+void CPLRT(value_pool_fini)(cplrt_runtime *rt); /* every page of the pool freed (the runtime closes) */
 
 /* Raising (3.3.1). CPLRT(fault_raise) makes a new record cx->fault (which is NULL then) of kind, clause_kind, and
    resource, with the message (copied), the span site (CPLRT_NONE: none), and the static symbol and qualified_name

@@ -115,9 +115,102 @@ fn bigint(n: i64) -> i64 {
     f.to_string().len() as i64
 }
 
+struct Tree {
+    left: Option<Box<Tree>>,
+    right: Option<Box<Tree>>,
+}
+
+fn make(d: i64) -> Tree {
+    if d == 0 {
+        Tree { left: None, right: None }
+    } else {
+        Tree { left: Some(Box::new(make(d - 1))), right: Some(Box::new(make(d - 1))) }
+    }
+}
+
+fn count(t: Option<&Tree>) -> i64 {
+    match t {
+        None => 0,
+        Some(n) => 1 + count(n.left.as_deref()) + count(n.right.as_deref()),
+    }
+}
+
+fn trees(n: i64) -> i64 {
+    let mut total = 0;
+    for _ in 0..n {
+        let t = make(16);
+        total += count(Some(&t));
+    }
+    total
+}
+
+#[derive(Clone, Copy)]
+struct Pt {
+    x: i64,
+    y: i64,
+}
+
+fn records(n: i64) -> i64 {
+    let ps: Vec<Pt> = (0..n).map(|i| Pt { x: i % 1000, y: i % 7 }).collect();
+    ps.iter().map(|p| p.x * p.y).sum()
+}
+
+#[derive(Clone)]
+struct Item {
+    #[allow(dead_code)]
+    sku: String,
+    price: i64,
+    qty: i64,
+}
+
+enum Disc {
+    NoDisc,
+    Pct(i64),
+    Bogo(i64),
+}
+
+#[inline(never)]
+fn item_total(it: &Item, d: &Disc) -> i64 {
+    let gross = it.price * it.qty;
+    match *d {
+        Disc::NoDisc => gross,
+        Disc::Pct(p) => gross - gross * p / 100,
+        Disc::Bogo(n) => if n <= 0 { gross } else { gross - it.qty / (n + 1) * it.price },
+    }
+}
+
+fn business(n: i64) -> i64 {
+    let items: Vec<Item> = (0..1000i64).map(|i| Item { sku: format!("sku{i}"), price: 100 + i % 50, qty: 1 + i % 5 }).collect();
+    let mut total = 0i64;
+    for _ in 0..n {
+        for (j, it) in items.iter().enumerate() {
+            let j = j as i64;
+            let d = if j % 3 == 0 { Disc::NoDisc } else if j % 3 == 1 { Disc::Pct(j % 30) } else { Disc::Bogo(j % 4) };
+            total = (total + item_total(it, &d)) % 1000000007;
+        }
+    }
+    total
+}
+
+fn matrix(n: i64) -> i64 {
+    let n = n as usize;
+    let a: Vec<Vec<i64>> = (0..n).map(|i| (0..n).map(|j| ((i * j + 1) % 10) as i64).collect()).collect();
+    let mut sum = 0i64;
+    for i in 0..n {
+        for j in 0..n {
+            let mut acc = 0i64;
+            for k in 0..n {
+                acc += a[i][k] * a[k][j];
+            }
+            sum = (sum + acc) % 1000000007;
+        }
+    }
+    sum
+}
+
 fn main() {
     let only: Vec<String> = std::env::args().skip(1).collect();
-    let kernels: [(&str, fn(i64) -> i64, i64); 9] = [
+    let kernels: [(&str, fn(i64) -> i64, i64); 13] = [
         ("arith", arith, 50_000_000),
         ("fib", fib, 32),
         ("collatz", collatz, 300_000),
@@ -127,6 +220,10 @@ fn main() {
         ("structs", structs, 20_000_000),
         ("text", text, 1_000_000),
         ("bigint", bigint, 5_000),
+        ("trees", trees, 20),
+        ("records", records, 2_000_000),
+        ("matrix", matrix, 150),
+        ("business", business, 2000),
     ];
     for (name, f, n) in kernels {
         if !only.is_empty() && !only.iter().any(|o| o == name) {

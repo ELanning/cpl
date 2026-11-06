@@ -1,8 +1,8 @@
 //! The emitted-shape test (toolchain 12, 12.9 item 14; spec/cabi.md 1.3): the slot discipline, checked mechanically on
 //! every `cpl_f`, `cpl_p`, `cpl_o`, `cpl_t`, and `cpl_b` function of the emitted program unit of every corpus program
 //! (the interpreter corpus, the examples, the checker's `ok` corpus, the differential corpus), each function read
-//! alone: (1) every slot is declared at the top and initialized to 0; (2) only `CPLRT_SET`, `CPLRT_COPY`, and
-//! `CPLRT_MOVE` write a slot; (3) the only labels are `exit:`, `fail:`, and `done:`; (4) no `return` before `done:`
+//! alone: (1) every slot is declared at the top and initialized to 0; (2) only `CPLRT_SET`, `CPLRT_COPY`,
+//! `CPLRT_MOVE`, and `CPLRT_GIVE` write a slot; (3) the only labels are `exit:`, `fail:`, and `done:`; (4) no `return` before `done:`
 //! but the refusal after `cplrt_enter_fn` (or its inline `cplrt_fast_enter_fn`) or `cplrt_enter_act`; (5) no `setjmp`/`longjmp` and no mutable global state.
 
 use cpl_diag::FileOrigin;

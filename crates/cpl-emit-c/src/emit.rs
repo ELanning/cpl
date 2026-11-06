@@ -62,18 +62,32 @@ pub(crate) fn emit(
 
     let mut tables = Tables::new(p, cfg.with_tests);
     tables.optimize = cfg.optimize && !cfg.coverage;
+    tables.fast = crate::fast::Plan::new(p, tables.optimize);
+    // the text literals of the scalar forms, as program-unit constants
+    for t in tables.fast.text_literals(p) {
+        let k = tables.constant(crate::tables::ConstKey::Text(t.clone()));
+        tables.fast.texts.insert(t, k);
+    }
     if cfg.coverage {
         tables.cov = Some(Vec::new());
     }
     let mut names = Names::default();
+    for k in tables.fast.texts.values() {
+        names.used.insert((N_K, *k));
+    }
 
     // ---- the functions of the program unit
     let mut protos = String::new();
     let mut funcs = String::new();
+    // the records of the scalar tier, before the prototypes that use them
+    protos.push_str(&tables.fast.types(p));
     for d in &p.defs {
         match &d.kind {
             DefKind::Fn(_) if lower::emits_fn(p, d.id) => {
                 let _ = writeln!(protos, "{};", lower::fn_prototype(p, d.id));
+                if tables.fast.has(d.id) {
+                    let _ = writeln!(protos, "{};", tables.fast.prototype(p, d.id));
+                }
             }
             kind if kind.checked_predicate().is_some() => {
                 let rd = kind.checked_predicate().unwrap();
@@ -93,6 +107,10 @@ pub(crate) fn emit(
     for d in &p.defs {
         match &d.kind {
             DefKind::Fn(_) if lower::emits_fn(p, d.id) => {
+                if tables.fast.has(d.id) {
+                    funcs.push_str(&tables.fast.emit(&tables, d.id));
+                    funcs.push('\n');
+                }
                 funcs.push_str(&lower::emit_fn(&mut tables, &mut names, d.id));
                 funcs.push('\n');
             }

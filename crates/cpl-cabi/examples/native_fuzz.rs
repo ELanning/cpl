@@ -46,7 +46,18 @@ fn main() {
         } else {
             cpl_emit_c::cc::Profile::Debug
         },
-        sanitize: Vec::new(),
+        // FUZZ_SANITIZE=address,undefined (or thread): the drivers run under the sanitizers, so
+        // a memory or undefined-behavior error of the runtime kills the driver and is reported.
+        sanitize: std::env::var("FUZZ_SANITIZE")
+            .unwrap_or_default()
+            .split(',')
+            .filter_map(|s| match s.trim() {
+                "address" => Some(cpl_emit_c::cc::Sanitizer::Address),
+                "undefined" => Some(cpl_emit_c::cc::Sanitizer::Undefined),
+                "thread" => Some(cpl_emit_c::cc::Sanitizer::Thread),
+                _ => None,
+            })
+            .collect(),
         coverage: false,
         cc: None,
         runtime: cpl_rt::RuntimeSource::Embedded,

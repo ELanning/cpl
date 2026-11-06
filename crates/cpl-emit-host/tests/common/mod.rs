@@ -225,6 +225,16 @@ pub fn build(
             } else {
                 "cpl-driver"
             });
+            // `go vet` holds the generated code to what Go code is held to: nothing after a
+            // terminating statement (the analyzers on what the CPL source says, `x && x`, are off)
+            let out = Command::new("go")
+                .args(["vet", "-unreachable", "./..."])
+                .current_dir(dir)
+                .output()
+                .map_err(|e| e.to_string())?;
+            if !out.status.success() {
+                return Err(failed(out));
+            }
             let out = Command::new("go")
                 .args(["build", "-o"])
                 .arg(&bin)
@@ -274,6 +284,12 @@ pub struct Case {
 /// The arguments of a case: random inputs of the generator's shapes, or (`swept`) the input
 /// sweeps of the differential suites, which reach every type.
 fn requests(p: &Program, seed: u64, swept: bool) -> Vec<(DefId, Vec<Json>)> {
+    // HOST_DIFF_REQUESTS=path: the requests of a file instead, one per line, in the driver's
+    // form `{"function": "<qualified name>", "args": [...]}` (hand-picked edge cases).
+    if let Ok(path) = std::env::var("HOST_DIFF_REQUESTS") {
+        let text = std::fs::read_to_string(&path).expect("HOST_DIFF_REQUESTS");
+        return parse_requests(p, &text);
+    }
     let functions: Vec<DefId> = p
         .defs()
         .filter(|d| p.module(d.module).path.first().is_some_and(|s| s != "std"))
@@ -317,12 +333,51 @@ fn requests(p: &Program, seed: u64, swept: bool) -> Vec<(DefId, Vec<Json>)> {
 }
 
 /// Run one case: `Err` is a build failure, with the toolchain's output.
+/// Requests in the driver's form, one JSON object per line.
+fn parse_requests(p: &Program, text: &str) -> Vec<(DefId, Vec<Json>)> {
+    text.lines()
+        .filter(|l| !l.trim().is_empty())
+        .map(|l| {
+            let r: Json = serde_json::from_str(l).expect("a request");
+            let name = r["function"].as_str().expect("a function");
+            let f = p
+                .defs()
+                .find(|d| p.display_path(d.id) == name)
+                .unwrap_or_else(|| panic!("no function {name}"))
+                .id;
+            (f, r["args"].as_array().cloned().unwrap_or_default())
+        })
+        .collect()
+}
+
+/// Run one case on the requests of `text` (the driver's form, one per line).
+pub fn run_requests(
+    target: Target,
+    root: &Path,
+    seed: u64,
+    source: &str,
+    text: &str,
+) -> Result<Case, String> {
+    run_with(target, root, seed, source, true, Some(text))
+}
+
 pub fn run_case(
     target: Target,
     root: &Path,
     seed: u64,
     source: &str,
     swept: bool,
+) -> Result<Case, String> {
+    run_with(target, root, seed, source, swept, None)
+}
+
+fn run_with(
+    target: Target,
+    root: &Path,
+    seed: u64,
+    source: &str,
+    swept: bool,
+    explicit: Option<&str>,
 ) -> Result<Case, String> {
     let p = match check(source) {
         Ok(p) => p,
@@ -343,7 +398,11 @@ pub fn run_case(
         .unwrap_or(if swept { 5_000 } else { 200_000 });
     let mut asked = Vec::new();
     let mut expected = Vec::new();
-    for (f, args) in requests(&p, seed, swept) {
+    let wanted = match explicit {
+        Some(text) => parse_requests(&p, text),
+        None => requests(&p, seed, swept),
+    };
+    for (f, args) in wanted {
         if let Some(e) = evaluate(&p, f, &args, steps) {
             asked.push((f, args));
             expected.push(e);

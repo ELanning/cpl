@@ -604,7 +604,8 @@ enum Node {
 /// positions with the same key hold the same value.
 #[derive(Copy, Clone, PartialEq, Eq, Hash)]
 enum Shared {
-    List(*const Value),
+    /// A list is the elements it views: their address and count.
+    List(usize, usize),
     Struct(DefId, *const Value),
     Enum(DefId, u32, *const Value),
     Wrapper(DefId, *const Value),
@@ -613,7 +614,10 @@ enum Shared {
 /// The sharing key of a value that has children.
 fn shared(v: &Value) -> Option<Shared> {
     match v {
-        Value::List(xs) => Some(Shared::List(xs.as_ptr())),
+        Value::List(xs) => {
+            let (at, len) = xs.identity();
+            Some(Shared::List(at, len))
+        }
         Value::Struct { def, fields } => Some(Shared::Struct(*def, fields.as_ptr())),
         Value::Enum {
             def,

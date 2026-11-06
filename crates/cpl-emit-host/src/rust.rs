@@ -11,7 +11,7 @@ use crate::lower::{diverges, Lowered};
 use crate::{erase, instantiate, needs_validation, std_type, Options, Package, StdType};
 use cpl_hir::{DefId, DefKind, Program, Ty};
 use num_traits::ToPrimitive;
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, HashSet};
 use std::fmt::Write as _;
 
 const RESERVED: &[&str] = &[
@@ -21,6 +21,8 @@ const RESERVED: &[&str] = &[
     "while", "async", "await", "dyn", "abstract", "become", "box", "do", "final", "macro",
     "override", "priv", "typeof", "unsized", "virtual", "yield", "try", "gen", "cpl", "std",
     "core", "alloc",
+    // the names the generated functions declare themselves: the calling context
+    "cx",
 ];
 
 const FALLIBLE: &[&str] = FALLIBLE_BUILTINS;
@@ -233,9 +235,9 @@ impl<'p> Printer<'p> {
                 let qualified = crate::lower::type_name(p, d);
                 let bare = def.name.display();
                 let _ = writeln!(self.out, "#[derive(Clone, Debug, PartialEq, Eq, Hash)]\npub struct {name}(pub {inner});\n");
-                let _ = writeln!(self.out, "impl cpl::ValueText for {name} {{\n    fn write_text(&self, out: &mut String) {{\n        out.push_str(\"{bare}(\");\n        self.0.write_text(out);\n        out.push(')');\n    }}\n}}");
+                let _ = writeln!(self.out, "impl cpl::ValueText for {name} {{\n    fn write_text(&self, out: &mut ::std::string::String) {{\n        out.push_str(\"{bare}(\");\n        self.0.write_text(out);\n        out.push(')');\n    }}\n}}");
                 let _ = writeln!(self.out, "impl cpl::ToJson for {name} {{\n    fn to_json(&self) -> cpl::Json {{\n        cpl::tagged({qualified:?}, None, Some(vec![self.0.to_json()]))\n    }}\n}}");
-                let _ = writeln!(self.out, "impl cpl::FromJson for {name} {{\n    fn from_json(j: &cpl::Json) -> Result<Self, String> {{\n        match cpl::untag(j, {qualified:?})? {{\n            (_, [x]) => Ok({name}(cpl::FromJson::from_json(x)?)),\n            _ => Err(\"expected a {bare}\".into()),\n        }}\n    }}\n}}\n");
+                let _ = writeln!(self.out, "impl cpl::FromJson for {name} {{\n    fn from_json(j: &cpl::Json) -> Result<Self, ::std::string::String> {{\n        match cpl::untag(j, {qualified:?})? {{\n            (_, [x]) => Ok({name}(cpl::FromJson::from_json(x)?)),\n            _ => Err(\"expected a {bare}\".into()),\n        }}\n    }}\n}}\n");
             }
             DefKind::Refinement(_) => {
                 if let Some(pred) = preds.get(&d) {
@@ -374,7 +376,7 @@ impl<'p> Printer<'p> {
         let gu = generics_use(generics);
         let qualified = crate::lower::type_name(p, d);
         let bare = p.def(d).name.display();
-        let _ = writeln!(self.out, "impl{g} cpl::ValueText for {name}{gu} {{\n    fn write_text(&self, out: &mut String) {{");
+        let _ = writeln!(self.out, "impl{g} cpl::ValueText for {name}{gu} {{\n    fn write_text(&self, out: &mut ::std::string::String) {{");
         if fields.is_empty() {
             let _ = writeln!(self.out, "        out.push_str(\"{bare} {{}}\");");
         } else {
@@ -399,7 +401,7 @@ impl<'p> Printer<'p> {
             );
         }
         let _ = writeln!(self.out, "        ])\n    }}\n}}");
-        let _ = writeln!(self.out, "impl{g} cpl::FromJson for {name}{gu} {{\n    fn from_json(j: &cpl::Json) -> Result<Self, String> {{\n        match j.get(\"$type\") {{\n            Some(cpl::Json::Str(t)) if t == {qualified:?} => {{}}\n            _ => return Err(\"expected a {bare}\".into()),\n        }}\n        Ok({name} {{");
+        let _ = writeln!(self.out, "impl{g} cpl::FromJson for {name}{gu} {{\n    fn from_json(j: &cpl::Json) -> Result<Self, ::std::string::String> {{\n        match j.get(\"$type\") {{\n            Some(cpl::Json::Str(t)) if t == {qualified:?} => {{}}\n            _ => return Err(\"expected a {bare}\".into()),\n        }}\n        Ok({name} {{");
         for (f, _) in fields {
             let _ = writeln!(self.out, "            {}: cpl::field(j, {f:?})?,", ident(f));
         }
@@ -418,7 +420,7 @@ impl<'p> Printer<'p> {
         } else {
             "self"
         };
-        let _ = writeln!(self.out, "impl{g} cpl::ValueText for {name}{gu} {{\n    fn write_text(&self, out: &mut String) {{\n        match {subject} {{");
+        let _ = writeln!(self.out, "impl{g} cpl::ValueText for {name}{gu} {{\n    fn write_text(&self, out: &mut ::std::string::String) {{\n        match {subject} {{");
         for v in &e.variants {
             let vn = ident(&v.name);
             if v.payload.is_empty() {
@@ -461,7 +463,7 @@ impl<'p> Printer<'p> {
             }
         }
         let _ = writeln!(self.out, "        }}\n    }}\n}}");
-        let _ = writeln!(self.out, "impl{g} cpl::FromJson for {name}{gu} {{\n    fn from_json(j: &cpl::Json) -> Result<Self, String> {{\n        match cpl::untag(j, {qualified:?})? {{");
+        let _ = writeln!(self.out, "impl{g} cpl::FromJson for {name}{gu} {{\n    fn from_json(j: &cpl::Json) -> Result<Self, ::std::string::String> {{\n        match cpl::untag(j, {qualified:?})? {{");
         for v in &e.variants {
             let vn = ident(&v.name);
             if v.payload.is_empty() {
@@ -515,17 +517,32 @@ impl<'p> Printer<'p> {
         let ret = self.ty(&f.ret, &f.generics);
         let mut params = self.sig_params(f);
         params.push("cx: &mut cpl::Cx".into());
-        // Nothing reads the parameters after the body unless an `ensures` does: then they are
-        // cloned, else moved.
+        // Nothing reads a parameter after the body unless an `ensures` does: the body borrows
+        // such a parameter (a `Bool` or a handle is copied), and the others are moved into it.
+        let after = crate::moves::read_before_written(&f.ensures);
+        let refs: BTreeSet<Var> = f
+            .params
+            .iter()
+            .copied()
+            .filter(|v| {
+                let d = &f.vars[*v as usize];
+                after.contains(v)
+                    && !d.mutable
+                    && !matches!(d.ty, Ty::Bool | Ty::Capability(_))
+                    && !self.is_unit(&d.ty)
+            })
+            .collect();
         let args: Vec<String> = f
             .params
             .iter()
             .chain(&f.using)
             .map(|v| {
-                if f.ensures.is_empty() {
-                    format!("v{v}")
-                } else {
+                if refs.contains(v) {
+                    format!("&v{v}")
+                } else if after.contains(v) {
                     self.read(*v, &f.vars)
+                } else {
+                    format!("v{v}")
                 }
             })
             .collect();
@@ -533,6 +550,8 @@ impl<'p> Printer<'p> {
             r: self,
             f_vars: &f.vars,
             generics: &f.generics,
+            moves: crate::moves::movable(&f.body),
+            refs: BTreeSet::new(),
         };
         let mut out = String::new();
         let _ = writeln!(out, "#[doc(hidden)]\npub fn {name}__x{g}({}) -> Result<{ret}, cpl::Fault> {{\n    cx.enter()?;", params.join(", "));
@@ -557,27 +576,43 @@ impl<'p> Printer<'p> {
             args.iter().map(|a| format!("{a}, ")).collect::<String>()
         );
         if !f.ensures.is_empty() {
+            // `result` is the returned value, borrowed
             if let Some(r) = f.result {
                 let _ = writeln!(
                     out,
-                    "    let mut v{r}: {} = __r.clone();",
+                    "    let v{r}: &{} = &__r;",
                     fx.r.ty(&f.vars[r as usize].ty, &f.generics)
                 );
+                fx.refs.insert(r);
             }
             fx.stmts(&f.ensures, 1, &mut out);
+            fx.refs.clear();
         }
         if f.measure.is_some() {
             let _ = writeln!(out, "    cx.measure_pop();");
         }
         let _ = writeln!(out, "    cx.leave();\n    Ok(__r)\n}}\n");
         let mut body = String::new();
-        let mut params = fx.r.sig_params(f);
+        let mut params: Vec<String> = f
+            .params
+            .iter()
+            .chain(&f.using)
+            .map(|v| {
+                let t = fx.r.ty(&f.vars[*v as usize].ty, &f.generics);
+                if refs.contains(v) {
+                    format!("v{v}: &{t}")
+                } else {
+                    format!("mut v{v}: {t}")
+                }
+            })
+            .collect();
         params.push("cx: &mut cpl::Cx".into());
         let _ = writeln!(
             body,
             "#[doc(hidden)]\n#[inline]\npub fn {name}__b{g}({}) -> Result<{ret}, cpl::Fault> {{",
             params.join(", ")
         );
+        fx.refs = refs;
         fx.stmts(&f.body, 1, &mut body);
         if !diverges(&f.body) {
             body.push_str("    unreachable!(\"a body ends in a return\")\n");
@@ -648,6 +683,8 @@ impl<'p> Printer<'p> {
             r: self,
             f_vars: &q.vars,
             generics: &q.generics,
+            moves: HashSet::new(),
+            refs: BTreeSet::new(),
         };
         fx.stmts(&q.body, 1, &mut out);
         if !diverges(&q.body) {
@@ -893,9 +930,45 @@ struct Fx<'a, 'p> {
     r: &'a mut Printer<'p>,
     f_vars: &'a [VarDef],
     generics: &'a [String],
+    /// The reads printed as moves (`crate::moves`).
+    moves: HashSet<usize>,
+    /// The parameters the body borrows (`&T`): read by cloning through the reference, never
+    /// moved.
+    refs: BTreeSet<Var>,
 }
 
 impl Fx<'_, '_> {
+    /// A chain of fields over a variable as a Rust place (`v3.line.sku`, `(*v3.next).value`),
+    /// and whether it goes through an `Arc` (nothing can be moved out of it then).
+    fn chain_place(&self, e: &LExpr) -> Option<(String, bool)> {
+        let p = self.r.p;
+        match e {
+            LExpr::Var(v) if self.refs.contains(v) => Some((format!("(*v{v})"), true)),
+            LExpr::Var(v) => Some((format!("v{v}"), false)),
+            LExpr::Field {
+                base, def, index, ..
+            } => {
+                let (b, through) = self.chain_place(base)?;
+                let s = p.def(*def).kind.as_struct().expect("a struct");
+                let f = ident(&s.fields[*index as usize].name);
+                if std_type(p, *def).is_none() && self.r.boxed_field(*def, *index as usize) {
+                    Some((format!("(*{b}.{f})"), true))
+                } else {
+                    Some((format!("{b}.{f}"), through))
+                }
+            }
+            LExpr::Unwrap { base, def } => {
+                let (b, through) = self.chain_place(base)?;
+                if self.r.boxed_wrapper(*def) {
+                    Some((format!("(*{b}.0)"), true))
+                } else {
+                    Some((format!("{b}.0"), through))
+                }
+            }
+            _ => None,
+        }
+    }
+
     fn ty(&self, t: &Ty) -> String {
         self.r.ty(t, self.generics)
     }
@@ -960,13 +1033,30 @@ impl Fx<'_, '_> {
                     let mut opens = 0;
                     let mut lines = String::new();
                     let ty = self.f_vars[*scrutinee as usize].ty.clone();
+                    // An arm after which the scrutinee is dead binds by moving out of it, when
+                    // its pattern has one level (`Some(x)`): a failed `if let` moves nothing.
+                    let owned = !self.refs.contains(scrutinee)
+                        && self.moves.contains(&crate::moves::arm_site(arm))
+                        && match &arm.pattern {
+                            LPat::Bind(_) | LPat::Wild => true,
+                            LPat::Ctor { args, .. } => {
+                                args.iter().all(|a| matches!(a, LPat::Bind(_) | LPat::Wild))
+                            }
+                            _ => false,
+                        };
+                    let subject = if owned {
+                        format!("v{scrutinee}")
+                    } else {
+                        format!("(&v{scrutinee})")
+                    };
                     self.pattern(
                         &arm.pattern,
-                        &format!("(&v{scrutinee})"),
+                        &subject,
                         &ty,
                         depth + 1,
                         &mut opens,
                         &mut lines,
+                        owned,
                     );
                     out.push_str(&lines);
                     let inner = depth + 1 + opens;
@@ -1005,6 +1095,7 @@ impl Fx<'_, '_> {
             LStmt::Return(e) => {
                 // A returned variable is not read again: it is moved.
                 let e = match e {
+                    LExpr::Var(v) if self.refs.contains(v) => format!("v{v}.clone()"),
                     LExpr::Var(v) => format!("v{v}"),
                     other => self.expr(other),
                 };
@@ -1036,6 +1127,7 @@ impl Fx<'_, '_> {
 
     /// Open the tests of `pat` against `subject` (a reference expression of type `&ty`),
     /// binding its variables; each `if` opened counts in `opens`.
+    #[allow(clippy::too_many_arguments)]
     fn pattern(
         &mut self,
         pat: &LPat,
@@ -1044,11 +1136,16 @@ impl Fx<'_, '_> {
         depth: usize,
         opens: &mut usize,
         out: &mut String,
+        // `subject` is a value the pattern may move out of, not a reference
+        owned: bool,
     ) {
         let p = self.r.p;
         let pad = "    ".repeat(depth + *opens);
         match pat {
             LPat::Wild => {}
+            LPat::Bind(v) if owned => {
+                let _ = writeln!(out, "{pad}let mut v{v}: {} = {subject};", self.var_ty(*v));
+            }
             LPat::Bind(v) => {
                 let _ = writeln!(
                     out,
@@ -1079,7 +1176,7 @@ impl Fx<'_, '_> {
                 let deref = if self.r.boxed_wrapper(*def) { "*" } else { "" };
                 let _ = writeln!(out, "{pad}{{ let {n} = &{deref}{subject}.0;");
                 *opens += 1;
-                self.pattern(arg, &n, &inner, depth, opens, out);
+                self.pattern(arg, &n, &inner, depth, opens, out, false);
             }
             LPat::Ctor {
                 def,
@@ -1154,12 +1251,13 @@ impl Fx<'_, '_> {
                 for (i, ((a, n), t)) in args.iter().zip(&names).zip(payload).enumerate() {
                     let boxed = std_type(p, *def).is_none()
                         && self.r.boxed_payload(*def, *variant as usize, i);
-                    let subject = if boxed {
-                        format!("(&**{n})")
-                    } else {
-                        n.clone()
+                    // an owned `Arc` payload is still read through it
+                    let subject = match (boxed, owned) {
+                        (true, true) => format!("(&*{n})"),
+                        (true, false) => format!("(&**{n})"),
+                        (false, _) => n.clone(),
                     };
-                    self.pattern(a, &subject, &t, depth, opens, out);
+                    self.pattern(a, &subject, &t, depth, opens, out, owned && !boxed);
                 }
             }
         }
@@ -1169,31 +1267,26 @@ impl Fx<'_, '_> {
     /// `e` as a place to borrow or compare without cloning it: a variable or a field of one;
     /// any other expression is its value, a temporary.
     fn place(&mut self, e: &LExpr) -> String {
-        let p = self.r.p;
-        match e {
-            LExpr::Var(v) => format!("v{v}"),
-            LExpr::Field {
-                base, def, index, ..
-            } if matches!(base.as_ref(), LExpr::Var(_)) => {
-                let LExpr::Var(v) = base.as_ref() else {
-                    unreachable!()
-                };
-                let s = p.def(*def).kind.as_struct().expect("a struct");
-                let f = ident(&s.fields[*index as usize].name);
-                if std_type(p, *def).is_none() && self.r.boxed_field(*def, *index as usize) {
-                    format!("(*v{v}.{f})")
-                } else {
-                    format!("v{v}.{f}")
-                }
-            }
-            _ => self.expr(e),
+        match self.chain_place(e) {
+            Some((place, _)) => place,
+            None => self.expr(e),
         }
     }
 
     fn expr(&mut self, e: &LExpr) -> String {
         let p = self.r.p;
         match e {
+            LExpr::Var(v) if self.refs.contains(v) => format!("v{v}.clone()"),
+            LExpr::Var(v) if self.moves.contains(&crate::moves::site(e)) => format!("v{v}"),
             LExpr::Var(v) => self.r.read(*v, self.f_vars),
+            LExpr::Field { .. } | LExpr::Unwrap { .. } if self.chain_place(e).is_some() => {
+                let (place, through) = self.chain_place(e).expect("a chain");
+                if !through && self.moves.contains(&crate::moves::site(e)) {
+                    place
+                } else {
+                    format!("{place}.clone()")
+                }
+            }
             LExpr::Int(n) => int_lit(n),
             LExpr::Text(s) => format!("cpl::Text::lit({s:?})"),
             LExpr::Bool(b) => b.to_string(),
@@ -1521,6 +1614,13 @@ impl Fx<'_, '_> {
                     self.r.module_of(*def),
                     ident(&p.def(*def).name.display())
                 )
+            }
+            // A Rust `str` is always Unicode: a type with nothing else to check is valid.
+            LExpr::Valid { ty, .. } if !needs_validation(self.r.p, ty) => "true".into(),
+            LExpr::Valid { ty, arg } => {
+                let a = self.place(arg);
+                let v = self.r.validator_name(ty);
+                format!("crate::__validate::{v}(&{a}, cx)?")
             }
             LExpr::CheckFailure {
                 value,

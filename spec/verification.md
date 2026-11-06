@@ -73,12 +73,20 @@ candidate is run *concretely* before it is reported: the function is
 executed symbolically again on the candidate's input values, with loops run
 iteration by iteration (with the checks of checked mode) and every call
 executed in place (recursive ones included, up to a depth), so that a run
-on values the inputs settle takes a single path. When that path abstracted
-nothing and violates an obligation, the obligation is `failed` with those
-inputs as its model. A candidate that does not reproduce leads to a few
+on values the inputs settle takes a single path: the list builtins `first`,
+`last`, `get`, `take`, `drop`, and `drop_last` are exact on a list of known
+length, as the tests and accessors of `Option` and `Result` are on a value
+of known variant. A path is dropped as soon as it abstracts anything, and a
+run ends, settling nothing, after a fixed number of steps (a call in place
+inside a loop multiplies the work at every level). When that path
+abstracted nothing and violates an obligation, the obligation is `failed`
+with those inputs as its model. A candidate that does not reproduce leads to a few
 more (models of the same condition with other input values), which are run
 the same way; what none of them settles stays `unknown` with the first
-candidate as evidence.
+candidate as evidence. A list input the first candidate leaves empty (a list the
+solver knows nothing about) is also tried with one and two elements, each
+some value of the element type, since an empty list rarely reaches the code
+its elements run.
 
 * A call that is not executed in place (recursive, effectful, too deep) is
   an uninterpreted value constrained by the callee's `ensures`. A callee's

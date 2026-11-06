@@ -177,11 +177,15 @@ pub(crate) enum Continuation {
 /// stay in single digits.
 pub const MAX_DEPTH: u32 = 64;
 
-/// Maximum number of binary and postfix operators in one top-level
-/// expression. The parser applies operators iteratively, but the tree they
-/// build is left-nested, so every later recursive walk (drop, clone, dump,
-/// serialisation) would recurse once per operator; the budget keeps that
-/// depth bounded. Real expressions have a handful of operators.
+/// Maximum number of binary and postfix operators along one path of nested
+/// expressions in a top-level expression. The parser applies operators
+/// iteratively, but the tree they build is left-nested, so every later
+/// recursive walk (drop, clone, dump, serialisation) would recurse once per
+/// operator; the budget keeps that depth bounded. An expression's operators
+/// add to those of the expressions around it, and expressions side by side
+/// (match arms, the statements of a block, arguments) count separately, as
+/// a walk visits them one after another. Real expressions have a handful of
+/// operators.
 pub const MAX_EXPR_OPS: u32 = 1000;
 
 pub(crate) struct Parser<'a> {
@@ -213,9 +217,11 @@ pub(crate) struct Parser<'a> {
     /// Set by the first error; nothing is reported afterwards (D59).
     failed: bool,
     depth: u32,
-    /// Nesting of `parse_expr` calls; the operator budget resets at level 0.
-    expr_level: u32,
-    expr_ops: u32,
+    /// One entry per expression being parsed, outermost first: its own operators and the
+    /// most operators along a path of an expression nested in it that has ended.
+    op_frames: Vec<(u32, u32)>,
+    /// The own operators of every expression being parsed: the path to the current one.
+    op_path: u32,
     /// The next node to take leading trivia is the first of its sequence,
     /// whose blank line (if any) is not recorded (`spec/toolchain.md` 2.3).
     sequence_start: bool,
@@ -238,8 +244,8 @@ impl<'a> Parser<'a> {
             generic_lists: HashMap::new(),
             failed: false,
             depth: 0,
-            expr_level: 0,
-            expr_ops: 0,
+            op_frames: Vec::new(),
+            op_path: 0,
             sequence_start: false,
         }
     }
@@ -496,11 +502,20 @@ impl<'a> Parser<'a> {
         self.depth = self.depth.saturating_sub(1);
     }
 
-    /// Account for one more binary or postfix operator in the current
-    /// top-level expression (see [`MAX_EXPR_OPS`]).
+    /// Account for one more binary or postfix operator of the expression
+    /// being parsed (see [`MAX_EXPR_OPS`]). The operators of the expressions
+    /// around it and the deepest of its nested expressions so far are on one
+    /// path with it, so a sum beyond the budget is beyond it at the end too.
     pub(crate) fn count_op(&mut self, span: Span) -> PResult<()> {
-        self.expr_ops += 1;
-        if self.expr_ops > MAX_EXPR_OPS {
+        let nested = match self.op_frames.last_mut() {
+            Some(frame) => {
+                frame.0 += 1;
+                frame.1
+            }
+            None => 0,
+        };
+        self.op_path += 1;
+        if self.op_path.saturating_add(nested) > MAX_EXPR_OPS {
             return Err(self.syntax_error(
                 &format!("an expression has too many operators (more than {MAX_EXPR_OPS}); split it into bindings"),
                 span,
@@ -509,17 +524,21 @@ impl<'a> Parser<'a> {
         Ok(())
     }
 
-    /// Begin an expression parse, resetting the operator budget at the
-    /// outermost level; the matching [`Parser::end_expression`] must follow.
+    /// Begin an expression parse; the matching [`Parser::end_expression`]
+    /// must follow.
     pub(crate) fn begin_expression(&mut self) {
-        if self.expr_level == 0 {
-            self.expr_ops = 0;
-        }
-        self.expr_level += 1;
+        self.op_frames.push((0, 0));
     }
 
+    /// End an expression parse: its operators along its deepest path count
+    /// toward the expression around it, not toward its siblings.
     pub(crate) fn end_expression(&mut self) {
-        self.expr_level = self.expr_level.saturating_sub(1);
+        if let Some((own, nested)) = self.op_frames.pop() {
+            self.op_path -= own;
+            if let Some(outer) = self.op_frames.last_mut() {
+                outer.1 = outer.1.max(own + nested);
+            }
+        }
     }
 
     /// `open ... close` with `mode` pushed and struct literals re-enabled

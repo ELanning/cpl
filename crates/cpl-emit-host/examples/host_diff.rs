@@ -4,7 +4,9 @@
 //! Each case is a random program of `cpl_eval::testing::programs`, compiled to the target with
 //! its JSON driver, built with the target's toolchain, and run on random arguments beside the
 //! evaluator (the harness is `tests/common`). `HOST_DIFF_FILE=path.cpl` compares one source, and
-//! `HOST_DIFF_DIR=dir` every `.cpl` file under a directory, on swept inputs of any type.
+//! `HOST_DIFF_DIR=dir` every `.cpl` file under a directory, on swept inputs of any type;
+//! `HOST_DIFF_REQUESTS=file` replays the requests of a file instead (one JSON request per line,
+//! the driver's form), for hand-picked edge cases.
 //! `JAVAC` and `JAVA` name the JDK for `java`; `HOST_DIFF_STEPS` sets the evaluator's budget.
 
 #[path = "../tests/common/mod.rs"]

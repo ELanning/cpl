@@ -1,0 +1,6 @@
+[project]
+name = "texts"
+edition = "0.1"
+
+[interop]
+targets = ["go", "java"]

@@ -1,0 +1,80 @@
+module b
+
+use std.text.{trim, trim_start, trim_end, split, join, parse_int, to_upper, to_lower, chars, starts_with, ends_with, contains}
+use std.bytes
+
+pub pure fn t1(s: Text) -> List<Text> {
+    [trim(s), trim_start(s), trim_end(s), to_upper(s), to_lower(s)]
+}
+
+pub pure fn t2(s: Text, sep: Text) -> List<Text>
+    requires not sep.is_empty()
+{
+    split(s, sep)
+}
+
+pub pure fn t3(parts: List<Text>, sep: Text) -> Text {
+    join(parts, sep)
+}
+
+pub pure fn t4(s: Text) -> Result<Int, ConstraintError> {
+    parse_int(s)
+}
+
+pub pure fn t5(s: Text) -> List<Text> {
+    chars(s)
+}
+
+pub pure fn t6(s: Text, p: Text) -> List<Bool> {
+    [starts_with(s, p), ends_with(s, p), contains(s, p), s == p, s.is_empty()]
+}
+
+pub pure fn t7(s: Text) -> Int {
+    s.len
+}
+
+pub pure fn t8(b: Bytes) -> Result<Text, ConstraintError> {
+    bytes.to_text(b)
+}
+
+pub pure fn t9(s: Text) -> List<Int> {
+    bytes.to_list(bytes.from_text(s))
+}
+
+pub pure fn t10(xs: List<Int>) -> Bytes
+    requires forall v in xs: v >= 0 and v <= 255
+{
+    bytes.from_list(xs)
+}
+
+pub pure fn t11(xs: List<Int>, n: Int) -> List<List<Int>>
+    requires n >= 0
+{
+    [xs.take(n), xs.drop(n), xs.drop_last(), xs.reverse(), xs ++ xs, xs.push(n)]
+}
+
+pub pure fn t12(xs: List<Int>, i: Int) -> List<Option<Int>> {
+    [xs.get(i), xs.first(), xs.last()]
+}
+
+pub pure fn t13(a: Int, b: Int) -> List<Int>
+    requires b != 0
+{
+    [a / b, a % b, a.abs(), a.min(b), a.max(b), -a, a * b, a - b]
+}
+
+pub pure fn t14(a: Int) -> Text {
+    a.to_text()
+}
+
+pub pure fn t15(xss: List<List<Int>>, v: Int) -> List<Bool> {
+    [xss.contains([v]), flatten(xss).contains(v)]
+}
+
+pub pure fn t16(s: Text, t: Text) -> Text {
+    s ++ t ++ s
+}
+
+pub pure fn t17(b: Bytes, c: Bytes) -> List<Int> {
+    [b.len, (b ++ c).len, bytes.to_list(b ++ c).len]
+}

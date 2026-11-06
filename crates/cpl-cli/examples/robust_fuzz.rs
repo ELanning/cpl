@@ -7,7 +7,8 @@
 //! * parsing, formatting, checking, verifying, and evaluating never panic;
 //! * a parsed file formats to text that parses, and formatting that text changes nothing;
 //! * a file that checks formats to a program that checks and behaves the same on drawn inputs;
-//! * evaluation never raises `internal_error`.
+//! * evaluation never raises `internal_error`;
+//! * a file that checks compiles to the source of every host (`cpl_emit_host::emit`).
 //!
 //! A violation is printed with the mutated source and its seed; the process exits 1 when there
 //! was one.
@@ -296,6 +297,58 @@ fn project(src: &str) -> Option<cpl_project::Project> {
 
 /// The outcomes of running every runnable function of the project's own modules on drawn inputs:
 /// (function, rendering) pairs. `Err` on an internal error.
+/// Compile a host package with its toolchain (`JAVAC` names `javac`).
+fn host_build(
+    target: cpl_emit_host::Target,
+    package: &cpl_emit_host::Package,
+) -> Result<(), String> {
+    use std::process::Command;
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../target/robust-host");
+    let dir = root.join(target.name());
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    package.write(&dir).map_err(|e| e.to_string())?;
+    let out = match target {
+        cpl_emit_host::Target::Rust => Command::new("cargo")
+            .args(["check", "--quiet", "--offline", "--manifest-path"])
+            .arg(dir.join("Cargo.toml"))
+            .env("CARGO_TARGET_DIR", root.join("rust-target"))
+            .output(),
+        // compile errors, and code after a terminating statement (the generator's; other
+        // analyzers would report what the CPL source itself says, `x && x`)
+        cpl_emit_host::Target::Go => Command::new("go")
+            .args(["vet", "-unreachable", "./..."])
+            .current_dir(&dir)
+            .output(),
+        cpl_emit_host::Target::Java => {
+            let mut sources = Vec::new();
+            let mut stack = vec![dir.join("src")];
+            while let Some(d) = stack.pop() {
+                for e in std::fs::read_dir(&d).into_iter().flatten().flatten() {
+                    let path = e.path();
+                    if path.is_dir() {
+                        stack.push(path);
+                    } else {
+                        sources.push(path);
+                    }
+                }
+            }
+            Command::new(std::env::var("JAVAC").unwrap_or_else(|_| "javac".into()))
+                .args(["-nowarn", "-d"])
+                .arg(dir.join("classes"))
+                .args(sources)
+                .output()
+        }
+    }
+    .map_err(|e| e.to_string())?;
+    if out.status.success() {
+        Ok(())
+    } else {
+        Err(String::from_utf8_lossy(&out.stdout).into_owned()
+            + &String::from_utf8_lossy(&out.stderr))
+    }
+}
+
 fn behavior(p: &cpl_hir::Program, seed: u64) -> Result<Vec<(String, String)>, String> {
     let mut out = Vec::new();
     let cfg = EvalConfig {
@@ -457,6 +510,42 @@ fn fuzz() {
             // like `cpl run`, nothing runs in a program with errors
             continue;
         }
+        stage("emit");
+        // A program that checks compiles to every host's source (spec/hosts.md).
+        for target in [
+            cpl_emit_host::Target::Rust,
+            cpl_emit_host::Target::Go,
+            cpl_emit_host::Target::Java,
+        ] {
+            let options = cpl_emit_host::Options {
+                name: "fuzz".into(),
+                driver: true,
+            };
+            match catch_unwind(AssertUnwindSafe(|| {
+                cpl_emit_host::emit(p, target, &options)
+            })) {
+                Err(_) => fail(format!("emitting {} panicked", target.name()), &src),
+                Ok(Err(e)) => fail(format!("emitting {} failed: {e}", target.name()), &src),
+                Ok(Ok(package)) => {
+                    // FUZZ_HOST_BUILD=rust|go|java (every FUZZ_HOST_EVERY-th program): the
+                    // host's own compiler accepts the package.
+                    let every: u64 = std::env::var("FUZZ_HOST_EVERY")
+                        .ok()
+                        .and_then(|n| n.parse().ok())
+                        .unwrap_or(1);
+                    if std::env::var("FUZZ_HOST_BUILD").ok().as_deref() == Some(target.name())
+                        && seed % every == 0
+                    {
+                        if let Err(e) = host_build(target, &package) {
+                            fail(
+                                format!("the {} compiler refused the package:\n{e}", target.name()),
+                                &src,
+                            );
+                        }
+                    }
+                }
+            }
+        }
         checked += 1;
         let ours = match catch_unwind(AssertUnwindSafe(|| behavior(p, seed))) {
             Err(_) => {
@@ -491,8 +580,17 @@ fn fuzz() {
                 );
                 continue;
             }
+            // An exhausted budget is a resource outcome, not a schedule-independent result
+            // (spec/parallelism.md): with parallel tasks it may stand where another run
+            // reports the fault of a task that got further, so such outcomes are not compared.
+            let differs = |theirs: &Vec<(String, String)>| {
+                theirs.len() != ours.len()
+                    || theirs.iter().zip(&ours).any(|(a, b)| {
+                        a.0 != b.0 || (a.1 != b.1 && a.1 != "exhausted" && b.1 != "exhausted")
+                    })
+            };
             match behavior(&fc.program, seed) {
-                Ok(theirs) if theirs != ours => fail(
+                Ok(theirs) if differs(&theirs) => fail(
                     format!(
                         "the formatted program behaves differently\n{ours:?}\n{theirs:?}\n--- formatted\n{text}"
                     ),

@@ -90,6 +90,10 @@ func (a Int) Sign() int {
 	return 0
 }
 
+// Each operation is small enough for Go to inline where it is used: a machine operation, and
+// a call of its arbitrary-precision path only when an operand or the result does not fit in an
+// int64 (H4).
+
 func (a Int) Add(b Int) Int {
 	if a.b == nil && b.b == nil {
 		c := a.s + b.s
@@ -97,8 +101,10 @@ func (a Int) Add(b Int) Int {
 			return Int{s: c}
 		}
 	}
-	return norm(new(big.Int).Add(a.bigv(), b.bigv()))
+	return a.addBig(b)
 }
+
+func (a Int) addBig(b Int) Int { return norm(new(big.Int).Add(a.bigv(), b.bigv())) }
 
 func (a Int) Sub(b Int) Int {
 	if a.b == nil && b.b == nil {
@@ -107,15 +113,22 @@ func (a Int) Sub(b Int) Int {
 			return Int{s: c}
 		}
 	}
-	return norm(new(big.Int).Sub(a.bigv(), b.bigv()))
+	return a.subBig(b)
 }
 
+func (a Int) subBig(b Int) Int { return norm(new(big.Int).Sub(a.bigv(), b.bigv())) }
+
 func (a Int) Mul(b Int) Int {
+	// operands of 32 bits cannot overflow
+	if a.b == nil && b.b == nil && uint64(a.s+1<<31) < 1<<32 && uint64(b.s+1<<31) < 1<<32 {
+		return Int{s: a.s * b.s}
+	}
+	return a.mulWide(b)
+}
+
+func (a Int) mulWide(b Int) Int {
 	if a.b == nil && b.b == nil {
 		x, y := a.s, b.s
-		if x > -(1<<31) && x < 1<<31 && y > -(1<<31) && y < 1<<31 {
-			return Int{s: x * y}
-		}
 		if x == 0 || y == 0 {
 			return Int{}
 		}
@@ -131,8 +144,10 @@ func (a Int) Neg() Int {
 	if a.b == nil && a.s != math.MinInt64 {
 		return Int{s: -a.s}
 	}
-	return norm(new(big.Int).Neg(a.bigv()))
+	return a.negBig()
 }
+
+func (a Int) negBig() Int { return norm(new(big.Int).Neg(a.bigv())) }
 
 func (a Int) Abs() Int {
 	if a.Sign() < 0 {
@@ -151,24 +166,50 @@ func (a Int) Cmp(b Int) int {
 		}
 		return 0
 	}
-	return a.bigv().Cmp(b.bigv())
+	return a.cmpBig(b)
 }
+
+func (a Int) cmpBig(b Int) int { return a.bigv().Cmp(b.bigv()) }
 
 func (a Int) Eq(b Int) bool {
 	if a.b == nil && b.b == nil {
 		return a.s == b.s
 	}
-	if a.b == nil || b.b == nil {
-		return false
-	}
-	return a.b.Cmp(b.b) == 0
+	return a.eqBig(b)
 }
 
+// eqBig: a value has one representation, so a small and a big Int differ.
+func (a Int) eqBig(b Int) bool { return a.b != nil && b.b != nil && a.b.Cmp(b.b) == 0 }
+
 func (a Int) Ne(b Int) bool { return !a.Eq(b) }
-func (a Int) Lt(b Int) bool { return a.Cmp(b) < 0 }
-func (a Int) Le(b Int) bool { return a.Cmp(b) <= 0 }
-func (a Int) Gt(b Int) bool { return a.Cmp(b) > 0 }
-func (a Int) Ge(b Int) bool { return a.Cmp(b) >= 0 }
+
+func (a Int) Lt(b Int) bool {
+	if a.b == nil && b.b == nil {
+		return a.s < b.s
+	}
+	return a.cmpBig(b) < 0
+}
+
+func (a Int) Le(b Int) bool {
+	if a.b == nil && b.b == nil {
+		return a.s <= b.s
+	}
+	return a.cmpBig(b) <= 0
+}
+
+func (a Int) Gt(b Int) bool {
+	if a.b == nil && b.b == nil {
+		return a.s > b.s
+	}
+	return a.cmpBig(b) > 0
+}
+
+func (a Int) Ge(b Int) bool {
+	if a.b == nil && b.b == nil {
+		return a.s >= b.s
+	}
+	return a.cmpBig(b) >= 0
+}
 
 func (a Int) isZero() bool { return a.b == nil && a.s == 0 }
 
@@ -177,6 +218,10 @@ func (a Int) Div(b Int, symbol string) Int {
 	if a.b == nil && b.b == nil && b.s != 0 && !(a.s == math.MinInt64 && b.s == -1) {
 		return Int{s: a.s / b.s}
 	}
+	return a.divSlow(b, symbol)
+}
+
+func (a Int) divSlow(b Int, symbol string) Int {
 	if b.isZero() {
 		panic(NewFault("division_by_zero", "", "", symbol, "division by zero"))
 	}
@@ -188,6 +233,10 @@ func (a Int) Rem(b Int, symbol string) Int {
 	if a.b == nil && b.b == nil && b.s != 0 && !(a.s == math.MinInt64 && b.s == -1) {
 		return Int{s: a.s % b.s}
 	}
+	return a.remSlow(b, symbol)
+}
+
+func (a Int) remSlow(b Int, symbol string) Int {
 	if b.isZero() {
 		panic(NewFault("division_by_zero", "", "", symbol, "division by zero"))
 	}

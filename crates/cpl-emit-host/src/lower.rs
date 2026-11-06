@@ -1073,10 +1073,11 @@ impl<'p> Fx<'p> {
             .as_capability()
             .expect("an operation's capability")
             .ops[index as usize];
+        let identity = operation_identity(p, capability, &opdef.name);
         if opdef.requires.is_empty() && opdef.ensures.is_empty() {
             // A statement of its own: a host whose operation returns nothing (Go and Java,
             // for an operation returning Unit) calls it as a statement.
-            let result = self.temp("result", ty.clone(), false);
+            let result = self.temp("result", ty.clone(), true);
             push(
                 out,
                 LStmt::Let {
@@ -1090,6 +1091,7 @@ impl<'p> Fx<'p> {
                     },
                 },
             );
+            self.validate_result(result, &opdef.ret, &identity, out);
             return LExpr::Var(result);
         }
         // The operation's own locals, bound to this call's arguments and result.
@@ -1106,15 +1108,15 @@ impl<'p> Fx<'p> {
                 map[l.id.0 as usize] = Some(self.temp(&l.name, l.ty.clone(), false));
             }
         }
-        let identity = operation_identity(p, capability, &opdef.name);
         self.maps.push(map);
         for c in &opdef.requires {
             self.check_clause(c, "requires", &identity, out);
         }
         let result = match opdef.result_local {
             Some(l) => self.var_of(l),
-            None => self.temp("result", ty.clone(), false),
+            None => self.temp("result", ty.clone(), true),
         };
+        self.vars[result as usize].mutable = true;
         push(
             out,
             LStmt::Let {
@@ -1128,11 +1130,101 @@ impl<'p> Fx<'p> {
                 },
             },
         );
+        self.validate_result(result, &opdef.ret, &identity, out);
         for c in &opdef.ensures {
             self.check_clause(c, "ensures", &identity, out);
         }
         self.maps.pop();
         LExpr::Var(result)
+    }
+
+    /// Semantics S77: a capability is the host's code, so what an operation returns is
+    /// validated against the refinements and invariants of its return type before the
+    /// `ensures` see it. A result that fails is an `Err(ForeignError { kind: InvalidResult })`
+    /// when the operation returns `Result<T, ForeignError>`, else a `refinement_violation`
+    /// blamed on the operation.
+    fn validate_result(&mut self, result: Var, ret: &Ty, identity: &str, out: &mut Vec<LStmt>) {
+        let p = self.p;
+        // A host whose strings may not be Unicode checks the texts too (the printer drops the
+        // check where it is all there would be in a host whose strings always are).
+        if !crate::needs_validation(p, ret) && !crate::contains_text(p, ret) {
+            return;
+        }
+        let expected = p.display_ty(ret);
+        let message = format!("the result of {identity} does not satisfy {expected}");
+        let invalid = LExpr::Valid {
+            ty: ret.clone(),
+            arg: Box::new(LExpr::Var(result)),
+        };
+        let (result_def, foreign_error) = (self.std().result, self.std().foreign_error);
+        let foreign = matches!(ret, Ty::Adt(r, args) if *r == result_def
+            && args.len() == 2
+            && matches!(&args[1], Ty::Adt(e, a) if *e == foreign_error && a.is_empty()));
+        let named = |name: &str| {
+            p.defs()
+                .find(|d| p.module(d.module).path == ["std", "foreign"] && d.name.display() == name)
+                .map(|d| d.id)
+        };
+        let then = match (foreign, named("ForeignErrorKind"), named("ForeignDetail")) {
+            (true, Some(kind), Some(detail)) => {
+                let variant = p
+                    .def(kind)
+                    .kind
+                    .as_enum()
+                    .and_then(|e| e.variants.iter().position(|v| v.name == "InvalidResult"))
+                    .unwrap_or(2) as u32;
+                let detail_ty = Ty::Adt(detail, Vec::new());
+                let pair = |key: &str, value: String| LExpr::Struct {
+                    def: detail,
+                    fields: vec![LExpr::Text(key.into()), LExpr::Text(value)],
+                    ty: detail_ty.clone(),
+                };
+                let error = LExpr::Struct {
+                    def: foreign_error,
+                    fields: vec![
+                        LExpr::Ctor {
+                            def: kind,
+                            variant,
+                            args: Vec::new(),
+                            ty: Ty::Adt(kind, Vec::new()),
+                        },
+                        LExpr::Text(message),
+                        LExpr::List {
+                            elem: detail_ty.clone(),
+                            items: vec![
+                                pair("operation", identity.to_string()),
+                                pair("expected_type", expected),
+                            ],
+                        },
+                    ],
+                    ty: Ty::Adt(foreign_error, Vec::new()),
+                };
+                LStmt::Assign {
+                    var: result,
+                    value: LExpr::Ctor {
+                        def: result_def,
+                        variant: 1,
+                        args: vec![error],
+                        ty: ret.clone(),
+                    },
+                }
+            }
+            _ => LStmt::Fault(Fault {
+                code: "refinement_violation",
+                clause_kind: None,
+                clause: String::new(),
+                symbol: identity.to_string(),
+                message,
+            }),
+        };
+        push(
+            out,
+            LStmt::If {
+                cond: not(invalid),
+                then: vec![then],
+                els: Vec::new(),
+            },
+        );
     }
 
     fn pattern(&mut self, pat: &Pattern) -> LPat {

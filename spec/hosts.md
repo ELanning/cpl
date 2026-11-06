@@ -12,7 +12,7 @@ package through its Java interop, as it uses any Java library.
 
 It adds to `spec/toolchain.md` (the `build` command and `[interop] targets`)
 and comes after `python.md` in the precedence order of `spec/README.md`. The
-implementation is the crate `cpl-emit-host`. Decisions are numbered `H1`..`H12`.
+implementation is the crate `cpl-emit-host`. Decisions are numbered `H1`..`H13`.
 
 ## 0. Scope
 
@@ -97,9 +97,13 @@ the claim is an atomic high-water mark, in Rust the buffer's only
 reference), so a loop that builds a list with `xs = xs.push(v)` or
 `xs = xs ++ ys` is linear.
 
-`Text` holds Unicode scalar values. A host form refuses a `Text` argument
-that is not one (invalid UTF-8 in Go, an unpaired surrogate in Java) as a
-`refinement_violation`.
+`Text` holds Unicode scalar values. A Go string may hold any bytes and a
+Java string unpaired surrogates, so Go and Java check every text that
+enters CPL: a host form refuses an argument holding a text that is not
+Unicode, at any depth (in a list, a field, a payload), as a
+`refinement_violation`, and what a capability returns is checked the same
+way (H13), including the texts of a `ForeignError` it returns. Rust's
+`str` is Unicode already and is not checked.
 
 ### 3.2 Declarations
 
@@ -150,6 +154,17 @@ and the operation's `requires` and `ensures` are checked around the call
 (semantics S31). In Java and Kotlin, a capability with one operation is a
 functional interface: a lambda implements it.
 
+**H13.** The host's implementation is a binding in the sense of semantics
+S77: what an operation returns is validated against the refinements and
+struct invariants reachable in its return type (and, in Go and Java, its
+texts, Section 3.1), after the host returns and before the `ensures` run. A result that fails is, for an operation returning
+`Result<T, ForeignError>`, the value `Err(ForeignError { kind:
+InvalidResult, ... })` with the details `operation` and `expected_type`;
+otherwise a `refinement_violation` fault blamed on the operation's identity.
+(The message names the whole return type, not the failing position and
+predicate that the evaluator's adapter bindings report.) A return type
+without a refinement or invariant (or text, in Go and Java) costs nothing.
+
 ## 4. Faults
 
 A fault carries the diagnostic `code` (`contract_violation`,
@@ -189,7 +204,11 @@ its internal forms directly, and the host compiler may inline them.
 Contract checks cost what the expressions in them cost. In Rust, a
 variable or field that an operator, a comparison, or a reading builtin
 (`len`, `first`, `get`, `take`, `drop`, `contains`, ...) uses is borrowed,
-not cloned, and a returned variable is moved.
+not cloned. A variable is moved, not cloned, where it is read for the last
+time (a liveness analysis of the body: the statement reads it once, or
+reads fields of it that do not overlap), a match arm after which the
+scrutinee is dead moves its bindings out of it, and a parameter that an
+`ensures` reads after the body is borrowed by the body, not copied for it.
 
 ## 6. Differential testing
 

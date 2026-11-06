@@ -1,0 +1,10 @@
+length: 5
+length bad: refinement_violation texts.length
+total bad: refinement_violation texts.total
+named bad: refinement_violation texts.named
+shape bad: refinement_violation texts.shape
+shape empty: 0
+echo bad label: refinement_violation texts.echo
+read bad: refinement_violation texts.Source.read
+fetch bad: the result of texts.Source.fetch does not satisfy Result<Text, ForeignError>
+fetch bad error: the result of texts.Source.fetch does not satisfy Result<Text, ForeignError>

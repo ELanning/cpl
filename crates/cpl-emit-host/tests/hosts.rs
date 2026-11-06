@@ -276,3 +276,128 @@ fn go_agrees_with_the_evaluator() {
 fn java_agrees_with_the_evaluator() {
     differential(Target::Java);
 }
+
+/// The builtins on hand-picked edge cases the random inputs rarely reach: every `White_Space`
+/// scalar and control characters around text, overlapping and empty separators, malformed UTF-8
+/// of every kind, `i64` boundaries of division and negation, indices and counts past 64 bits
+/// (`tests/edge/builtins.jsonl`, 119 requests).
+#[test]
+fn builtins_agree_on_edge_cases() {
+    let source = include_str!("edge/builtins.cpl");
+    let requests = include_str!("edge/builtins.jsonl");
+    for target in TARGETS {
+        if !common::available(target) {
+            eprintln!("skipped: no {} toolchain", target.name());
+            continue;
+        }
+        let root = scratch(&format!("edge-{}", target.name()));
+        let case = common::run_requests(target, &root, 0, source, requests)
+            .unwrap_or_else(|e| panic!("{} does not build:\n{e}", target.name()));
+        if let Some(d) = case.divergence {
+            panic!("{}: {d}", target.name());
+        }
+        assert_eq!(case.compared, 119, "{}", target.name());
+    }
+}
+
+/// Names that are keywords or the generated code's own names in some host (`impl`, `func`,
+/// `class`, `new`, `default`, `cx`, `cpl`, ...) as functions, parameters, locals, fields,
+/// operations, and module segments (`tests/edge/keywords.cpl`); names that one host's
+/// conventions would merge (`foo_bar` and `fooBar`, `tests/edge/collisions.cpl`); types
+/// named like what the generated code uses (`String`, `Override`, `Box`, `Fault`, `Cx`, ...,
+/// `tests/edge/shadowing.cpl`); and values whose ownership the Rust printer moves or borrows
+/// instead of cloning: a parameter an `ensures` reads (borrowed by the body), last reads in
+/// loops and branches, disjoint fields moved together, match arms that move out of a dead
+/// scrutinee, payloads behind an `Arc` (`tests/edge/ownership.cpl`). Every host compiles the
+/// programs and agrees with the evaluator.
+#[test]
+fn edge_programs_agree_in_every_host() {
+    for (name, source, least) in [
+        ("keywords", include_str!("edge/keywords.cpl"), 1000),
+        ("collisions", include_str!("edge/collisions.cpl"), 50),
+        ("shadowing", include_str!("edge/shadowing.cpl"), 500),
+        ("ownership", include_str!("edge/ownership.cpl"), 400),
+    ] {
+        for target in TARGETS {
+            if !common::available(target) {
+                eprintln!("skipped: no {} toolchain", target.name());
+                continue;
+            }
+            let root = scratch(&format!("{name}-{}", target.name()));
+            let case = common::run_case(target, &root, 0, source, true)
+                .unwrap_or_else(|e| panic!("{name}, {}, does not build:\n{e}", target.name()));
+            if let Some(d) = case.divergence {
+                panic!("{name}, {}: {d}", target.name());
+            }
+            assert!(
+                case.compared >= least,
+                "{name}, {}: {}",
+                target.name(),
+                case.compared
+            );
+        }
+    }
+}
+
+/// A Go string may hold any bytes and a Java string unpaired surrogates, but a CPL `Text` holds
+/// Unicode scalar values: an invalid one is refused wherever a host can pass it in, as an
+/// argument, inside a list, a struct, or an enum, as what a capability returns, and inside the
+/// `ForeignError` it returns (`tests/edge/texts`).
+#[test]
+fn invalid_texts_never_enter_cpl() {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/edge/texts");
+    let project = cpl_project::load_project(&root, &cpl_project::LoadOptions::default())
+        .expect("the project loads");
+    let checked = cpl_sema::check(&project);
+    assert!(
+        !checked.diagnostics.iter().any(|d| d.is_error()),
+        "{:?}",
+        checked.diagnostics
+    );
+    let expected = std::fs::read_to_string(root.join("expected.txt")).expect("expected.txt");
+    let package = |target: Target, dir: &Path| {
+        emit(
+            &checked.program,
+            target,
+            &Options {
+                name: "texts".into(),
+                driver: false,
+            },
+        )
+        .expect("the program compiles")
+        .write(&dir.join(".cpl/build").join(target.name()))
+        .expect("the package is written");
+    };
+
+    if common::available(Target::Go) {
+        let dir = scratch("texts-go");
+        package(Target::Go, &dir);
+        copy(&root.join("go/go.mod"), &dir.join("go/go.mod"));
+        copy(&root.join("go/main.go"), &dir.join("go/main.go"));
+        let out = run(Command::new("go")
+            .args(["run", "."])
+            .current_dir(dir.join("go")));
+        assert_eq!(out, expected, "go");
+    } else {
+        eprintln!("skipped: go is not on PATH");
+    }
+
+    if common::available(Target::Java) {
+        let dir = scratch("texts-java");
+        package(Target::Java, &dir);
+        let classes = dir.join("classes");
+        let mut sources = common::java_sources(&dir.join(".cpl/build/java/src"));
+        sources.push(root.join("java/Main.java"));
+        run(Command::new(common::javac())
+            .args(["-nowarn", "-encoding", "UTF-8", "-d"])
+            .arg(&classes)
+            .args(&sources));
+        let out = run(Command::new(common::java())
+            .arg("-cp")
+            .arg(&classes)
+            .arg("Main"));
+        assert_eq!(out, expected, "java");
+    } else {
+        eprintln!("skipped: no JDK (javac and java on PATH, or JAVAC and JAVA)");
+    }
+}

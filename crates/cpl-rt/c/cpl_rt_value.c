@@ -105,9 +105,12 @@ void CPLRT(release_obj)(cplrt_obj *o)
         cplrt_obj *cur = pending;
         pending = cur->u.next;
         if (cur->kind >= CPLRT_LIST && cur->kind <= CPLRT_WRAPPER) {
-            const cplrt_node *n = (const cplrt_node *)cur;
-            for (uint32_t i = 0; i < cur->len; i++) {
-                cplrt_w w = n->item[i];
+            /* a List view owns one reference: its base */
+            int view = (cur->flags & CPLRT_F_VIEW) != 0;
+            const cplrt_w *children = view ? &((const cplrt_listview *)cur)->base : ((const cplrt_node *)cur)->item;
+            uint32_t count = view ? 1u : cur->len;
+            for (uint32_t i = 0; i < count; i++) {
+                cplrt_w w = children[i];
                 if (!cplrt_is_obj(w))
                     continue;
                 cplrt_obj *c = cplrt_obj_of(w);
@@ -290,7 +293,7 @@ int cplrt_concat(cplrt_cx *cx, cplrt_w a, cplrt_w b, cplrt_w *out)
 
 /* One pair of composites whose children are being compared, left to right. */
 typedef struct value_eq_frame {
-    const cplrt_node *a, *b;
+    const cplrt_w *a, *b;
     uint32_t i, n;
 } value_eq_frame;
 
@@ -336,8 +339,7 @@ int CPLRT(value_equal)(cplrt_runtime *rt, cplrt_w a, cplrt_w b, int *eq)
     value_eq_frame local[32];
     value_eq_frame *stack = local;
     size_t cap = sizeof local / sizeof local[0], depth = 0;
-    stack[depth++] = (value_eq_frame){ (const cplrt_node *)cplrt_obj_of(a), (const cplrt_node *)cplrt_obj_of(b), 0,
-                                       cplrt_obj_of(a)->len };
+    stack[depth++] = (value_eq_frame){ cplrt_items(a), cplrt_items(b), 0, cplrt_obj_of(a)->len };
     int result = 1, st = CPLRT_OK;
     while (depth > 0) {
         value_eq_frame *f = &stack[depth - 1];
@@ -345,7 +347,7 @@ int CPLRT(value_equal)(cplrt_runtime *rt, cplrt_w a, cplrt_w b, int *eq)
             depth--;
             continue;
         }
-        cplrt_w x = f->a->item[f->i], y = f->b->item[f->i];
+        cplrt_w x = f->a[f->i], y = f->b[f->i];
         f->i++;
         if (x == y)
             continue; /* equal words, a shared child included, are equal without being walked */
@@ -369,8 +371,7 @@ int CPLRT(value_equal)(cplrt_runtime *rt, cplrt_w a, cplrt_w b, int *eq)
             stack = grown;
             cap = ncap;
         }
-        stack[depth++] = (value_eq_frame){ (const cplrt_node *)cplrt_obj_of(x), (const cplrt_node *)cplrt_obj_of(y), 0,
-                                           cplrt_obj_of(x)->len };
+        stack[depth++] = (value_eq_frame){ cplrt_items(x), cplrt_items(y), 0, cplrt_obj_of(x)->len };
     }
     if (stack != local)
         CPLRT(free)(stack);

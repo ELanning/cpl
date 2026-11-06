@@ -442,7 +442,7 @@ pub(crate) fn list_arg<'a>(
     id: &str,
     args: &'a [Value],
     i: usize,
-) -> Result<&'a Rc<Vec<Value>>, Fault> {
+) -> Result<&'a crate::value::ListRef, Fault> {
     match &args[i] {
         Value::List(xs) => Ok(xs),
         other => Err(confusion(id, i, "a List", other)),

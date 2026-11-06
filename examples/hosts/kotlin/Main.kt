@@ -39,6 +39,12 @@ fun main() {
     } catch (f: Fault) {
         println("dollars(-5): ${f.code} ${f.clauseKind}")
     }
+    // What a capability returns is checked against its type too.
+    try {
+        println("a rate of 150: ${Pricing.totalWithTax(order) { CplInt.of(150) }}")
+    } catch (f: Fault) {
+        println("a rate of 150: ${f.code} ${f.symbol}")
+    }
 
     // Kotlin's operators work on CPL's Int, and its when sees CPL enums as sealed.
     val doubled = total * CplInt.of(2) + CplInt.of(1)

@@ -6,3 +6,4 @@ parse_quantity("0"): Err(ConstraintError { type_name: "shop.pricing.Quantity", m
 factorial(25): 15511210043330985984000000
 line_total(unit_price -1): refinement_violation
 dollars(-5): contract_violation requires
+a rate of 150: refinement_violation shop.pricing.TaxTable.rate_for

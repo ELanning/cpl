@@ -47,6 +47,9 @@ What the host sees:
 A call outside a function's contract is refused at the boundary
 (`line_total` with a negative price is a `refinement_violation`), and a
 contract that fails inside CPL is a fault the host receives as an error
-(`dollars(-5)` violates `requires cents >= 0`). In Kotlin, CPL's `Int`
+(`dollars(-5)` violates `requires cents >= 0`). What a host's capability
+returns is checked against its type as well: a `TaxTable` that answers 150
+for a `Percent` is refused with `refinement_violation`, blamed on
+`shop.pricing.TaxTable.rate_for`. In Kotlin, CPL's `Int`
 takes Kotlin's operators (`total * CplInt.of(2) + CplInt.of(1)`), and a
 `when` over a CPL enum is exhaustive.

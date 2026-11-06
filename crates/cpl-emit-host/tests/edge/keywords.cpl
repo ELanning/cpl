@@ -1,0 +1,478 @@
+module impl.class
+
+pub struct Keywords {
+    impl: Int
+    trait: Int
+    mod: Int
+    crate: Int
+    dyn: Int
+    ref: Int
+    move: Int
+    yield: Int
+    func: Int
+    chan: Int
+    goto: Int
+    range: Int
+    select: Int
+    package: Int
+    import: Int
+    defer: Int
+    go: Int
+    map: Int
+    class: Int
+    public: Int
+    private: Int
+    static: Int
+    new: Int
+    this: Int
+    null: Int
+    default: Int
+    switch: Int
+    case: Int
+    extends: Int
+    final: Int
+    synchronized: Int
+    throws: Int
+    void: Int
+    boolean: Int
+    int: Int
+    long: Int
+    char: Int
+    byte: Int
+    super: Int
+    instanceof: Int
+    abstract: Int
+    native: Int
+    transient: Int
+    volatile: Int
+    record: Int
+    sealed: Int
+    permits: Int
+    cx: Int
+    r: Int
+    cpl: Int
+    java: Int
+    std: Int
+    core: Int
+    box: Int
+    unsafe: Int
+    interface: Int
+} where self.impl <= self.class + 1000000
+
+pub enum Choice {
+    Default
+    New(Int)
+    Class(Keywords)
+}
+
+pub interface Operations {
+    fn impl(class: Int, func: Int) -> Int
+    fn default(new: Int) -> Unit
+}
+
+pub fn impl(impl: Int, cx: Int) -> Int {
+    let r = impl + cx
+    var cpl = r * 2
+    cpl = cpl - impl
+    cpl
+}
+
+pub fn trait(trait: Int, cx: Int) -> Int {
+    let r = trait + cx
+    var cpl = r * 2
+    cpl = cpl - trait
+    cpl
+}
+
+pub fn mod(mod: Int, cx: Int) -> Int {
+    let r = mod + cx
+    var cpl = r * 2
+    cpl = cpl - mod
+    cpl
+}
+
+pub fn crate(crate: Int, cx: Int) -> Int {
+    let r = crate + cx
+    var cpl = r * 2
+    cpl = cpl - crate
+    cpl
+}
+
+pub fn dyn(dyn: Int, cx: Int) -> Int {
+    let r = dyn + cx
+    var cpl = r * 2
+    cpl = cpl - dyn
+    cpl
+}
+
+pub fn ref(ref: Int, cx: Int) -> Int {
+    let r = ref + cx
+    var cpl = r * 2
+    cpl = cpl - ref
+    cpl
+}
+
+pub fn move(move: Int, cx: Int) -> Int {
+    let r = move + cx
+    var cpl = r * 2
+    cpl = cpl - move
+    cpl
+}
+
+pub fn yield(yield: Int, cx: Int) -> Int {
+    let r = yield + cx
+    var cpl = r * 2
+    cpl = cpl - yield
+    cpl
+}
+
+pub fn func(func: Int, cx: Int) -> Int {
+    let r = func + cx
+    var cpl = r * 2
+    cpl = cpl - func
+    cpl
+}
+
+pub fn chan(chan: Int, cx: Int) -> Int {
+    let r = chan + cx
+    var cpl = r * 2
+    cpl = cpl - chan
+    cpl
+}
+
+pub fn goto(goto: Int, cx: Int) -> Int {
+    let r = goto + cx
+    var cpl = r * 2
+    cpl = cpl - goto
+    cpl
+}
+
+pub fn range(range: Int, cx: Int) -> Int {
+    let r = range + cx
+    var cpl = r * 2
+    cpl = cpl - range
+    cpl
+}
+
+pub fn select(select: Int, cx: Int) -> Int {
+    let r = select + cx
+    var cpl = r * 2
+    cpl = cpl - select
+    cpl
+}
+
+pub fn package(package: Int, cx: Int) -> Int {
+    let r = package + cx
+    var cpl = r * 2
+    cpl = cpl - package
+    cpl
+}
+
+pub fn import(import: Int, cx: Int) -> Int {
+    let r = import + cx
+    var cpl = r * 2
+    cpl = cpl - import
+    cpl
+}
+
+pub fn defer(defer: Int, cx: Int) -> Int {
+    let r = defer + cx
+    var cpl = r * 2
+    cpl = cpl - defer
+    cpl
+}
+
+pub fn go(go: Int, cx: Int) -> Int {
+    let r = go + cx
+    var cpl = r * 2
+    cpl = cpl - go
+    cpl
+}
+
+pub fn map(map: Int, cx: Int) -> Int {
+    let r = map + cx
+    var cpl = r * 2
+    cpl = cpl - map
+    cpl
+}
+
+pub fn class(class: Int, cx: Int) -> Int {
+    let r = class + cx
+    var cpl = r * 2
+    cpl = cpl - class
+    cpl
+}
+
+pub fn public(public: Int, cx: Int) -> Int {
+    let r = public + cx
+    var cpl = r * 2
+    cpl = cpl - public
+    cpl
+}
+
+pub fn private(private: Int, cx: Int) -> Int {
+    let r = private + cx
+    var cpl = r * 2
+    cpl = cpl - private
+    cpl
+}
+
+pub fn static(static: Int, cx: Int) -> Int {
+    let r = static + cx
+    var cpl = r * 2
+    cpl = cpl - static
+    cpl
+}
+
+pub fn new(new: Int, cx: Int) -> Int {
+    let r = new + cx
+    var cpl = r * 2
+    cpl = cpl - new
+    cpl
+}
+
+pub fn this(this: Int, cx: Int) -> Int {
+    let r = this + cx
+    var cpl = r * 2
+    cpl = cpl - this
+    cpl
+}
+
+pub fn null(null: Int, cx: Int) -> Int {
+    let r = null + cx
+    var cpl = r * 2
+    cpl = cpl - null
+    cpl
+}
+
+pub fn default(default: Int, cx: Int) -> Int {
+    let r = default + cx
+    var cpl = r * 2
+    cpl = cpl - default
+    cpl
+}
+
+pub fn switch(switch: Int, cx: Int) -> Int {
+    let r = switch + cx
+    var cpl = r * 2
+    cpl = cpl - switch
+    cpl
+}
+
+pub fn case(case: Int, cx: Int) -> Int {
+    let r = case + cx
+    var cpl = r * 2
+    cpl = cpl - case
+    cpl
+}
+
+pub fn extends(extends: Int, cx: Int) -> Int {
+    let r = extends + cx
+    var cpl = r * 2
+    cpl = cpl - extends
+    cpl
+}
+
+pub fn final(final: Int, cx: Int) -> Int {
+    let r = final + cx
+    var cpl = r * 2
+    cpl = cpl - final
+    cpl
+}
+
+pub fn synchronized(synchronized: Int, cx: Int) -> Int {
+    let r = synchronized + cx
+    var cpl = r * 2
+    cpl = cpl - synchronized
+    cpl
+}
+
+pub fn throws(throws: Int, cx: Int) -> Int {
+    let r = throws + cx
+    var cpl = r * 2
+    cpl = cpl - throws
+    cpl
+}
+
+pub fn void(void: Int, cx: Int) -> Int {
+    let r = void + cx
+    var cpl = r * 2
+    cpl = cpl - void
+    cpl
+}
+
+pub fn boolean(boolean: Int, cx: Int) -> Int {
+    let r = boolean + cx
+    var cpl = r * 2
+    cpl = cpl - boolean
+    cpl
+}
+
+pub fn int(int: Int, cx: Int) -> Int {
+    let r = int + cx
+    var cpl = r * 2
+    cpl = cpl - int
+    cpl
+}
+
+pub fn long(long: Int, cx: Int) -> Int {
+    let r = long + cx
+    var cpl = r * 2
+    cpl = cpl - long
+    cpl
+}
+
+pub fn char(char: Int, cx: Int) -> Int {
+    let r = char + cx
+    var cpl = r * 2
+    cpl = cpl - char
+    cpl
+}
+
+pub fn byte(byte: Int, cx: Int) -> Int {
+    let r = byte + cx
+    var cpl = r * 2
+    cpl = cpl - byte
+    cpl
+}
+
+pub fn super(super: Int, cx: Int) -> Int {
+    let r = super + cx
+    var cpl = r * 2
+    cpl = cpl - super
+    cpl
+}
+
+pub fn instanceof(instanceof: Int, cx: Int) -> Int {
+    let r = instanceof + cx
+    var cpl = r * 2
+    cpl = cpl - instanceof
+    cpl
+}
+
+pub fn abstract(abstract: Int, cx: Int) -> Int {
+    let r = abstract + cx
+    var cpl = r * 2
+    cpl = cpl - abstract
+    cpl
+}
+
+pub fn native(native: Int, cx: Int) -> Int {
+    let r = native + cx
+    var cpl = r * 2
+    cpl = cpl - native
+    cpl
+}
+
+pub fn transient(transient: Int, cx: Int) -> Int {
+    let r = transient + cx
+    var cpl = r * 2
+    cpl = cpl - transient
+    cpl
+}
+
+pub fn volatile(volatile: Int, cx: Int) -> Int {
+    let r = volatile + cx
+    var cpl = r * 2
+    cpl = cpl - volatile
+    cpl
+}
+
+pub fn record(record: Int, cx: Int) -> Int {
+    let r = record + cx
+    var cpl = r * 2
+    cpl = cpl - record
+    cpl
+}
+
+pub fn sealed(sealed: Int, cx: Int) -> Int {
+    let r = sealed + cx
+    var cpl = r * 2
+    cpl = cpl - sealed
+    cpl
+}
+
+pub fn permits(permits: Int, cx: Int) -> Int {
+    let r = permits + cx
+    var cpl = r * 2
+    cpl = cpl - permits
+    cpl
+}
+
+pub fn cx(cx: Int, other: Int) -> Int {
+    let tmp = cx + other
+    tmp
+}
+
+pub fn r(r: Int, other: Int) -> Int {
+    let tmp = r + other
+    tmp
+}
+
+pub fn cpl(cpl: Int, other: Int) -> Int {
+    let tmp = cpl + other
+    tmp
+}
+
+pub fn java(java: Int, cx: Int) -> Int {
+    let r = java + cx
+    var cpl = r * 2
+    cpl = cpl - java
+    cpl
+}
+
+pub fn std(std: Int, cx: Int) -> Int {
+    let r = std + cx
+    var cpl = r * 2
+    cpl = cpl - std
+    cpl
+}
+
+pub fn core(core: Int, cx: Int) -> Int {
+    let r = core + cx
+    var cpl = r * 2
+    cpl = cpl - core
+    cpl
+}
+
+pub fn box(box: Int, cx: Int) -> Int {
+    let r = box + cx
+    var cpl = r * 2
+    cpl = cpl - box
+    cpl
+}
+
+pub fn unsafe(unsafe: Int, cx: Int) -> Int {
+    let r = unsafe + cx
+    var cpl = r * 2
+    cpl = cpl - unsafe
+    cpl
+}
+
+pub fn interface(interface: Int, cx: Int) -> Int {
+    let r = interface + cx
+    var cpl = r * 2
+    cpl = cpl - interface
+    cpl
+}
+
+pub fn build(n: Int) -> Keywords { Keywords { impl: n, trait: n, mod: n, crate: n, dyn: n, ref: n, move: n, yield: n, func: n, chan: n, goto: n, range: n, select: n, package: n, import: n, defer: n, go: n, map: n, class: n, public: n, private: n, static: n, new: n, this: n, null: n, default: n, switch: n, case: n, extends: n, final: n, synchronized: n, throws: n, void: n, boolean: n, int: n, long: n, char: n, byte: n, super: n, instanceof: n, abstract: n, native: n, transient: n, volatile: n, record: n, sealed: n, permits: n, cx: n, r: n, cpl: n, java: n, std: n, core: n, box: n, unsafe: n, interface: n } }
+
+pub fn sum(k: Keywords) -> Int {
+    k.impl + k.trait + k.mod + k.crate + k.dyn + k.ref + k.move + k.yield + k.func + k.chan + k.goto + k.range + k.select + k.package + k.import + k.defer + k.go + k.map + k.class + k.public
+}
+
+pub fn pick(c: Choice) -> Int {
+    match c {
+        Default => 0
+        New(new) => new + impl(new, 1)
+        Class(class) => class.class + class.default
+    }
+}
+
+pub mutate fn call(java: Int, using ops: Operations) -> Int
+    effects { ops.impl, ops.default }
+{
+    ops.default(java)
+    ops.impl(java, java)
+}

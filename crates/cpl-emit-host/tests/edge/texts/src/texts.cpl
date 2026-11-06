@@ -1,0 +1,66 @@
+module texts
+
+use std.foreign.{ForeignError}
+
+pub struct Named {
+    name: Text
+    n: Int
+}
+
+pub enum Shape {
+    Empty
+    Label(Text)
+}
+
+pub interface Source {
+    fn read(key: Int) -> Text
+    fn fetch(key: Int) -> Result<Text, ForeignError>
+}
+
+pub fn length(t: Text) -> Int { t.len }
+
+pub fn total(ts: List<Text>) -> Int {
+    var n = 0
+    var i = 0
+    while i < ts.len
+        invariant i >= 0
+        decreases ts.len - i
+    {
+        n = n + ts.get(i).unwrap_or("").len
+        i = i + 1
+    }
+    n
+}
+
+pub fn named(x: Named) -> Int { x.name.len + x.n }
+
+pub fn shape(s: Shape) -> Int {
+    match s {
+        Empty => 0
+        Label(t) => t.len
+    }
+}
+
+pub fn first<T>(xs: List<T>, fallback: T) -> T {
+    match xs.first() {
+        Some(x) => x
+        None => fallback
+    }
+}
+
+pub fn echo<T>(x: T, label: Text) -> T { x }
+
+pub mutate fn read(key: Int, using s: Source) -> Int
+    effects { s.read }
+{
+    s.read(key).len
+}
+
+pub mutate fn fetch(key: Int, using s: Source) -> Text
+    effects { s.fetch }
+{
+    match s.fetch(key) {
+        Ok(t) => t
+        Err(e) => e.message
+    }
+}

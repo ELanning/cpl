@@ -800,38 +800,54 @@ fn d73_a_comparison_after_a_name_is_one_operator() {
 }
 
 #[test]
-fn d73_operators_inside_blocks_and_arms_count_toward_the_enclosing_expression() {
-    // "counted over an outermost expression ... together with every expression
-    // nested inside it, the statements of a block inside it included".
-    let if_value = |extra: &str| {
+fn d73_operators_count_along_a_path_of_nested_expressions() {
+    // "an expression's operators add to those of the expressions it is nested
+    // in; expressions side by side ... count separately". A walk of the tree
+    // recurses along one path at a time, so that is the depth the budget bounds.
+    let chain = " + 1".repeat(1000);
+    // Side by side: the statements of a block, the arms of a match, the
+    // arguments of a call, each with the whole budget.
+    accept(
+        Cpl,
+        &body(&format!(
+            "    let x = if c {{\n        let y = 1{chain}\n        y{chain}\n    }} else {{\n        0{chain}\n    }}\n    x"
+        )),
+    );
+    let arms: String = (0..1500)
+        .map(|i| format!("        {i} => x{}\n", " + 1".repeat(1 + i % 3)))
+        .collect();
+    accept(
+        Cpl,
+        &body(&format!("    match x {{\n{arms}        _ => 0\n    }}")),
+    );
+    // (the call is an operator on each argument's path)
+    let args = " + 1".repeat(999);
+    accept(Cpl, &body(&format!("    g(1{args}, 2{args}, 3{args})")));
+    operators_rejected(
+        Cpl,
+        &body(&format!("    g(1{args}, 2{args} ‸+ 1, 3{args})")),
+        "+",
+    );
+    // Nested: an operand's operators add to the chain around it.
+    let nested = |inner: usize, extra: &str| {
         body(&format!(
-            "    let x = if c {{\n        let y = 1{}\n        y{}{extra}\n    }} else {{\n        0\n    }}\n    x",
+            "    let x = 1{} + (if c {{\n        y{}{extra}\n    }} else {{\n        0\n    }})\n    x",
             " + 1".repeat(600),
-            " + 1".repeat(400)
+            " + 1".repeat(inner)
         ))
     };
-    accept(Cpl, &if_value(""));
-    operators_rejected(Cpl, &if_value(" ‸+ 1"), "+");
-    let arms = |extra: &str| {
+    accept(Cpl, &nested(399, ""));
+    operators_rejected(Cpl, &nested(399, " ‸+ 1"), "+");
+    // Operators after a nested expression count with its deepest path.
+    let after = |extra: &str| {
         body(&format!(
-            "    match x {{\n        A => 1{}\n        B => 1{}{extra}\n    }}",
-            " + 1".repeat(500),
-            " + 1".repeat(500)
+            "    f(1{}){}{extra}",
+            " + 1".repeat(700),
+            " * 2".repeat(299)
         ))
     };
-    accept(Cpl, &arms(""));
-    operators_rejected(Cpl, &arms(" ‸+ 1"), "+");
-    // So do the statements of a statement-level `if`: the `if` is the
-    // statement's expression and its blocks are inside it.
-    let if_statement = |extra: &str| {
-        body(&format!(
-            "    if c {{\n        let a = 1{}\n        let b = 1{}{extra}\n    }}",
-            " + 1".repeat(500),
-            " + 1".repeat(500)
-        ))
-    };
-    accept(Cpl, &if_statement(""));
-    operators_rejected(Cpl, &if_statement(" ‸+ 1"), "+");
+    accept(Cpl, &after(""));
+    operators_rejected(Cpl, &after(" ‸* 2"), "*");
 }
 
 #[test]

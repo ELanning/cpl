@@ -4,7 +4,6 @@
 use crate::support::{big, bytes, int, ints, list, reader, text};
 use cpl_eval::testing::std_program;
 use cpl_eval::Value;
-use std::rc::Rc;
 
 #[test]
 fn prelude_constructors_use_the_stub_variants() {
@@ -287,7 +286,7 @@ fn concat_of_lists_texts_bytes() {
     assert_eq!(ys, ints(&[1, 2]));
     // An empty operand shares the other buffer.
     if let (Value::List(a), Some(Value::List(b))) = (&ys, &ys.concat(&ints(&[]))) {
-        assert!(Rc::ptr_eq(a, b));
+        assert!(a.same(b));
     } else {
         panic!("lists expected");
     }

@@ -125,9 +125,10 @@ pub(crate) fn emit(
     // the entry trampolines: every function with a block body and every callable stub in a driver; the exports'
     // functions in every build
     let models = crate::api::export_models(p, plan);
+    let exported: std::collections::HashSet<_> = models.iter().map(|m| m.function).collect();
     let mut entries = Vec::new();
     for d in &p.defs {
-        let exported = models.iter().any(|m| m.function == d.id);
+        let exported = exported.contains(&d.id);
         if cfg.with_tests || exported {
             if let Some(text) = lower::emit_entry(p, &mut names, d.id) {
                 funcs.push_str(&text);

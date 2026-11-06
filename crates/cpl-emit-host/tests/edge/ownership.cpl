@@ -1,0 +1,180 @@
+module own
+
+pub struct Inner {
+    name: Text
+    n: Int
+}
+
+pub struct Outer {
+    inner: Inner
+    tags: List<Text>
+    label: Text
+}
+
+pub type Name(Text)
+
+pub enum Tree {
+    Leaf(Int)
+    Node(Option<Tree>, Option<Tree>)
+}
+
+pub struct Chain {
+    value: Int
+    next: Option<Chain>
+}
+
+/// A parameter the `ensures` reads, returned whole.
+pub fn same(o: Outer) -> Outer
+    ensures result.label == o.label
+{
+    o
+}
+
+/// A parameter the `ensures` reads, matched on in the body.
+pub fn first_tag(o: Outer, fallback: Text) -> Text
+    ensures result.len >= 0
+    ensures o.tags.len >= 0
+{
+    match o.tags.first() {
+        Some(t) => t
+        None => fallback
+    }
+}
+
+/// Nested field chains, read and moved.
+pub fn deep(o: Outer) -> Text {
+    let a = o.inner.name
+    let b = o.label
+    a ++ b
+}
+
+/// Disjoint fields moved together, then the variable is dead.
+pub fn parts(o: Outer) -> Inner {
+    let x = Inner { name: o.inner.name ++ o.label, n: o.inner.n + o.tags.len }
+    x
+}
+
+/// A parameter the `ensures` reads and the body iterates.
+pub fn total(xs: List<Int>) -> Int
+    ensures xs.len >= 0
+{
+    var sum = 0
+    var i = 0
+    while i < xs.len
+        invariant i >= 0
+        decreases xs.len - i
+    {
+        sum = sum + xs.get(i).unwrap_or(0)
+        i = i + 1
+    }
+    sum
+}
+
+/// The last read of a list is inside a loop, before a `return`.
+pub fn find(xs: List<Text>, key: Text) -> Text {
+    var i = 0
+    while i < xs.len
+        invariant i >= 0
+        decreases xs.len - i
+    {
+        let x = xs.get(i).unwrap_or("")
+        if x == key {
+            return x ++ xs.len.to_text()
+        }
+        i = i + 1
+    }
+    key
+}
+
+/// A text read in every iteration of a loop: never moved inside it.
+pub fn repeat(t: Text, n: Int) -> List<Text> {
+    var out: List<Text> = []
+    var i = 0
+    while i < n
+        invariant i >= 0
+        decreases n - i
+    {
+        out = out.push(t)
+        i = i + 1
+    }
+    out
+}
+
+/// A recursive enum, boxed in Rust: its payloads cannot be moved out.
+pub fn size(t: Tree) -> Int
+    ensures result >= 1
+{
+    match t {
+        Leaf(_) => 1
+        Node(l, r) => 1 + sizes(l) + sizes(r) + 0 * leftmost(t)
+    }
+}
+
+pub fn sizes(t: Option<Tree>) -> Int {
+    match t {
+        None => 0
+        Some(x) => size(x)
+    }
+}
+
+pub fn leftmost(t: Tree) -> Int {
+    match t {
+        Leaf(n) => n
+        Node(l, _) => match l {
+            None => 0
+            Some(x) => leftmost(x)
+        }
+    }
+}
+
+/// A recursive struct through an `Option`.
+pub fn depth(c: Chain) -> Int
+    ensures result >= 1
+{
+    match c.next {
+        None => 1
+        Some(n) => 1 + depth(n)
+    }
+}
+
+/// A wrapper unwrapped twice, and kept.
+pub fn names(n: Name) -> List<Text>
+    ensures result.len == 2
+{
+    match n {
+        Name(t) => [t, t ++ "!"]
+    }
+}
+
+/// A parameter used in a condition, then moved in one branch.
+pub fn pick(a: Text, b: Text, c: Bool) -> Text
+    ensures result.len >= 0
+{
+    if a.len > b.len and c {
+        a
+    } else {
+        b ++ a
+    }
+}
+
+/// The scrutinee is read again in one arm: the other arms move out of it.
+pub fn again(x: Option<Text>) -> Text {
+    match x {
+        Some(t) => if t.len > 2 { t } else { x.unwrap_or("") ++ t }
+        None => "none"
+    }
+}
+
+/// A builder that appends a parameter it also checks after.
+pub fn appended(xs: List<Text>, t: Text) -> List<Text>
+    ensures result.len == xs.len + 1
+{
+    xs.push(t)
+}
+
+/// Building a struct from a parameter and its field.
+pub fn wrap(i: Inner) -> Outer
+    ensures result.inner.n == i.n
+{
+    Outer { inner: i, tags: [i.name], label: i.name ++ "?" }
+}

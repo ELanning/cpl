@@ -11,7 +11,7 @@
 use cpl_diag::Span;
 use cpl_hir::{BindingKind, DefId, LocalDef, LocalId, ModuleId, Ty};
 use std::cell::Cell;
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 /// The prelude names of semantics 1.7 that no module-level declaration or
 /// import may redefine (S6, stdlib S3 and S11): the `pub` declarations of
@@ -204,6 +204,11 @@ impl LocalInfo {
 pub(crate) struct LocalScopes {
     pub locals: Vec<LocalInfo>,
     frames: Vec<Vec<u32>>,
+    /// The bindings of each name in scope, in the order they were entered: a
+    /// binding enters the innermost frame, so the last is the innermost and
+    /// most recent, and lookup takes no time in the number of bindings in
+    /// scope (every `let` looks its name up, to report shadowing).
+    by_name: HashMap<String, Vec<u32>>,
 }
 
 impl LocalScopes {
@@ -213,6 +218,7 @@ impl LocalScopes {
         LocalScopes {
             locals,
             frames: Vec::new(),
+            by_name: HashMap::new(),
         }
     }
 
@@ -222,7 +228,18 @@ impl LocalScopes {
 
     /// Close the innermost frame, returning the bindings it held.
     pub fn pop(&mut self) -> Vec<u32> {
-        self.frames.pop().unwrap_or_default()
+        let frame = self.frames.pop().unwrap_or_default();
+        // the frame's bindings are the last entered of their names
+        for &id in frame.iter().rev() {
+            let name = &self.locals[id as usize].name;
+            if let Some(ids) = self.by_name.get_mut(name.as_str()) {
+                ids.pop();
+                if ids.is_empty() {
+                    self.by_name.remove(name.as_str());
+                }
+            }
+        }
+        frame
     }
 
     /// Append a binding to the table without putting it in scope.
@@ -237,6 +254,10 @@ impl LocalScopes {
             self.frames.push(Vec::new());
         }
         self.frames.last_mut().expect("a frame").push(id.0);
+        self.by_name
+            .entry(self.locals[id.0 as usize].name.to_string())
+            .or_default()
+            .push(id.0);
     }
 
     /// Allocate a binding and put it in scope.
@@ -248,11 +269,9 @@ impl LocalScopes {
 
     /// The innermost binding of `name` in scope.
     pub fn lookup(&self, name: &str) -> Option<LocalId> {
-        self.frames
-            .iter()
-            .rev()
-            .flat_map(|f| f.iter().rev())
-            .find(|&&id| self.locals[id as usize].name == name)
+        self.by_name
+            .get(name)
+            .and_then(|ids| ids.last())
             .map(|&id| LocalId(id))
     }
 
@@ -306,5 +325,13 @@ mod tests {
         s.pop();
         assert_eq!(s.lookup("a"), Some(a));
         assert_eq!(s.locals.len(), 3);
+        // a closed frame takes its names out of scope, and a later frame can bind them again
+        s.pop();
+        assert_eq!(s.lookup("a"), None);
+        assert_eq!(s.lookup("b"), None);
+        assert_eq!(s.visible(), vec![]);
+        let c = s.bind(info("b"));
+        assert_eq!(s.lookup("b"), Some(c));
+        assert_eq!(s.lookup("a"), None);
     }
 }

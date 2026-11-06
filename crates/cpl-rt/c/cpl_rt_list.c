@@ -1,7 +1,8 @@
-/* cpl_rt_list.c: List (spec/cabi.md 2.3, 2.6, 2.7): contiguous item arrays, the immortal [], `++`, every list builtin,
-   and flatten, each transcribing crates/cpl-eval/src/builtins/prelude.rs: take and drop compare the count with the
-   length before any conversion, so a huge count clamps (stdlib.md 4.1); get is None for a negative or huge index; a
-   result equal to the operand shares it. Track R1. */
+/* cpl_rt_list.c: List (spec/cabi.md 2.3, 2.6, 2.7): contiguous item arrays and views of them, the immortal [], `++`,
+   every list builtin, and flatten, each transcribing crates/cpl-eval/src/builtins/prelude.rs: take and drop compare the
+   count with the length before any conversion, so a huge count clamps (stdlib.md 4.1), and view the operand's buffer
+   instead of copying it, as drop_last does; get is None for a negative or huge index; a result equal to the operand
+   shares it. Track R1. */
 #include "cpl_rt_internal.h"
 #include "cpl_rt_gen.h"
 #include "cpl_rt_platform.h"
@@ -32,7 +33,42 @@ static int list_of(cplrt_runtime *rt, const cplrt_w *items, uint32_t n, cplrt_w 
 
 static const cplrt_w *list_items(cplrt_w xs)
 {
-    return ((const cplrt_node *)cplrt_obj_of(xs))->item;
+    return cplrt_items(xs);
+}
+
+/* A result of at most this many items is copied rather than viewed: as cheap as a view, and it holds no larger
+   buffer alive. (Tests may define it as 0, so that every slice is a view.) */
+#ifndef CPLRT_LIST_VIEW_MIN
+#define CPLRT_LIST_VIEW_MIN 8u
+#endif
+
+/* The items from..to of xs: xs itself for all of them, a copy of a few, else a view of the buffer they live in (a
+   view of a view views the same base), so walking a list with first() and drop(1) is linear. CPLRT_OK or
+   CPLRT_NOMEM. */
+static int list_slice(cplrt_runtime *rt, cplrt_w xs, uint32_t from, uint32_t to, cplrt_w *out)
+{
+    if (from == 0 && to == cplrt_len(xs)) {
+        CPLRT_COPY(*out, xs);
+        return CPLRT_OK;
+    }
+    if (to - from <= CPLRT_LIST_VIEW_MIN || to == from)
+        return list_of(rt, list_items(xs) + from, to - from, out);
+    const cplrt_obj *o = cplrt_obj_of(xs);
+    cplrt_w base = xs;
+    uint32_t start = from;
+    if (o->flags & CPLRT_F_VIEW) {
+        base = ((const cplrt_listview *)o)->base;
+        start += o->u.live.def;
+    }
+    cplrt_listview *v = (cplrt_listview *)CPLRT(obj_new)(rt, CPLRT_LIST, to - from, sizeof(cplrt_listview));
+    if (v == NULL)
+        return CPLRT_NOMEM;
+    v->hdr.flags = CPLRT_F_VIEW;
+    v->hdr.u.live.def = start;
+    cplrt_retain(base);
+    v->base = base;
+    CPLRT_SET(*out, cplrt_word_of(&v->hdr));
+    return CPLRT_OK;
 }
 
 /* mirrors cpl_eval::value::Value::concat (List) */
@@ -145,11 +181,7 @@ int CPLRT(bi_list_take)(cplrt_cx *cx, uint32_t site, uint32_t stub, cplrt_w a0, 
     if (cplrt_int_lt_small(a1, 0))
         return list_count_negative(cx, site, stub, "list_take", a0, a1);
     uint32_t len = cplrt_len(a0), k = list_clamp(a1, len);
-    if (k == len) {
-        CPLRT_COPY(*out, a0);
-        return CPLRT_OK;
-    }
-    return list_of(cx->rt, list_items(a0), k, out) == CPLRT_OK ? CPLRT_OK : list_oom(cx, site, stub);
+    return list_slice(cx->rt, a0, 0, k, out) == CPLRT_OK ? CPLRT_OK : list_oom(cx, site, stub);
 }
 
 /* mirrors cpl_eval::builtins::prelude::list_drop */
@@ -158,22 +190,14 @@ int CPLRT(bi_list_drop)(cplrt_cx *cx, uint32_t site, uint32_t stub, cplrt_w a0, 
     if (cplrt_int_lt_small(a1, 0))
         return list_count_negative(cx, site, stub, "list_drop", a0, a1);
     uint32_t len = cplrt_len(a0), k = list_clamp(a1, len);
-    if (k == 0) {
-        CPLRT_COPY(*out, a0);
-        return CPLRT_OK;
-    }
-    return list_of(cx->rt, list_items(a0) + k, len - k, out) == CPLRT_OK ? CPLRT_OK : list_oom(cx, site, stub);
+    return list_slice(cx->rt, a0, k, len, out) == CPLRT_OK ? CPLRT_OK : list_oom(cx, site, stub);
 }
 
 /* mirrors cpl_eval::builtins::prelude::list_drop_last */
 int CPLRT(bi_list_drop_last)(cplrt_cx *cx, uint32_t site, uint32_t stub, cplrt_w a0, cplrt_w *out)
 {
     uint32_t len = cplrt_len(a0);
-    if (len == 0) {
-        CPLRT_COPY(*out, a0);
-        return CPLRT_OK;
-    }
-    return list_of(cx->rt, list_items(a0), len - 1u, out) == CPLRT_OK ? CPLRT_OK : list_oom(cx, site, stub);
+    return list_slice(cx->rt, a0, 0, len == 0 ? 0 : len - 1u, out) == CPLRT_OK ? CPLRT_OK : list_oom(cx, site, stub);
 }
 
 /* mirrors cpl_eval::builtins::prelude::list_push */
@@ -264,7 +288,14 @@ int CPLRT(bi_list_contains)(cplrt_cx *cx, uint32_t site, uint32_t stub, cplrt_w 
 /* An owned local's xs = xs.push(item). Unique lists grow geometrically; snapshots still share immutable values.
    The spare-capacity flag and def word are list-internal: lists have no nominal definition id. */
 #define LIST_CAPACITY 0x04u
-static int list_reserve_owned(cplrt_runtime *rt, cplrt_w *xs, uint32_t extra)
+
+/* An owned local's list *xs made ready for `extra` more items at its end: *room is the node to append them to (at
+   room->hdr.len), and *view a view of it to lengthen with it, or NULL when *xs is that node. A unique node with spare
+   capacity grows in place; so does a unique view that ends where the base it alone holds ends, while that base has
+   room and the base's dead prefix (the items before the view) is no longer than the view, so a queue that drops from
+   the front and pushes at the back stays linear. Anything else is rebuilt as a node of geometric capacity: its items
+   moved when nothing else holds them (a moved view's dead prefix is released with its base), else retained. */
+static int list_reserve_owned(cplrt_runtime *rt, cplrt_w *xs, uint32_t extra, cplrt_node **room, cplrt_listview **view)
 {
     cplrt_obj *old = cplrt_obj_of(*xs);
     uint32_t len = old->len;
@@ -272,9 +303,28 @@ static int list_reserve_owned(cplrt_runtime *rt, cplrt_w *xs, uint32_t extra)
         return CPLRT_NOMEM;
     uint32_t needed = len + extra;
     int unique = atomic_load_explicit(&old->u.live.rc, memory_order_acquire) == 1u;
-    uint32_t cap = (old->flags & LIST_CAPACITY) ? old->u.live.def : len;
-    if (unique && needed <= cap)
-        return CPLRT_OK;
+    cplrt_obj *owner = old; /* the object whose items are the list's: old, or the base of a view */
+    uint32_t start = 0;
+    int movable = unique;
+    *view = NULL;
+    if (old->flags & CPLRT_F_VIEW) {
+        owner = cplrt_obj_of(((cplrt_listview *)old)->base);
+        start = old->u.live.def;
+        movable = unique && atomic_load_explicit(&owner->u.live.rc, memory_order_acquire) == 1u &&
+                  start + len == owner->len;
+        uint32_t cap = (owner->flags & LIST_CAPACITY) ? owner->u.live.def : owner->len;
+        if (movable && start <= len && extra <= cap - owner->len) {
+            *room = (cplrt_node *)owner;
+            *view = (cplrt_listview *)old;
+            return CPLRT_OK;
+        }
+    } else {
+        uint32_t cap = (old->flags & LIST_CAPACITY) ? old->u.live.def : len;
+        if (unique && needed <= cap) {
+            *room = (cplrt_node *)old;
+            return CPLRT_OK;
+        }
+    }
     uint32_t next = len < 8u ? 8u : (len <= UINT32_MAX / 2u ? len * 2u : UINT32_MAX);
     if (next < needed) next = needed;
     cplrt_node *list = CPLRT(list_alloc)(rt, next);
@@ -283,13 +333,15 @@ static int list_reserve_owned(cplrt_runtime *rt, cplrt_w *xs, uint32_t extra)
     list->hdr.flags |= LIST_CAPACITY;
     list->hdr.u.live.def = next;
     list->hdr.len = len;
+    const cplrt_w *items = ((const cplrt_node *)owner)->item + start;
     for (uint32_t i = 0; i < len; i++) {
-        cplrt_w v = ((cplrt_node *)old)->item[i];
-        if (!unique) cplrt_retain(v);
+        cplrt_w v = items[i];
+        if (!movable) cplrt_retain(v);
         list->item[i] = v;
     }
-    if (unique) old->len = 0u; /* children moved; release only the old buffer */
+    if (movable) owner->len = start; /* children moved; the old buffer releases only what is before them */
     CPLRT_SET(*xs, cplrt_word_of(&list->hdr));
+    *room = list;
     return CPLRT_OK;
 }
 
@@ -298,12 +350,15 @@ int cplrt_list_push_owned(cplrt_cx *cx, uint32_t site, uint32_t stub, cplrt_w *x
 {
     /* An argument may alias the old buffer or one of its children. Own it before reserve can release that buffer. */
     cplrt_retain(item);
-    if (list_reserve_owned(cx->rt, xs, 1u) != CPLRT_OK) {
+    cplrt_node *list;
+    cplrt_listview *view;
+    if (list_reserve_owned(cx->rt, xs, 1u, &list, &view) != CPLRT_OK) {
         cplrt_release(item);
         return list_oom(cx, site, stub);
     }
-    cplrt_node *list = (cplrt_node *)cplrt_obj_of(*xs);
     list->item[list->hdr.len++] = item;
+    if (view != NULL)
+        view->hdr.len++;
     return CPLRT_OK;
 }
 
@@ -314,11 +369,12 @@ int cplrt_list_concat_owned(cplrt_cx *cx, cplrt_w *xs, cplrt_w other)
     uint32_t n = cplrt_len(other);
     if (n == 0u) return CPLRT_OK;
     cplrt_retain(other); /* includes xs ++ xs and a borrowed child of xs */
-    if (list_reserve_owned(cx->rt, xs, n) != CPLRT_OK) {
+    cplrt_node *list;
+    cplrt_listview *view;
+    if (list_reserve_owned(cx->rt, xs, n, &list, &view) != CPLRT_OK) {
         cplrt_release(other);
         return CPLRT(oom)(cx);
     }
-    cplrt_node *list = (cplrt_node *)cplrt_obj_of(*xs);
     uint32_t len = list->hdr.len;
     for (uint32_t i = 0; i < n; i++) {
         cplrt_w item = list_items(other)[i];
@@ -326,6 +382,8 @@ int cplrt_list_concat_owned(cplrt_cx *cx, cplrt_w *xs, cplrt_w other)
         list->item[len + i] = item;
     }
     list->hdr.len = len + n;
+    if (view != NULL)
+        view->hdr.len += n;
     cplrt_release(other);
     return CPLRT_OK;
 }

@@ -31,8 +31,9 @@ pub enum Value {
     Text(Rc<String>),
     /// `Bytes`, with capacity retained for uniquely owned local appends.
     Bytes(Rc<Vec<u8>>),
-    /// `List<T>`: shared immutable values with capacity retained for uniquely owned local appends.
-    List(Rc<Vec<Value>>),
+    /// `List<T>`: a view of a shared buffer ([`ListRef`]), with capacity retained for uniquely
+    /// owned local appends.
+    List(ListRef),
     /// A struct value; `fields` in declaration order.
     Struct { def: DefId, fields: Rc<[Value]> },
     /// An enum value, the prelude's `Unit`, `Option`, and `Result`
@@ -84,7 +85,7 @@ impl Value {
 
     /// A `List`.
     pub fn list(items: Vec<Value>) -> Value {
-        Value::List(Rc::from(items))
+        Value::List(ListRef::new(items))
     }
 
     /// The empty `List`.
@@ -305,7 +306,7 @@ impl Value {
                 (Value::Bool(x), Value::Bool(y)) => x == y,
                 (Value::Text(x), Value::Text(y)) => x == y,
                 (Value::Bytes(x), Value::Bytes(y)) => x == y,
-                (Value::List(xs), Value::List(ys)) => pairwise(xs, ys, &mut work),
+                (Value::List(xs), Value::List(ys)) => pairwise(xs, ys, xs.same(ys), &mut work),
                 (
                     Value::Struct {
                         def: d1,
@@ -315,7 +316,7 @@ impl Value {
                         def: d2,
                         fields: f2,
                     },
-                ) => d1 == d2 && pairwise(f1, f2, &mut work),
+                ) => d1 == d2 && pairwise(f1, f2, Rc::ptr_eq(f1, f2), &mut work),
                 (
                     Value::Enum {
                         def: d1,
@@ -327,7 +328,7 @@ impl Value {
                         variant: v2,
                         payload: p2,
                     },
-                ) => d1 == d2 && v1 == v2 && pairwise(p1, p2, &mut work),
+                ) => d1 == d2 && v1 == v2 && pairwise(p1, p2, Rc::ptr_eq(p1, p2), &mut work),
                 (Value::Wrapper { def: d1, inner: i1 }, Value::Wrapper { def: d2, inner: i2 }) => {
                     if d1 == d2 && !Rc::ptr_eq(i1, i2) {
                         work.push((std::slice::from_ref(&**i1), std::slice::from_ref(&**i2)));
@@ -395,7 +396,7 @@ impl Value {
         match (self, other) {
             (Value::Text(a), Value::Text(b)) => Rc::ptr_eq(a, b),
             (Value::Bytes(a), Value::Bytes(b)) => Rc::ptr_eq(a, b),
-            (Value::List(a), Value::List(b)) => Rc::ptr_eq(a, b),
+            (Value::List(a), Value::List(b)) => a.same(b),
             _ => false,
         }
     }
@@ -419,9 +420,9 @@ impl Value {
             }
             (Value::List(a), Value::List(b)) => {
                 if a.is_empty() {
-                    *a = Rc::clone(b);
+                    *a = b.clone();
                 } else if !b.is_empty() {
-                    Rc::make_mut(a).extend(b.iter().cloned());
+                    a.extend(b);
                 }
             }
             _ => return false,
@@ -431,19 +432,123 @@ impl Value {
 }
 
 /// Queue two nonempty, equal-length sequences; false when the
-/// lengths differ. A buffer shared by both sides is equal to itself.
-fn pairwise<'a, T: AsRef<[Value]> + ?Sized>(
-    xs: &'a Rc<T>,
-    ys: &'a Rc<T>,
+/// lengths differ. Sequences that are the same elements of one buffer
+/// (`same`) are equal to themselves.
+fn pairwise<'a>(
+    xs: &'a [Value],
+    ys: &'a [Value],
+    same: bool,
     work: &mut Vec<(&'a [Value], &'a [Value])>,
 ) -> bool {
-    if xs.as_ref().as_ref().len() != ys.as_ref().as_ref().len() {
+    if xs.len() != ys.len() {
         return false;
     }
-    if !Rc::ptr_eq(xs, ys) && !xs.as_ref().as_ref().is_empty() {
-        work.push((xs.as_ref().as_ref(), ys.as_ref().as_ref()));
+    if !same && !xs.is_empty() {
+        work.push((xs, ys));
     }
     true
+}
+
+/// A `List` value: the elements `start..end` of a shared buffer (T8).
+/// `take`, `drop`, and `drop_last` are views that copy nothing, so walking
+/// a list with `first()` and `drop(1)` is linear. A list whose buffer
+/// nothing else holds appends in place: past the elements it views, which
+/// nobody else can see, and its dead prefix is compacted away once it is
+/// longer than the list, so a queue that drops from the front and pushes
+/// at the back stays linear. It reads as a slice of its elements.
+#[derive(Clone, Debug)]
+pub struct ListRef {
+    buf: Rc<Vec<Value>>,
+    start: usize,
+    end: usize,
+}
+
+impl ListRef {
+    pub fn new(items: Vec<Value>) -> ListRef {
+        let end = items.len();
+        ListRef {
+            buf: Rc::new(items),
+            start: 0,
+            end,
+        }
+    }
+
+    /// The elements `from..to` of this list, sharing its buffer.
+    pub fn slice(&self, from: usize, to: usize) -> ListRef {
+        debug_assert!(from <= to && to <= self.len());
+        ListRef {
+            buf: Rc::clone(&self.buf),
+            start: self.start + from,
+            end: self.start + to,
+        }
+    }
+
+    /// Whether both are the same elements of one buffer (so equal).
+    pub fn same(&self, other: &ListRef) -> bool {
+        Rc::ptr_eq(&self.buf, &other.buf) && self.start == other.start && self.end == other.end
+    }
+
+    /// The identity of the elements this list views, for sharing: their
+    /// address and count.
+    pub fn identity(&self) -> (usize, usize) {
+        (self.as_ptr() as usize, self.len())
+    }
+
+    /// The buffer, holding exactly this list's elements and owned by this
+    /// list alone (a copy when it is shared), to append to.
+    fn owned(&mut self) -> &mut Vec<Value> {
+        if Rc::get_mut(&mut self.buf).is_none() {
+            let live = self.buf[self.start..self.end].to_vec();
+            self.start = 0;
+            self.end = live.len();
+            self.buf = Rc::new(live);
+        }
+        let (start, end) = (self.start, self.end);
+        let v = Rc::get_mut(&mut self.buf).expect("an unshared buffer");
+        v.truncate(end);
+        if start > end - start {
+            v.drain(..start);
+            self.start = 0;
+            self.end = end - start;
+        }
+        v
+    }
+
+    /// Append `item` (copy on write).
+    pub fn push(&mut self, item: Value) {
+        let v = self.owned();
+        v.push(item);
+        let len = v.len();
+        self.end = len;
+    }
+
+    /// Append `items` (copy on write).
+    pub fn extend(&mut self, items: &[Value]) {
+        let v = self.owned();
+        v.extend(items.iter().cloned());
+        let len = v.len();
+        self.end = len;
+    }
+
+    /// Every value the buffer holds, when nothing else holds it (to drop
+    /// them without recursion).
+    fn buffer_mut(&mut self) -> Option<&mut [Value]> {
+        Rc::get_mut(&mut self.buf).map(Vec::as_mut_slice)
+    }
+}
+
+impl std::ops::Deref for ListRef {
+    type Target = [Value];
+
+    fn deref(&self) -> &[Value] {
+        &self.buf[self.start..self.end]
+    }
+}
+
+impl From<Vec<Value>> for ListRef {
+    fn from(items: Vec<Value>) -> ListRef {
+        ListRef::new(items)
+    }
 }
 
 impl PartialEq for Value {
@@ -481,7 +586,7 @@ impl Value {
     /// place.
     fn take_nested(&mut self, out: &mut Vec<Value>) {
         let items = match self {
-            Value::List(xs) => Rc::get_mut(xs).map(Vec::as_mut_slice),
+            Value::List(xs) => xs.buffer_mut(),
             Value::Struct { fields: xs, .. } | Value::Enum { payload: xs, .. } => Rc::get_mut(xs),
             Value::Wrapper { inner, .. } => Rc::get_mut(inner).map(std::slice::from_mut),
             _ => None,
@@ -496,7 +601,8 @@ impl Value {
     /// True for a list, struct, enum, or wrapper value that holds values.
     fn has_nested(&self) -> bool {
         match self {
-            Value::List(xs) => !xs.is_empty(),
+            // a list's buffer may hold values past those it views
+            Value::List(xs) => !xs.buf.is_empty(),
             Value::Struct { fields: xs, .. } | Value::Enum { payload: xs, .. } => !xs.is_empty(),
             Value::Wrapper { .. } => true,
             _ => false,
@@ -525,5 +631,82 @@ impl From<bool> for Value {
 impl From<&str> for Value {
     fn from(s: &str) -> Value {
         Value::text(s)
+    }
+}
+
+#[cfg(test)]
+mod list_views {
+    use super::{ListRef, Value};
+    use num_bigint::BigInt;
+
+    fn ints(xs: &[i64]) -> ListRef {
+        ListRef::new(xs.iter().map(|&x| Value::Int(BigInt::from(x))).collect())
+    }
+
+    fn values(l: &ListRef) -> Vec<i64> {
+        l.iter()
+            .map(|v| match v {
+                Value::Int(n) => i64::try_from(n).expect("small"),
+                _ => panic!("an Int"),
+            })
+            .collect()
+    }
+
+    #[test]
+    fn slices_share_the_buffer_and_copy_nothing() {
+        let xs = ints(&[1, 2, 3, 4]);
+        let tail = xs.slice(1, 4);
+        let mid = tail.slice(1, 2);
+        assert_eq!(values(&tail), [2, 3, 4]);
+        assert_eq!(values(&mid), [3]);
+        assert!(std::rc::Rc::ptr_eq(&xs.buf, &mid.buf));
+        assert!(tail.same(&xs.slice(1, 4)));
+        assert!(!tail.same(&xs.slice(1, 3)));
+        // the same elements of another buffer are equal, not the same
+        assert!(!tail.same(&ints(&[2, 3, 4])));
+        assert_eq!(Value::List(tail.clone()), Value::List(ints(&[2, 3, 4])));
+        // the identity of a view is the elements it views
+        assert_eq!(xs.slice(1, 3).identity(), tail.slice(0, 2).identity());
+        assert_ne!(xs.slice(0, 2).identity(), xs.slice(0, 3).identity());
+        assert_ne!(xs.slice(0, 2).identity(), xs.slice(1, 3).identity());
+    }
+
+    #[test]
+    fn appending_to_a_shared_view_copies_it() {
+        let xs = ints(&[1, 2, 3]);
+        let mut tail = xs.slice(1, 3);
+        tail.push(Value::Int(BigInt::from(9)));
+        assert_eq!(values(&tail), [2, 3, 9]);
+        assert_eq!(values(&xs), [1, 2, 3]);
+        let mut head = xs.slice(0, 1);
+        head.extend(&[Value::Int(BigInt::from(7))]);
+        assert_eq!(values(&head), [1, 7]);
+        assert_eq!(values(&xs), [1, 2, 3]);
+    }
+
+    #[test]
+    fn a_unique_view_appends_in_place_past_what_it_views() {
+        // a prefix nothing else holds: the hidden tail goes, then the item
+        let mut head = ints(&[1, 2, 3]).slice(0, 1);
+        head.push(Value::Int(BigInt::from(5)));
+        assert_eq!(values(&head), [1, 5]);
+        assert_eq!(head.buf.len(), 2);
+        // a queue: drop from the front, push at the back; the dead prefix is compacted
+        let mut q = ints(&[0]);
+        for i in 1..1000 {
+            q = q.slice(1, q.len());
+            q.push(Value::Int(BigInt::from(i)));
+            q.push(Value::Int(BigInt::from(-i)));
+            assert!(
+                q.buf.len() <= 2 * q.len() + 2,
+                "{} for {}",
+                q.buf.len(),
+                q.len()
+            );
+        }
+        assert_eq!(q.len(), 1000);
+        // the last 1000 of 0, 1, -1, 2, -2, ..., 999, -999
+        assert_eq!(values(&q)[..3], [500, -500, 501]);
+        assert_eq!(values(&q)[997..], [-998, 999, -999]);
     }
 }

@@ -866,7 +866,7 @@ pub fn parse_patch(src: &str, file: FileId) -> ParseResult<ast::PatchFile>;     
 pub fn parse_expr(src: &str, file: FileId) -> ParseResult<ast::Expr>;                  // (root)
 /// The implementation limits of grammar D73, at the minimum the grammar guarantees.
 pub const MAX_DEPTH: u32 = 64;                     // nesting levels; beyond: `nesting is too deep (more than 64 levels)`
-pub const MAX_EXPR_OPS: u32 = 1000;                // operators per expression; beyond: `an expression has too many operators ...`
+pub const MAX_EXPR_OPS: u32 = 1000;                // operators along a path of nested expressions; beyond: `an expression has too many operators ...`
 
 // ---- cpl_syntax::formatter (Section 2.4) ---------------------------------------
 pub const MAX_WIDTH: usize = 100;                  // rule 6 (iii): the column budget of a line, in scalar values
@@ -1319,7 +1319,7 @@ pub enum Value {
     Bool(bool),
     Text(Rc<String>),
     Bytes(Rc<Vec<u8>>),
-    List(Rc<Vec<Value>>),
+    List(ListRef), // a view of a shared buffer: Rc<Vec<Value>> and a range; derefs to [Value]
     Struct { def: DefId, fields: Rc<[Value]> },           // fields in declaration order
     Enum { def: DefId, variant: u32, payload: Rc<[Value]> },
     Wrapper { def: DefId, inner: Rc<Value> },             // nominal wrapper, e.g. PageId("x")
@@ -1346,7 +1346,10 @@ impl Value {
 
 Text, byte, and list buffers retain capacity for uniquely owned local
 append assignments. Other references remain immutable snapshots through
-copy on write. Embedders should use the constructors and accessors above;
+copy on write. A list is a view of a buffer, so `take`, `drop`, and
+`drop_last` copy nothing and walking a list with `first()` and `drop(1)`
+is linear; a uniquely owned view appends past its last element and drops
+its dead prefix once that is longer than the list. Embedders should use the constructors and accessors above;
 the earlier `Rc<str>` and `Rc<[T]>` payload representations have changed.
 
 Refined values (`Positive`) have the representation of their base type; a

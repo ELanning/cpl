@@ -411,11 +411,16 @@ fn build_source(
             digest: digest(text),
         })
         .collect();
+    // each export's definition by its qualified name, the first of the program's order
+    let mut by_path = std::collections::HashMap::new();
+    for d in program.defs() {
+        by_path.entry(program.display_path(d.id)).or_insert(d);
+    }
     let exports: Vec<BuildExport> = package
         .exports
         .iter()
         .filter_map(|f| {
-            let d = program.defs().find(|d| program.display_path(d.id) == *f)?;
+            let d = *by_path.get(f)?;
             Some(BuildExport {
                 symbol: f.clone(),
                 function: f.clone(),

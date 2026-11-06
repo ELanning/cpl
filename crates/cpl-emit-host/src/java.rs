@@ -15,13 +15,17 @@
 
 use crate::lir::*;
 use crate::lower::Lowered;
-use crate::{
-    camel, erase, instantiate, needs_validation, pascal, std_type, Options, Package, StdType,
-};
+use crate::{camel, erase, instantiate, pascal, std_type, Options, Package, StdType};
 use cpl_hir::{DefId, DefKind, Program, Ty};
 use num_traits::ToPrimitive;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write as _;
+
+/// Whether a value entering at `ty` is checked at the boundary: its refinements and invariants,
+/// and its texts, which a Go string or a Java string may hold invalid (not Unicode scalars).
+fn needs_validation(p: &Program, ty: &Ty) -> bool {
+    crate::needs_validation(p, ty) || crate::contains_text(p, ty)
+}
 
 /// Java's keywords and literals, and the names the generated code declares itself.
 const RESERVED: &[&str] = &[
@@ -154,6 +158,23 @@ pub fn emit(p: &Program, lowered: &Lowered, options: &Options) -> Package {
             .collect(),
         counter: 0,
         breaks: BTreeSet::new(),
+        exact: {
+            let mut by_name: BTreeMap<(Vec<String>, String), Vec<DefId>> = BTreeMap::new();
+            for f in &lowered.fns {
+                let d = p.def(f.def);
+                if d.is_pub {
+                    by_name
+                        .entry((p.module(d.module).path.clone(), member(&d.name.display())))
+                        .or_default()
+                        .push(f.def);
+                }
+            }
+            by_name
+                .into_values()
+                .filter(|v| v.len() > 1)
+                .flatten()
+                .collect()
+        },
     };
     let mut files = BTreeMap::new();
     let src = |pkg: &str, class: &str| format!("src/{}/{class}.java", pkg.replace('.', "/"));
@@ -358,6 +379,9 @@ struct Printer<'p> {
     counter: usize,
     /// The loops with a reachable `break`, while their bodies are printed.
     breaks: BTreeSet<u32>,
+    /// The `pub fn`s whose camelCase name another `pub fn` of their module shares: they keep
+    /// their CPL names (`foo_bar` and `fooBar` would both be `fooBar`).
+    exact: BTreeSet<DefId>,
 }
 
 impl<'p> Printer<'p> {
@@ -484,7 +508,7 @@ impl<'p> Printer<'p> {
             .map(|l| format!(": {}", doc_text(l)))
             .unwrap_or_default();
         let to_json_map = |out: &mut String, entries: &[(String, String)]| {
-            let _ = writeln!(out, "    @Override\n    public java.lang.Object toJson() {{\n        java.util.Map<java.lang.String, java.lang.Object> m = new java.util.TreeMap<>();\n        m.put(\"$type\", {});", java_str(&qualified));
+            let _ = writeln!(out, "    @java.lang.Override\n    public java.lang.Object toJson() {{\n        java.util.Map<java.lang.String, java.lang.Object> m = new java.util.TreeMap<>();\n        m.put(\"$type\", {});", java_str(&qualified));
             for (k, v) in entries {
                 let _ = writeln!(out, "        m.put({}, {rt}.Rt.toJson({v}));", java_str(k));
             }
@@ -512,10 +536,10 @@ impl<'p> Printer<'p> {
                     comps.join(", ")
                 );
                 let bare = def.name.display();
-                let _ = writeln!(out, "    @Override\n    public java.lang.String toString() {{\n        return {rt}.Rt.valueText(this);\n    }}\n");
+                let _ = writeln!(out, "    @java.lang.Override\n    public java.lang.String toString() {{\n        return {rt}.Rt.valueText(this);\n    }}\n");
                 let _ = writeln!(
                     out,
-                    "    @Override\n    public void writeText(java.lang.StringBuilder sb) {{"
+                    "    @java.lang.Override\n    public void writeText(java.lang.StringBuilder sb) {{"
                 );
                 if s.fields.is_empty() {
                     let _ = writeln!(
@@ -570,8 +594,8 @@ impl<'p> Printer<'p> {
                         "    record {vn}{g}({}) implements {name}{g} {{",
                         comps.join(", ")
                     );
-                    let _ = writeln!(out, "        @Override\n        public java.lang.String toString() {{\n            return {rt}.Rt.valueText(this);\n        }}\n");
-                    let _ = writeln!(out, "        @Override\n        public void writeText(java.lang.StringBuilder sb) {{");
+                    let _ = writeln!(out, "        @java.lang.Override\n        public java.lang.String toString() {{\n            return {rt}.Rt.valueText(this);\n        }}\n");
+                    let _ = writeln!(out, "        @java.lang.Override\n        public void writeText(java.lang.StringBuilder sb) {{");
                     if v.payload.is_empty() {
                         let _ = writeln!(out, "            sb.append({});", java_str(&v.name));
                     } else {
@@ -601,7 +625,7 @@ impl<'p> Printer<'p> {
                     };
                     let _ = writeln!(
                         out,
-                        "        }}\n\n        @Override\n        public java.lang.Object toJson() {{\n            return {rt}.Json.tagged({}, {}, {payload});\n        }}\n    }}\n",
+                        "        }}\n\n        @java.lang.Override\n        public java.lang.Object toJson() {{\n            return {rt}.Json.tagged({}, {}, {payload});\n        }}\n    }}\n",
                         java_str(&qualified),
                         java_str(&v.name)
                     );
@@ -613,7 +637,7 @@ impl<'p> Printer<'p> {
                 let bare = def.name.display();
                 let _ = writeln!(
                     out,
-                    "/** The CPL wrapper {{@code {}}}{doc}. */\npublic record {name}({inner} value) implements {rt}.Value {{\n    @Override\n    public java.lang.String toString() {{\n        return {rt}.Rt.valueText(this);\n    }}\n\n    @Override\n    public void writeText(java.lang.StringBuilder sb) {{\n        sb.append({});\n        {rt}.Rt.writeText(sb, value);\n        sb.append(')');\n    }}\n\n    @Override\n    public java.lang.Object toJson() {{\n        return {rt}.Json.tagged({}, null, java.util.List.of({rt}.Rt.toJson(value)));\n    }}\n}}",
+                    "/** The CPL wrapper {{@code {}}}{doc}. */\npublic record {name}({inner} value) implements {rt}.Value {{\n    @java.lang.Override\n    public java.lang.String toString() {{\n        return {rt}.Rt.valueText(this);\n    }}\n\n    @java.lang.Override\n    public void writeText(java.lang.StringBuilder sb) {{\n        sb.append({});\n        {rt}.Rt.writeText(sb, value);\n        sb.append(')');\n    }}\n\n    @java.lang.Override\n    public java.lang.Object toJson() {{\n        return {rt}.Json.tagged({}, null, java.util.List.of({rt}.Rt.toJson(value)));\n    }}\n}}",
                     p.display_path(d),
                     java_str(&format!("{bare}(")),
                     java_str(&qualified)
@@ -759,7 +783,11 @@ impl<'p> Printer<'p> {
         let def = p.def(f.def);
         let fd = def.kind.as_fn().expect("a function");
         let name = ident(&def.name.display());
-        let host = member(&def.name.display());
+        let host = if self.exact.contains(&f.def) {
+            ident(&def.name.display())
+        } else {
+            member(&def.name.display())
+        };
         let g = generics_decl(&f.generics);
         let gsp = if g.is_empty() {
             String::new()
@@ -797,7 +825,8 @@ impl<'p> Printer<'p> {
             params.join(", ")
         );
         for q in &fd.params {
-            if matches!(erase(p, &q.ty), Ty::Text) {
+            // a generic function's arguments get no validator; its plain texts are still checked
+            if !f.generics.is_empty() && matches!(erase(p, &q.ty), Ty::Text) {
                 let _ = writeln!(out, "            if (!{rt}.Rt.validText({})) {{\n                throw {rt}.Fault.refinement(\"Text\", {symbol});\n            }}", pname(&q.name));
             }
             if f.generics.is_empty() && needs_validation(p, &q.ty) {
@@ -917,6 +946,16 @@ impl<'p> Printer<'p> {
                         let _ = writeln!(body, "        if (x instanceof {rt}.Option.Some<{a}> s && !{v}(s.value(), cx)) {{\n            return false;\n        }}");
                     }
                 }
+                // the runtime's records hold texts a host may have made
+                (Some(StdType::ForeignError), _) => {
+                    let _ = writeln!(body, "        if (!{rt}.Rt.validText(x.message())) {{\n            return false;\n        }}\n        for ({rt}.ForeignDetail d : x.details()) {{\n            if (!{rt}.Rt.validText(d.key()) || !{rt}.Rt.validText(d.value())) {{\n                return false;\n            }}\n        }}");
+                }
+                (Some(StdType::ForeignDetail), _) => {
+                    let _ = writeln!(body, "        if (!{rt}.Rt.validText(x.key()) || !{rt}.Rt.validText(x.value())) {{\n            return false;\n        }}");
+                }
+                (Some(StdType::ConstraintError), _) => {
+                    let _ = writeln!(body, "        if (!{rt}.Rt.validText(x.typeName()) || !{rt}.Rt.validText(x.message())) {{\n            return false;\n        }}");
+                }
                 (Some(StdType::Result), _) => {
                     let (a, b) = (self.jty(&args[0], &[], true), self.jty(&args[1], &[], true));
                     if needs_validation(p, &args[0]) {
@@ -976,6 +1015,12 @@ impl<'p> Printer<'p> {
                 }
                 _ => {}
             },
+            Ty::Text => {
+                let _ = writeln!(
+                    body,
+                    "        if (!{rt}.Rt.validText(x)) {{\n            return false;\n        }}"
+                );
+            }
             _ => {}
         }
         let _ = writeln!(out, "    public static boolean {name}({t} x, {rt}.Cx cx) {{\n{body}        return true;\n    }}\n");
@@ -1713,6 +1758,11 @@ impl Fx<'_, '_> {
                     self.targs(generics),
                     ident(&p.def(*def).name.display())
                 )
+            }
+            LExpr::Valid { ty, arg } => {
+                let a = self.expr(arg);
+                let v = self.r.validator_name(ty);
+                format!("{}.Support.{v}({a}, cx)", self.r.base)
             }
             LExpr::CheckFailure {
                 value,

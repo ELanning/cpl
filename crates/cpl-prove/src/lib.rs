@@ -358,6 +358,39 @@ fn verdicts_of(
                 last = model;
             }
         }
+        // Lists the abstractions left empty: also one and two elements, each some value of the
+        // element type. A list the solver knows nothing about renders as `[]`, which rarely
+        // reaches the code a list's elements run.
+        let first = verdicts
+            .iter()
+            .filter(|(_, v)| v.status == Status::Unknown)
+            .find_map(|(_, v)| {
+                v.evidence
+                    .as_ref()
+                    .and_then(|e| e.get("candidate"))
+                    .cloned()
+            });
+        if let Some(Value::Object(base)) = first {
+            for param in &f.params {
+                let cpl_hir::Ty::List(elem) = &param.ty else {
+                    continue;
+                };
+                if base.get(&param.name) != Some(&Value::Array(Vec::new())) {
+                    continue;
+                }
+                let element = render::witness(p, elem, 1);
+                for n in 1..=2 {
+                    if runs.exhausted() {
+                        break;
+                    }
+                    let mut candidate = base.clone();
+                    candidate.insert(param.name.clone(), Value::Array(vec![element.clone(); n]));
+                    if runs.run(p, def, &Value::Object(candidate), &mut verdicts) {
+                        break;
+                    }
+                }
+            }
+        }
     }
     Some(verdicts)
 }
@@ -890,13 +923,33 @@ fn equivalent_in(
         },
     );
     let mut pairs = Vec::new();
-    for (po, a) in &old_outs {
-        // A pair whose sides took opposite branches of one condition is infeasible: most pairs
-        // of two similar versions are, and spotting them here saves solving them.
-        let opposite: std::collections::HashSet<Form> =
-            po.cond.iter().map(|c| Form::not(c.clone())).collect();
-        for (pn, b) in &new_outs {
-            if pn.cond.iter().any(|c| opposite.contains(c)) {
+    // A pair whose sides took opposite branches of one condition is infeasible: most pairs of
+    // two similar versions are, and spotting them here saves solving them. Each distinct
+    // condition is hashed once, as a number; the pairs compare numbers.
+    let mut ids: std::collections::HashMap<Form, u32> = std::collections::HashMap::new();
+    let mut intern = |f: Form| {
+        let next = ids.len() as u32;
+        *ids.entry(f).or_insert(next)
+    };
+    let opposites: Vec<Vec<u32>> = old_outs
+        .iter()
+        .map(|(po, _)| {
+            let mut v: Vec<u32> = po
+                .cond
+                .iter()
+                .map(|c| intern(Form::not(c.clone())))
+                .collect();
+            v.sort_unstable();
+            v
+        })
+        .collect();
+    let taken: Vec<Vec<u32>> = new_outs
+        .iter()
+        .map(|(pn, _)| pn.cond.iter().map(|c| intern(c.clone())).collect())
+        .collect();
+    for ((po, a), opposite) in old_outs.iter().zip(&opposites) {
+        for ((pn, b), conds) in new_outs.iter().zip(&taken) {
+            if conds.iter().any(|c| opposite.binary_search(c).is_ok()) {
                 continue;
             }
             let mut scratch = exec::Path::new(0);

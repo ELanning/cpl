@@ -462,7 +462,7 @@ impl Decoder<'_> {
                 for (i, item) in items.iter().enumerate() {
                     out.push(self.at(i.to_string(), |d| d.decode(item, elem))?);
                 }
-                Ok(Value::List(Rc::from(out)))
+                Ok(Value::list(out))
             }
             Ty::Adt(def, args) => self.adt(j, *def, args, ty),
             Ty::Wrapper(def) => self.wrapper(j, *def, ty),

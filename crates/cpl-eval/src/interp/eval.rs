@@ -426,7 +426,7 @@ impl<'p> Interpreter<'p> {
         predicate: &'p Expr,
     ) -> Eval<Value> {
         let items = match &self.eval_expr(collection)? {
-            Value::List(items) => Rc::clone(items),
+            Value::List(items) => items.clone(),
             other => return self.confusion("a List", other, collection.span),
         };
         for item in items.iter() {
@@ -596,22 +596,22 @@ impl<'p> Interpreter<'p> {
                         // common case specialized while preserving the left operand across right-hand effects.
                         if let Some(Some(Value::List(xs))) = self.env().values.get(local.0 as usize)
                         {
-                            let mut left = Rc::clone(xs);
+                            let mut left = xs.clone();
                             let right = self.eval_expr(rhs)?;
                             if let Value::List(ys) = &right {
                                 if let Some(Some(Value::List(current))) =
                                     self.env_mut().values.get_mut(local.0 as usize)
                                 {
-                                    if Rc::ptr_eq(current, &left) {
+                                    if current.same(&left) {
                                         drop(left);
                                         if !ys.is_empty() {
-                                            Rc::make_mut(current).extend(ys.iter().cloned());
+                                            current.extend(ys);
                                         }
                                         return Ok(());
                                     }
                                 }
                                 if !ys.is_empty() {
-                                    Rc::make_mut(&mut left).extend(ys.iter().cloned());
+                                    left.extend(ys);
                                 }
                                 return self.assign(*local, Value::List(left), value.span);
                             }
@@ -684,7 +684,7 @@ impl<'p> Interpreter<'p> {
                         if let Some(Some(Value::List(xs))) =
                             self.env_mut().values.get_mut(local.0 as usize)
                         {
-                            Rc::make_mut(xs).push(item);
+                            xs.push(item);
                             return Ok(());
                         }
                     }

@@ -129,10 +129,11 @@ Implementation limits. The grammar bounds neither nesting nor the length of
 an expression, but a recursive-descent parser recurses once per nesting
 level, and every later walk of a tree (drop, clone, the debug dump,
 serialisation, the checker) recurses once per operator of a left-nested
-operator chain, so the bounds are part of the contract:
+operator chain, along one path of the tree at a time, so the bounds are
+part of the contract:
 
 Decision: [D-239] D73. every implementation accepts at least 64 levels of
-nesting and at least 1000 operators in one expression, and may accept more;
+nesting and at least 1000 operators along a path of nested expressions, and may accept more;
 an input beyond its limits is the syntax error `nesting is too deep (more
 than 64 levels)` or `an expression has too many operators (more than 1000);
 split it into bindings` (code `syntax_error`, with the implementation's own
@@ -141,7 +142,9 @@ exceeded: for nesting, the first token after the bracket, `{`, prefix
 operator, `<`, or `:` that opens the excess level (the keyword itself for
 an `if` or `match`; a `NEWLINE` is a token here, so after a `{` that ends
 its line the report is at that line break), and for operators, the
-operator. Whether a `<` after a name chain begins a generic call (D42) is
+operator that makes the operators on its path, counted so far, exceed the
+limit (those of the expressions around it, its own expression's, and the
+most of any expression nested in its own expression before it). Whether a `<` after a name chain begins a generic call (D42) is
 decided as a parser without a depth limit would decide it, and the limit
 then applies to the parse that follows, so a generic call nested past the
 limit is the nesting error, never a chain of comparisons. One nesting level is one bracket pair (`( )`, `[ ]`, or the
@@ -154,12 +157,16 @@ generic argument list (the `<...>` of a type or of a generic call), or one
 `forall` predicate; levels are counted from the top level of the file, so
 the braces of a function body are its first level. The operators of an
 expression are its binary operators and its postfix operators (`.member`, a
-call, `?`, a generic call, a struct literal), counted over an outermost
-expression (the expression of a statement or clause, or a refinement
-predicate) together with every expression nested inside it, the statements
-of a block inside it included (so the statements of the blocks of a
-statement-level `if` or `match` share one budget, while those of a `while`
-body, which belongs to no expression, have one each). Rationale: the limits exist so that no
+call, `?`, a generic call, a struct literal), counted along each path of
+nested expressions in an outermost expression (the expression of a
+statement or clause, or a refinement predicate): an expression nested in
+another (an operand, an argument, a condition, a statement of a block, an
+arm) adds its operators to those of every expression around it, while
+expressions side by side (the arms of one `match`, the statements of one
+block, the arguments of one call) count separately, and the limit bounds
+the most operators on any one path. A `match` of thousands of arms, or a
+block of thousands of statements, each with a few operators, is within
+it. Rationale: the limits exist so that no
 input, however deep or long, can overflow the stack of the parser or of a
 recursive consumer of the tree; at 64 levels the reference parser and
 formatter stay under 1 MiB of stack in a debug build (a requirement of the
@@ -2280,5 +2287,5 @@ and typing see through.
 | D70 | implementations may resynchronise internally after an error; the result is still one diagnostic (the earliest) and no tree; `invalid_utf8` is raised at file load |
 | D71 | an annotation name is a `LOWER_IDENT` or any reserved keyword token (`@property`) |
 | D72 | a quoted message is the fixed beginning of the emitted message (placeholders filled, then an optional parenthesised hint and `, found <token>`); unquoted syntax errors are `expected <description>, found <token>`; generic messages carry `expected` and `found` |
-| D73 | minimum implementation limits: 64 levels of nesting and 1000 operators per expression, both `syntax_error` beyond the implementation's limits |
+| D73 | minimum implementation limits: 64 levels of nesting and 1000 operators along a path of nested expressions, both `syntax_error` beyond the implementation's limits |
 | D74 | tests and properties may declare `using` parameters in parentheses after the name and an `effects` clause (Milestone 3) |

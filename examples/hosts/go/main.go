@@ -19,6 +19,11 @@ func (rates) RateFor(sku string) cpl.Int {
 	return cpl.I(20)
 }
 
+// brokenRates has a bug: 150 is not a Percent.
+type brokenRates struct{}
+
+func (brokenRates) RateFor(sku string) cpl.Int { return cpl.I(150) }
+
 // auditLog keeps what it is told.
 type auditLog struct{ lines []string }
 
@@ -57,5 +62,10 @@ func main() {
 	if _, err := pricing.Dollars(cpl.I(-5)); err != nil {
 		f := err.(*cpl.Fault)
 		fmt.Println("dollars(-5):", f.Code, f.ClauseKind)
+	}
+	// What a capability returns is checked against its type too.
+	if _, err := pricing.TotalWithTax(order, brokenRates{}); err != nil {
+		f := err.(*cpl.Fault)
+		fmt.Println("a rate of 150:", f.Code, f.Symbol)
 	}
 }

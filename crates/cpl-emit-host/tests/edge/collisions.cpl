@@ -1,0 +1,25 @@
+module m
+
+pub struct Pair {
+    first_value: Int
+    firstValue: Int
+}
+
+pub enum Kind {
+    Plain
+    Very_plain
+}
+
+pub fn foo_bar(x: Int) -> Int { x + 1 }
+
+pub fn fooBar(x: Int) -> Int { x + 2 }
+
+
+pub fn both(p: Pair) -> Int { p.first_value - p.firstValue }
+
+pub fn kinds(k: Kind) -> Int {
+    match k {
+        Plain => 1
+        Very_plain => 2
+    }
+}

@@ -9,7 +9,6 @@ use crate::value::Value;
 use cpl_hir::Program;
 use num_bigint::BigInt;
 use num_traits::{Signed, ToPrimitive};
-use std::rc::Rc;
 
 type Out = Result<Value, Fault>;
 
@@ -41,7 +40,7 @@ pub(super) fn flatten(_it: &mut Interpreter<'_>, args: &[Value]) -> Out {
         return Ok(Value::empty_list());
     }
     if nonempty == 1 {
-        return Ok(Value::List(Rc::clone(only.expect("one nonempty list"))));
+        return Ok(Value::List(only.expect("one nonempty list").clone()));
     }
     let mut out = Vec::with_capacity(total);
     for x in outer.iter() {
@@ -146,11 +145,7 @@ pub(super) fn list_take(it: &mut Interpreter<'_>, args: &[Value]) -> Out {
         return Err(requires_violation(it, ID, 0, args));
     }
     let k = clamp_count(n, xs.len());
-    Ok(if k == xs.len() {
-        Value::List(Rc::clone(xs))
-    } else {
-        Value::list(xs[..k].to_vec())
-    })
+    Ok(Value::List(xs.slice(0, k)))
 }
 
 /// `xs.drop(n)`: `requires n >= 0` (a fault, stdlib S16); the elements
@@ -164,22 +159,14 @@ pub(super) fn list_drop(it: &mut Interpreter<'_>, args: &[Value]) -> Out {
         return Err(requires_violation(it, ID, 0, args));
     }
     let k = clamp_count(n, xs.len());
-    Ok(if k == 0 {
-        Value::List(Rc::clone(xs))
-    } else {
-        Value::list(xs[k..].to_vec())
-    })
+    Ok(Value::List(xs.slice(k, xs.len())))
 }
 
 /// `xs.drop_last()`: `xs` without its last element; `[]` for `[]`.
 pub(super) fn list_drop_last(_it: &mut Interpreter<'_>, args: &[Value]) -> Out {
     arity("list_drop_last", args, 1)?;
     let xs = list_arg("list_drop_last", args, 0)?;
-    Ok(if xs.is_empty() {
-        Value::List(Rc::clone(xs))
-    } else {
-        Value::list(xs[..xs.len() - 1].to_vec())
-    })
+    Ok(Value::List(xs.slice(0, xs.len().saturating_sub(1))))
 }
 
 /// `xs.push(v)`: a new list ending in `v`; `xs` is unchanged.

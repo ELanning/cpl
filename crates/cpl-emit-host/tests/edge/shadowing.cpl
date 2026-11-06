@@ -1,0 +1,137 @@
+module m
+
+pub struct Vec {
+    x: Int
+}
+
+pub struct String {
+    x: Int
+}
+
+pub struct Box {
+    x: Int
+}
+
+pub struct Override {
+    x: Int
+}
+
+pub struct Object {
+    x: Int
+}
+
+pub struct Fault {
+    x: Int
+}
+
+pub struct Cx {
+    x: Int
+}
+
+pub struct Value {
+    x: Int
+}
+
+pub struct Json {
+    x: Int
+}
+
+pub struct Arc {
+    x: Int
+}
+
+pub struct Hash {
+    x: Int
+}
+
+pub struct Clone {
+    x: Int
+}
+
+pub struct Debug {
+    x: Int
+}
+
+pub struct Eq {
+    x: Int
+}
+
+pub struct Ord {
+    x: Int
+}
+
+pub struct Default {
+    x: Int
+}
+
+pub struct Iterator {
+    x: Int
+}
+
+pub struct Map {
+    x: Int
+}
+
+pub struct Error {
+    x: Int
+}
+
+pub struct Any {
+    x: Int
+}
+
+pub enum Shapes {
+    Plain
+    Boxed(Box)
+    Named(String)
+}
+
+pub fn get_vec(v: Vec) -> Int { v.x }
+
+pub fn get_string(v: String) -> Int { v.x }
+
+pub fn get_box(v: Box) -> Int { v.x }
+
+pub fn get_override(v: Override) -> Int { v.x }
+
+pub fn get_object(v: Object) -> Int { v.x }
+
+pub fn get_fault(v: Fault) -> Int { v.x }
+
+pub fn get_cx(v: Cx) -> Int { v.x }
+
+pub fn get_value(v: Value) -> Int { v.x }
+
+pub fn get_json(v: Json) -> Int { v.x }
+
+pub fn get_arc(v: Arc) -> Int { v.x }
+
+pub fn get_hash(v: Hash) -> Int { v.x }
+
+pub fn get_clone(v: Clone) -> Int { v.x }
+
+pub fn get_debug(v: Debug) -> Int { v.x }
+
+pub fn get_eq(v: Eq) -> Int { v.x }
+
+pub fn get_ord(v: Ord) -> Int { v.x }
+
+pub fn get_default(v: Default) -> Int { v.x }
+
+pub fn get_iterator(v: Iterator) -> Int { v.x }
+
+pub fn get_map(v: Map) -> Int { v.x }
+
+pub fn get_error(v: Error) -> Int { v.x }
+
+pub fn get_any(v: Any) -> Int { v.x }
+
+pub fn make(n: Int) -> List<String> { [String { x: n }, String { x: n + 1 }] }
+
+pub fn shape(s: Shapes) -> Int {
+    match s {
+        Plain => 0
+        Boxed(b) => b.x
+        Named(n) => n.x
+    }
+}

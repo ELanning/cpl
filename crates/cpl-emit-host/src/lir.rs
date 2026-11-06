@@ -266,6 +266,12 @@ pub enum LExpr {
         generics: Vec<Ty>,
         arg: Box<LExpr>,
     },
+    /// Whether `arg` satisfies every refinement and struct invariant reachable in `ty` (the
+    /// validation of a value from the host, semantics S77).
+    Valid {
+        ty: Ty,
+        arg: Box<LExpr>,
+    },
     /// `Err(ConstraintError { type_name, message: "<value text> does not satisfy <predicate>" })`
     /// of `check<R>`; `ty` is the `Result` type and `value_ty` the value's.
     CheckFailure {
@@ -368,7 +374,9 @@ pub fn visit_expr(e: &LExpr, f: &mut dyn FnMut(&LExpr)) {
             visit_expr(a, f);
             visit_expr(b, f);
         }
-        LExpr::Wrap { arg, .. } | LExpr::Pred { arg, .. } => visit_expr(arg, f),
+        LExpr::Wrap { arg, .. } | LExpr::Pred { arg, .. } | LExpr::Valid { arg, .. } => {
+            visit_expr(arg, f)
+        }
         LExpr::Field { base, .. }
         | LExpr::Payload { base, .. }
         | LExpr::IsVariant { base, .. }
@@ -410,9 +418,11 @@ fn expr_can_fault(e: &LExpr) -> bool {
     let mut found = false;
     visit_expr(e, &mut |x| {
         found |= match x {
-            LExpr::Call { .. } | LExpr::Div { .. } | LExpr::CapCall { .. } | LExpr::Pred { .. } => {
-                true
-            }
+            LExpr::Call { .. }
+            | LExpr::Div { .. }
+            | LExpr::CapCall { .. }
+            | LExpr::Pred { .. }
+            | LExpr::Valid { .. } => true,
             LExpr::Builtin { id, .. } => FALLIBLE_BUILTINS.contains(&id.as_str()),
             _ => false,
         }

@@ -11,11 +11,12 @@
 //! of its field count, an enum its variants).
 
 use num_bigint::BigInt;
+use std::collections::{HashMap, HashSet};
 
 /// A constructor of a column: an enum variant (by index), a `Bool`
 /// literal, the single constructor of a wrapper or struct, or an `Int` or
 /// `Text` literal (constructors of an infinite type).
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub(crate) enum CtorKey {
     Variant(u32),
     Bool(bool),
@@ -78,6 +79,7 @@ impl Witness {
     }
 }
 
+#[cfg(test)]
 fn arity<T>(sigma: Option<&[CtorSig<T>]>, key: &CtorKey) -> usize {
     match key {
         CtorKey::Int(_) | CtorKey::Text(_) | CtorKey::Bool(_) => 0,
@@ -87,6 +89,7 @@ fn arity<T>(sigma: Option<&[CtorSig<T>]>, key: &CtorKey) -> usize {
     }
 }
 
+#[cfg(test)]
 fn fields_of<T: Clone>(sigma: Option<&[CtorSig<T>]>, key: &CtorKey) -> Vec<T> {
     sigma
         .and_then(|s| s.iter().find(|c| &c.key == key))
@@ -127,20 +130,21 @@ fn default(rows: &[Vec<Pat>]) -> Vec<Vec<Pat>> {
         .collect()
 }
 
-fn heads(rows: &[Vec<Pat>]) -> Vec<&CtorKey> {
-    let mut out: Vec<&CtorKey> = Vec::new();
-    for r in rows {
-        if let Pat::Ctor(c, _) = &r[0] {
-            if !out.contains(&c) {
-                out.push(c);
-            }
-        }
-    }
-    out
+/// The constructors at the heads of the rows (a set: a `match` may have
+/// thousands of literal arms).
+fn heads(rows: &[Vec<Pat>]) -> HashSet<&CtorKey> {
+    rows.iter()
+        .filter_map(|r| match &r[0] {
+            Pat::Ctor(c, _) => Some(c),
+            Pat::Wild => None,
+        })
+        .collect()
 }
 
 /// `useful(P, q)`: is there a value matched by `q` and by no row of `P`?
-/// `tys` are the column types.
+/// `tys` are the column types. The reference [`Matrix::useful`] is tested
+/// against.
+#[cfg(test)]
 pub(crate) fn useful<S: Space>(space: &S, rows: &[Vec<Pat>], q: &[Pat], tys: &[S::Ty]) -> bool {
     if q.is_empty() {
         return rows.is_empty();
@@ -161,16 +165,14 @@ pub(crate) fn useful<S: Space>(space: &S, rows: &[Vec<Pat>], q: &[Pat], tys: &[S
         Pat::Wild => {
             let hs = heads(rows);
             match &sigma {
-                Some(ctors) if ctors.iter().all(|c| hs.contains(&&c.key)) => {
-                    ctors.iter().any(|c| {
-                        let k = c.fields.len();
-                        let mut q2 = vec![Pat::Wild; k];
-                        q2.extend(q[1..].iter().cloned());
-                        let mut t2 = c.fields.clone();
-                        t2.extend(tys[1..].iter().cloned());
-                        useful(space, &specialize(rows, &c.key, k), &q2, &t2)
-                    })
-                }
+                Some(ctors) if ctors.iter().all(|c| hs.contains(&c.key)) => ctors.iter().any(|c| {
+                    let k = c.fields.len();
+                    let mut q2 = vec![Pat::Wild; k];
+                    q2.extend(q[1..].iter().cloned());
+                    let mut t2 = c.fields.clone();
+                    t2.extend(tys[1..].iter().cloned());
+                    useful(space, &specialize(rows, &c.key, k), &q2, &t2)
+                }),
                 _ => useful(space, &default(rows), &q[1..], &tys[1..]),
             }
         }
@@ -196,7 +198,7 @@ pub(crate) fn witnesses<S: Space>(
     let hs = heads(rows);
     let mut out: Vec<Vec<Witness>> = Vec::new();
     match &sigma {
-        Some(ctors) if ctors.iter().all(|c| hs.contains(&&c.key)) => {
+        Some(ctors) if ctors.iter().all(|c| hs.contains(&c.key)) => {
             for c in ctors {
                 let k = c.fields.len();
                 let mut t2 = c.fields.clone();
@@ -224,7 +226,7 @@ pub(crate) fn witnesses<S: Space>(
             let firsts: Vec<Witness> = match &sigma {
                 Some(ctors) => ctors
                     .iter()
-                    .filter(|c| !hs.contains(&&c.key))
+                    .filter(|c| !hs.contains(&c.key))
                     .map(|c| match &c.name {
                         Some(name) => {
                             Witness::Ctor(name.clone(), vec![Witness::Wild; c.fields.len()])
@@ -249,6 +251,190 @@ pub(crate) fn witnesses<S: Space>(
     out
 }
 
+/// The rows of the arms so far, with the matrices `useful` derives from them kept and extended
+/// as rows arrive: its specialization by each constructor it was asked about, and its default
+/// matrix, each indexed by the constructors at the heads of its rows. Deciding an arm then
+/// touches only the rows its own constructors select, so a `match` of thousands of arms (a
+/// table of literals, even under a constructor, `Some(1)`, `Some(2)`, ...) is checked in time
+/// linear in its size, where rebuilding the matrices for every arm was quadratic. The answers
+/// are `useful`'s: a specialization holds the same rows, and usefulness does not depend on
+/// their order.
+struct Matrix<T> {
+    tys: Vec<T>,
+    /// `Σ` of the first column, and each constructor's position in it.
+    sigma: Option<Vec<CtorSig<T>>>,
+    sigma_at: HashMap<CtorKey, usize>,
+    rows: Vec<Vec<Pat>>,
+    by_head: HashMap<CtorKey, Vec<usize>>,
+    wild: Vec<usize>,
+    /// By constructor, then by arity (a malformed pattern may give one a second).
+    special: HashMap<CtorKey, Vec<(usize, Matrix<T>)>>,
+    default: Option<Box<Matrix<T>>>,
+}
+
+impl<T: Clone> Matrix<T> {
+    fn new<S: Space<Ty = T>>(space: &S, tys: Vec<T>) -> Matrix<T> {
+        let sigma = tys.first().and_then(|t| space.sigma(t));
+        let sigma_at = sigma
+            .iter()
+            .flatten()
+            .enumerate()
+            .map(|(i, c)| (c.key.clone(), i))
+            .collect();
+        Matrix {
+            tys,
+            sigma,
+            sigma_at,
+            rows: Vec::new(),
+            by_head: HashMap::new(),
+            wild: Vec::new(),
+            special: HashMap::new(),
+            default: None,
+        }
+    }
+
+    fn arity(&self, key: &CtorKey) -> usize {
+        match key {
+            CtorKey::Int(_) | CtorKey::Text(_) | CtorKey::Bool(_) => 0,
+            _ => self.fields(key).len(),
+        }
+    }
+
+    fn fields(&self, key: &CtorKey) -> Vec<T> {
+        match (&self.sigma, self.sigma_at.get(key)) {
+            (Some(ctors), Some(&i)) => ctors[i].fields.clone(),
+            _ => Vec::new(),
+        }
+    }
+
+    /// `specialize` of one row by `(key, k)`, when it is kept.
+    fn specialized(row: &[Pat], key: &CtorKey, k: usize) -> Option<Vec<Pat>> {
+        let mut r = match &row[0] {
+            Pat::Ctor(c, args) if c == key => {
+                let mut r = args.clone();
+                r.resize(k, Pat::Wild);
+                r
+            }
+            Pat::Ctor(..) => return None,
+            Pat::Wild => vec![Pat::Wild; k],
+        };
+        r.extend(row[1..].iter().cloned());
+        Some(r)
+    }
+
+    /// Add a row (one pattern per column), to this matrix and to every one derived from it.
+    fn push(&mut self, row: Vec<Pat>) {
+        if row.is_empty() {
+            self.rows.push(row);
+            return;
+        }
+        match &row[0] {
+            Pat::Ctor(c, _) => {
+                self.by_head
+                    .entry(c.clone())
+                    .or_default()
+                    .push(self.rows.len());
+                for (k, m) in self.special.get_mut(c).into_iter().flatten() {
+                    if let Some(r) = Self::specialized(&row, c, *k) {
+                        m.push(r);
+                    }
+                }
+            }
+            Pat::Wild => {
+                self.wild.push(self.rows.len());
+                for (key, ms) in self.special.iter_mut() {
+                    for (k, m) in ms {
+                        if let Some(r) = Self::specialized(&row, key, *k) {
+                            m.push(r);
+                        }
+                    }
+                }
+                if let Some(d) = &mut self.default {
+                    d.push(row[1..].to_vec());
+                }
+            }
+        }
+        self.rows.push(row);
+    }
+
+    /// The specialization by `(key, k)`, built from the rows its head selects the first time.
+    fn special<S: Space<Ty = T>>(&mut self, space: &S, key: &CtorKey, k: usize) -> &mut Matrix<T> {
+        let built = self
+            .special
+            .get(key)
+            .is_some_and(|ms| ms.iter().any(|(j, _)| *j == k));
+        if !built {
+            let mut tys = self.fields(key);
+            tys.resize(k, self.tys[0].clone());
+            tys.extend(self.tys[1..].iter().cloned());
+            let mut m = Matrix::new(space, tys);
+            let mut selected: Vec<usize> = self.by_head.get(key).cloned().unwrap_or_default();
+            selected.extend(&self.wild);
+            selected.sort_unstable();
+            for i in selected {
+                if let Some(r) = Self::specialized(&self.rows[i], key, k) {
+                    m.push(r);
+                }
+            }
+            self.special.entry(key.clone()).or_default().push((k, m));
+        }
+        self.special
+            .get_mut(key)
+            .and_then(|ms| ms.iter_mut().find(|(j, _)| *j == k))
+            .map(|(_, m)| m)
+            .expect("just built")
+    }
+
+    /// The default matrix, built from the wildcard rows the first time.
+    fn default<S: Space<Ty = T>>(&mut self, space: &S) -> &mut Matrix<T> {
+        if self.default.is_none() {
+            let mut m = Matrix::new(space, self.tys[1..].to_vec());
+            for &i in &self.wild {
+                m.push(self.rows[i][1..].to_vec());
+            }
+            self.default = Some(Box::new(m));
+        }
+        self.default.as_mut().expect("just built")
+    }
+
+    /// `useful(P, q)` for this matrix's rows `P`.
+    fn useful<S: Space<Ty = T>>(&mut self, space: &S, q: &[Pat]) -> bool {
+        if q.is_empty() {
+            return self.rows.is_empty();
+        }
+        match &q[0] {
+            Pat::Ctor(c, args) => {
+                let k = self.arity(c).max(args.len());
+                let mut q2: Vec<Pat> = args.clone();
+                q2.resize(k, Pat::Wild);
+                q2.extend(q[1..].iter().cloned());
+                self.special(space, c, k).useful(space, &q2)
+            }
+            Pat::Wild => {
+                let complete = match &self.sigma {
+                    Some(ctors) => ctors.iter().all(|c| self.by_head.contains_key(&c.key)),
+                    None => false,
+                };
+                if complete {
+                    let ctors: Vec<(CtorKey, usize)> = self
+                        .sigma
+                        .iter()
+                        .flatten()
+                        .map(|c| (c.key.clone(), c.fields.len()))
+                        .collect();
+                    ctors.into_iter().any(|(key, k)| {
+                        let mut q2 = vec![Pat::Wild; k];
+                        q2.extend(q[1..].iter().cloned());
+                        self.special(space, &key, k).useful(space, &q2)
+                    })
+                } else {
+                    self.default(space).useful(space, &q[1..])
+                }
+            }
+        }
+    }
+}
+
 /// The outcome of checking one `match`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct MatchCheck {
@@ -265,13 +451,15 @@ pub(crate) struct MatchCheck {
 pub(crate) fn check_match<S: Space>(space: &S, ty: &S::Ty, arms: &[Option<Pat>]) -> MatchCheck {
     let tys = vec![ty.clone()];
     let mut rows: Vec<Vec<Pat>> = Vec::new();
+    let mut matrix = Matrix::new(space, tys.clone());
     let mut unreachable = Vec::new();
     for (i, arm) in arms.iter().enumerate() {
         let Some(p) = arm else { continue };
         let q = vec![p.clone()];
-        if !useful(space, &rows, &q, &tys) {
+        if !matrix.useful(space, &q) {
             unreachable.push(i);
         }
+        matrix.push(q.clone());
         rows.push(q);
     }
     let missing = if arms.iter().all(Option::is_some) {
@@ -488,5 +676,66 @@ mod tests {
         // Missing(_) then an erroneous Unavailable(_): not reported missing.
         let arms = vec![Some(v(0, vec![Pat::Wild])), None];
         assert!(check_match(&Toy, &T::Store, &arms).missing.is_empty());
+    }
+
+    /// A random pattern of type `ty`, `depth` levels deep at most.
+    fn random_pat(r: &mut u64, ty: &T, depth: u32) -> Pat {
+        let mut next = |n: u64| {
+            *r ^= *r << 13;
+            *r ^= *r >> 7;
+            *r ^= *r << 17;
+            *r % n
+        };
+        if depth == 0 || next(4) == 0 {
+            return Pat::Wild;
+        }
+        match ty {
+            T::Int => n(next(6) as i64),
+            T::Bool => b(next(2) == 0),
+            _ => match Toy.sigma(ty) {
+                Some(ctors) if !ctors.is_empty() => {
+                    let c = &ctors[next(ctors.len() as u64) as usize];
+                    let args = c
+                        .fields
+                        .iter()
+                        .map(|f| random_pat(r, f, depth - 1))
+                        .collect();
+                    Pat::Ctor(c.key.clone(), args)
+                }
+                _ => Pat::Wild,
+            },
+        }
+    }
+
+    #[test]
+    fn the_incremental_matrix_agrees_with_the_reference() {
+        // Arm by arm, the matrix kept between arms answers as `useful` on all
+        // the rows before, for random matches over nested types.
+        let types = [
+            T::Opt(Box::new(T::Int)),
+            T::Res(Box::new(T::Opt(Box::new(T::Bool))), Box::new(T::Store)),
+            T::Page,
+            T::Opt(Box::new(T::Page)),
+            T::Id,
+            T::Int,
+            T::Bool,
+        ];
+        let mut r = 0x2545_F491_4F6C_DD1Du64;
+        for case in 0..3000 {
+            let ty = &types[case % types.len()];
+            let tys = vec![ty.clone()];
+            let mut matrix = Matrix::new(&Toy, tys.clone());
+            let mut rows: Vec<Vec<Pat>> = Vec::new();
+            for _ in 0..(1 + case % 12) {
+                let q = vec![random_pat(&mut r, ty, 3)];
+                assert_eq!(
+                    matrix.useful(&Toy, &q),
+                    useful(&Toy, &rows, &q, &tys),
+                    "{ty:?}: {q:?} after {rows:?}"
+                );
+                matrix.push(q.clone());
+                rows.push(q);
+            }
+        }
     }
 }

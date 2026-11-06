@@ -766,13 +766,15 @@ elements of one type; `[]` takes its element type from the expected type
 Decision: [D-197] S15. A `List<T>` value must support `len`, `is_empty()`, and
 `get(i)` in O(1); every other operation in this section must run in time
 linear in the sizes of its inputs and output. The reference evaluator
-represents a list as a shared, immutable, contiguous buffer
-(`Value::List(Rc<Vec<Value>>)`, `toolchain.md` 1.7): `len` and `get` index
-it directly, `push`, `++`, `take`, `drop`, and `drop_last` copy
-(O(result)). An implementation may instead keep (offset, length) views so
-that `take`, `drop`, and `drop_last` are O(1), or make `push` O(1)
-amortized when the buffer is uniquely owned; it may not use a linked
-representation that makes `len` or `get` linear. Rationale: the design's `paginate` loop
+represents a list as a view of a shared, immutable, contiguous buffer
+(`Value::List(ListRef)`, `toolchain.md` 1.7): `len` and `get` index it
+directly, `take`, `drop`, and `drop_last` are views that copy nothing
+(O(1)), and `push` and `++` copy (O(result)) except into a buffer the list
+alone holds, where they append in place. Every implementation keeps
+`take`, `drop`, and `drop_last` O(1) or within a constant of it (the native
+runtime copies a result of at most 8 elements), so that walking a list with
+`first()` and `drop(1)` is linear; none may use a linked representation
+that makes `len` or `get` linear. Rationale: the design's `paginate` loop
 calls `rest.len` and `rest.drop(size)` on every iteration; with views both
 are O(1) and the loop is O(n) overall, and `get` being O(1) is what makes
 the `Extension` accessors (Section 4.5) usable in loops. Rejected
@@ -829,9 +831,9 @@ pub fn push<T>(list: List<T>, value: T) -> List<T>
 | - | - | - | - | - |
 | `xs.len` | `Int` | none | number of elements; a property, never `xs.len()` (D43) | O(1) |
 | `xs.is_empty()` | `Bool` | none | `xs.len == 0`; a method, never `xs.is_empty` (D43) | O(1) |
-| `xs.take(n)` | `List<T>` | contract violation `n >= 0` | the first `n` elements, or all of `xs` when `n >= xs.len` (clamping) | O(1) view / O(min(n, len)) copy |
-| `xs.drop(n)` | `List<T>` | contract violation `n >= 0` | `xs` without its first `n` elements; `[]` when `n >= xs.len` | O(1) view / O(len - n) copy |
-| `xs.drop_last()` | `List<T>` | none | `xs` without its last element; `[]` for `[]` (the design's rule) | O(1) view / O(len - 1) copy |
+| `xs.take(n)` | `List<T>` | contract violation `n >= 0` | the first `n` elements, or all of `xs` when `n >= xs.len` (clamping) | O(1) view |
+| `xs.drop(n)` | `List<T>` | contract violation `n >= 0` | `xs` without its first `n` elements; `[]` when `n >= xs.len` | O(1) view |
+| `xs.drop_last()` | `List<T>` | none | `xs` without its last element; `[]` for `[]` (the design's rule) | O(1) view |
 | `xs.push(v)` | `List<T>` | none | a new list with `v` appended; `xs` is unchanged (immutability); the result must be used (`let _ =` to discard, D24) | O(len) copy, O(1) amortized permitted |
 | `xs ++ ys` | `List<T>` | none | concatenation | O(n + m) |
 | `flatten(xss)` | `List<T>` | none | concatenation of all elements (Section 1.6) | O(total elements) |

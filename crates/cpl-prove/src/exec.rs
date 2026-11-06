@@ -20,7 +20,7 @@ use cpl_hir::{
 };
 use cpl_syntax::ast::{BinaryOp, UnaryOp};
 use num_bigint::BigInt;
-use num_traits::{One, Signed, Zero};
+use num_traits::{One, Signed, ToPrimitive, Zero};
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 /// The path abstracted a loop iteration by its invariants.
@@ -231,6 +231,10 @@ const MAX_DEPTH: u32 = 8;
 /// Concrete runs: iterations of one loop, and nested calls executed in place.
 const MAX_UNROLL: usize = 10_000;
 const MAX_CONCRETE_DEPTH: usize = 64;
+/// Concrete runs: the expressions evaluated in all. A run forks nothing, so the path budget
+/// never ends it, and a call in place inside a loop multiplies the work at every level (a
+/// recursive function looping `y` times runs `y` to the depth of the recursion).
+const MAX_CONCRETE_STEPS: usize = 200_000;
 
 pub struct Exec<'p, 's> {
     pub p: &'p Program,
@@ -240,6 +244,8 @@ pub struct Exec<'p, 's> {
     pub checks: Vec<(Site, Check)>,
     pub aborted: Option<&'static str>,
     paths: usize,
+    /// The expressions a concrete run has evaluated.
+    steps: usize,
     stack: Vec<DefId>,
     /// The generic arguments of each frame of `stack` (the root's: none).
     subst: Vec<Vec<Ty>>,
@@ -284,6 +290,7 @@ impl<'p, 's> Exec<'p, 's> {
             checks: Vec::new(),
             aborted: None,
             paths: 0,
+            steps: 0,
             stack: vec![root],
             subst: vec![Vec::new()],
             recording: matches!(mode, Mode::Verify),
@@ -1287,6 +1294,14 @@ impl<'p, 's> Exec<'p, 's> {
                         }
                     };
                     let (enter, exit) = self.split(q, &c);
+                    // On concrete inputs the condition is decided; a loop that can both enter
+                    // and exit depends on something abstract (a hole, an opaque value), and
+                    // unrolling it would add an exit and a fresh value on every iteration up
+                    // to MAX_UNROLL, its paths' conditions growing each time.
+                    if enter.is_some() && exit.is_some() {
+                        self.aborted.get_or_insert("limit");
+                        return out;
+                    }
                     if let Some(e) = exit {
                         out.push((e, Flow::Val(unit.clone())));
                     }
@@ -1775,6 +1790,20 @@ impl<'p, 's> Exec<'p, 's> {
     pub fn expr(&mut self, path: Path, e: &Expr) -> Outs {
         if self.aborted.is_some() {
             return Vec::new();
+        }
+        // A concrete run keeps only the paths that abstracted nothing, and a path stays inexact
+        // once it is: it is dropped here, before it is explored. Explored, a call run in place
+        // on an abstract value (a list builtin's result) recurses to the depth limit, forking
+        // at every level.
+        if self.concrete && path.inexact != 0 {
+            return Vec::new();
+        }
+        if self.concrete {
+            self.steps += 1;
+            if self.steps > MAX_CONCRETE_STEPS {
+                self.aborted.get_or_insert("limit");
+                return Vec::new();
+            }
         }
         match &e.kind {
             ExprKind::Lit(Lit::Int(n)) => {
@@ -2864,7 +2893,99 @@ impl<'p, 's> Exec<'p, 's> {
         out
     }
 
+    /// A builtin on a value whose shape is known, exactly: on a list of known length, `first`,
+    /// `last`, `get` by a constant index, `take` and `drop` by a constant count, and
+    /// `drop_last` (stdlib 4.1); on an `Option` or `Result` of known variant, its tests and
+    /// accessors. `None` for anything else, which is abstracted.
+    fn exact_builtin(&mut self, id: &str, args: &[Sym], ty: &Ty) -> Option<Sym> {
+        if let Some(Sym::Data {
+            def,
+            variant,
+            fields,
+        }) = args.first()
+        {
+            let name = self
+                .p
+                .def(*def)
+                .kind
+                .as_enum()?
+                .variants
+                .get(*variant as usize)?
+                .name
+                .clone();
+            let payload = fields.first().cloned();
+            let is = |n: &str| Some(Sym::Bool(Form::bool(name == n)));
+            return match id {
+                "option_is_some" => is("Some"),
+                "option_is_none" => is("None"),
+                "result_is_ok" => is("Ok"),
+                "result_is_err" => is("Err"),
+                "option_unwrap_or" if name == "Some" => payload,
+                "option_unwrap_or" if name == "None" => args.get(1).cloned(),
+                "result_unwrap_or" if name == "Ok" => payload,
+                "result_unwrap_or" if name == "Err" => args.get(1).cloned(),
+                "result_ok" if name == "Ok" || name == "Err" => {
+                    self.option(ty, payload.filter(|_| name == "Ok"))
+                }
+                "result_err" if name == "Ok" || name == "Err" => {
+                    self.option(ty, payload.filter(|_| name == "Err"))
+                }
+                _ => None,
+            };
+        }
+        let Some(Sym::Seq(items)) = args.first() else {
+            return None;
+        };
+        let constant = match args.get(1) {
+            Some(Sym::Int(n)) if n.terms.is_empty() => Some(n.constant.clone()),
+            _ => None,
+        };
+        // a count `n >= 0` as an index into the list: `min(n, len)`
+        let count = |n: &BigInt| n.to_usize().unwrap_or(usize::MAX).min(items.len());
+        match id {
+            "list_first" => self.option(ty, items.first().cloned()),
+            "list_last" => self.option(ty, items.last().cloned()),
+            "list_get" => {
+                let i = constant?;
+                let item = i.to_usize().and_then(|i| items.get(i)).cloned();
+                self.option(ty, item)
+            }
+            "list_take" => {
+                let n = constant.filter(|n| !n.is_negative())?;
+                Some(Sym::Seq(items[..count(&n)].to_vec()))
+            }
+            "list_drop" => {
+                let n = constant.filter(|n| !n.is_negative())?;
+                Some(Sym::Seq(items[count(&n)..].to_vec()))
+            }
+            "list_drop_last" => Some(Sym::Seq(items[..items.len().saturating_sub(1)].to_vec())),
+            _ => None,
+        }
+    }
+
+    /// `Some(item)`, or `None` without one, of the `Option` type `ty`.
+    fn option(&mut self, ty: &Ty, item: Option<Sym>) -> Option<Sym> {
+        let (def, _) = self.enum_of(ty)?;
+        let name = if item.is_some() { "Some" } else { "None" };
+        let variant = self
+            .p
+            .def(def)
+            .kind
+            .as_enum()?
+            .variants
+            .iter()
+            .position(|v| v.name == name)? as u32;
+        Some(Sym::Data {
+            def: self.canon(def),
+            variant,
+            fields: item.into_iter().collect(),
+        })
+    }
+
     fn builtin(&mut self, mut path: Path, id: &str, args: &[Sym], ty: &Ty) -> Outs {
+        if let Some(v) = self.exact_builtin(id, args, ty) {
+            return vec![(path, Flow::Val(v))];
+        }
         let ints: Vec<Option<&Lin>> = args.iter().map(int).collect();
         match (id, ints.as_slice()) {
             // A value defined by cases is a fresh variable with a disjunctive definition, not a

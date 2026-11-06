@@ -36,5 +36,11 @@ public final class Main {
         } catch (Fault f) {
             System.out.println("dollars(-5): " + f.code + " " + f.clauseKind);
         }
+        // What a capability returns is checked against its type too.
+        try {
+            System.out.println("a rate of 150: " + Pricing.totalWithTax(order, sku -> Int.of(150)));
+        } catch (Fault f) {
+            System.out.println("a rate of 150: " + f.code + " " + f.symbol);
+        }
     }
 }

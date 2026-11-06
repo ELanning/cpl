@@ -409,6 +409,126 @@ static void test_owned_growth(void)
     CHECK(atomic_load(&rt.live_objects) == objects);
 }
 
+static int is_view(cplrt_w w)
+{
+    return cplrt_is_obj(w) && (cplrt_obj_of(w)->flags & CPLRT_F_VIEW) != 0;
+}
+
+static cplrt_w view_base(cplrt_w w)
+{
+    return ((const cplrt_listview *)cplrt_obj_of(w))->base;
+}
+
+static cplrt_w drop_n(cplrt_w xs, int64_t n)
+{
+    cplrt_w r = 0;
+    CHECK(CPLRT(bi_list_drop)(&cx, SITE_CALL, STUB_DROP, xs, cplrt_small(n), &r) == CPLRT_OK);
+    return r;
+}
+
+static cplrt_w take_n(cplrt_w xs, int64_t n)
+{
+    cplrt_w r = 0;
+    CHECK(CPLRT(bi_list_take)(&cx, SITE_CALL, STUB_TAKE, xs, cplrt_small(n), &r) == CPLRT_OK);
+    return r;
+}
+
+/* take, drop, and drop_last view the operand's buffer (2.3): a view of a view views the base, a short result is a copy,
+   a view reads, compares, and releases as the list it views, and an owned append grows a view in place only when it
+   alone holds the base and ends where the base ends. */
+static void test_views(void)
+{
+    uint64_t objects = atomic_load(&rt.live_objects);
+    begin();
+    cplrt_w xs = ints(100, 20);
+    cplrt_w v = drop_n(xs, 5);
+    CHECK(is_view(v) && view_base(v) == xs && cplrt_len(v) == 15 && rc(xs) == 2u);
+    CHECK(cplrt_item(v, 0) == cplrt_small(105) && cplrt_item(v, 14) == cplrt_small(119));
+    cplrt_w w = drop_n(v, 3), u = take_n(w, 9);
+    CHECK(is_view(w) && view_base(w) == xs && cplrt_item(w, 0) == cplrt_small(108) && cplrt_len(w) == 12);
+    CHECK(is_view(u) && view_base(u) == xs && cplrt_len(u) == 9 && cplrt_item(u, 8) == cplrt_small(116));
+    CHECK(renders(u, "[108, 109, 110, 111, 112, 113, 114, 115, 116]"));
+    cplrt_w short_ = take_n(w, 3), last = 0;
+    CHECK(!is_view(short_) && renders(short_, "[108, 109, 110]"));
+    CHECK(CPLRT(bi_list_drop_last)(&cx, SITE_CALL, CPLRT_NONE, w, &last) == CPLRT_OK && is_view(last) &&
+          cplrt_len(last) == 11 && cplrt_item(last, 10) == cplrt_small(118));
+    /* equal to a list of the same items, and to itself through another view */
+    cplrt_w same = ints(108, 9), first = 0;
+    int eq = 0;
+    CHECK(CPLRT(value_equal)(&rt, u, same, &eq) == CPLRT_OK && eq == 1);
+    cplrt_w from8 = drop_n(xs, 8), again = take_n(from8, 9);
+    cplrt_release(from8);
+    CHECK(CPLRT(value_equal)(&rt, u, again, &eq) == CPLRT_OK && eq == 1);
+    CHECK(CPLRT(value_equal)(&rt, u, w, &eq) == CPLRT_OK && eq == 0);
+    CHECK(CPLRT(bi_list_first)(&cx, SITE_CALL, CPLRT_NONE, w, &first) == CPLRT_OK &&
+          cplrt_payload(first, 0) == cplrt_small(108));
+    /* a list holding views, released */
+    cplrt_w held[2] = { v, w };
+    cplrt_w outer = list(held, 2);
+    cplrt_w rest = drop_n(outer, 1);
+    CHECK(renders(rest, "[[108, 109, 110, 111, 112, 113, 114, 115, 116, 117, 118, 119]]"));
+    cplrt_release(rest);
+    cplrt_release(outer);
+
+    /* in place: a unique view of a base it alone holds, ending at the base's end, with spare capacity */
+    cplrt_w grown = CPLRT(empty_list)();
+    for (int i = 0; i < 20; i++)
+        CHECK(cplrt_list_push_owned(&cx, SITE_CALL, CPLRT_NONE, &grown, cplrt_small(i)) == CPLRT_OK);
+    cplrt_w tailv = drop_n(grown, 2);
+    cplrt_release(grown);
+    cplrt_w base = view_base(tailv);
+    CHECK(is_view(tailv) && rc(base) == 1u);
+    CHECK(cplrt_list_push_owned(&cx, SITE_CALL, CPLRT_NONE, &tailv, cplrt_small(99)) == CPLRT_OK);
+    CHECK(is_view(tailv) && view_base(tailv) == base && cplrt_len(tailv) == 19 &&
+          cplrt_item(tailv, 18) == cplrt_small(99));
+    cplrt_w more = ints(7, 2);
+    CHECK(cplrt_list_concat_owned(&cx, &tailv, more) == CPLRT_OK && is_view(tailv) && cplrt_len(tailv) == 21 &&
+          cplrt_item(tailv, 20) == cplrt_small(8));
+    /* a shared view copies; the snapshot is unchanged */
+    cplrt_w snap = tailv;
+    cplrt_retain(snap);
+    CHECK(cplrt_list_push_owned(&cx, SITE_CALL, CPLRT_NONE, &tailv, cplrt_small(5)) == CPLRT_OK && !is_view(tailv));
+    CHECK(cplrt_len(snap) == 21 && cplrt_len(tailv) == 22 && cplrt_item(tailv, 0) == cplrt_small(2));
+    cplrt_release(snap);
+    cplrt_release(tailv);
+    /* a view that does not end at its base's end is rebuilt, its items retained */
+    cplrt_w front = take_n(xs, 12);
+    CHECK(is_view(front));
+    CHECK(cplrt_list_push_owned(&cx, SITE_CALL, CPLRT_NONE, &front, cplrt_small(-1)) == CPLRT_OK && !is_view(front));
+    CHECK(cplrt_len(front) == 13 && cplrt_item(front, 11) == cplrt_small(111) && renders(xs, "[100, 101, 102, 103, "
+          "104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 117, 118, 119]"));
+    cplrt_release(front);
+
+    /* a queue: drop the front, push twice at the back; the base's dead prefix never outgrows the queue */
+    cplrt_w q = ints(0, 1);
+    uint64_t bytes = 0;
+    for (int64_t i = 1; i < 5000; i++) {
+        cplrt_w next = drop_n(q, 1);
+        cplrt_release(q);
+        q = next;
+        CHECK(cplrt_list_push_owned(&cx, SITE_CALL, CPLRT_NONE, &q, cplrt_small(i)) == CPLRT_OK);
+        CHECK(cplrt_list_push_owned(&cx, SITE_CALL, CPLRT_NONE, &q, cplrt_small(-i)) == CPLRT_OK);
+        if (i == 2500)
+            bytes = atomic_load(&rt.live_bytes);
+    }
+    CHECK(cplrt_len(q) == 5000 && cplrt_item(q, 0) == cplrt_small(2500) && cplrt_item(q, 4999) == cplrt_small(-4999));
+    CHECK(atomic_load(&rt.live_bytes) < bytes + 5000u * 8u * 8u); /* linear in the queue, not in the pushes */
+    cplrt_release(q);
+
+    cplrt_release(v);
+    cplrt_release(w);
+    cplrt_release(u);
+    cplrt_release(short_);
+    cplrt_release(last);
+    cplrt_release(same);
+    cplrt_release(again);
+    cplrt_release(first);
+    cplrt_release(more);
+    cplrt_release(xs);
+    end();
+    CHECK(atomic_load(&rt.live_objects) == objects);
+}
+
 int main(void)
 {
     rttest_runtime_init(&rt, 0);
@@ -418,6 +538,7 @@ int main(void)
     test_elements();
     test_memory();
     test_owned_growth();
+    test_views();
     uint64_t left = rttest_runtime_fini(&rt);
     CHECK(left == 0);
     printf("test_list: %d checks, %d failed\n", checks, failures);

@@ -13,6 +13,15 @@ impl TaxTable for Rates {
     }
 }
 
+/// A tax table with a bug: 150 is not a `Percent`.
+struct Broken;
+
+impl TaxTable for Broken {
+    fn rate_for(&self, _sku: Text) -> Int {
+        Int::small(150)
+    }
+}
+
 /// The host's audit log: it keeps what it is told.
 #[derive(Default)]
 struct Log(RefCell<Vec<String>>);
@@ -34,7 +43,7 @@ fn main() -> Result<(), Fault> {
 
     println!("subtotal: {}", shop::subtotal(order.clone())?);
     let log = Log::default();
-    let total = shop::checkout(order, &Rates, &log)?;
+    let total = shop::checkout(order.clone(), &Rates, &log)?;
     println!("total: {} ({})", total, shop::dollars(total.clone())?);
     println!("log: {}", log.0.borrow().join("; "));
     println!("parse_quantity(\" 12 \"): {}", shop::parse_quantity(" 12 ".into())?.value_text());
@@ -51,6 +60,11 @@ fn main() -> Result<(), Fault> {
     match shop::dollars(Int::small(-5)) {
         Err(fault) => println!("dollars(-5): {} {}", fault.code, fault.clause_kind.unwrap_or("")),
         Ok(v) => println!("dollars(-5): {v}"),
+    }
+    // What a capability returns is checked against its type too.
+    match shop::total_with_tax(order, &Broken) {
+        Err(fault) => println!("a rate of 150: {} {}", fault.code, fault.symbol),
+        Ok(v) => println!("a rate of 150: {v}"),
     }
     Ok(())
 }

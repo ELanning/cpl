@@ -1586,8 +1586,8 @@ fn d73_positive_64_levels_and_1000_operators_are_accepted() {
     let src = wrap(&format!("1{}", " + 1".repeat(1000)));
     let r = parse_module(&src, FileId(0));
     assert!(r.value.is_some(), "{:#?}", r.diagnostics);
-    // Operators are counted over the outermost expression, nested blocks
-    // included, and restart with the next statement.
+    // Operators are counted along a path of nested expressions: the next
+    // statement has a budget of its own.
     let src = wrap(&format!(
         "let a = 1{}\nlet b = 1{}\na",
         " + 1".repeat(1000),

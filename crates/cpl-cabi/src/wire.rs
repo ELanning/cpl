@@ -25,15 +25,19 @@ fn err(message: impl Into<String>) -> WireError {
     }
 }
 
-/// The identity of a shared buffer: its kind and address.
-fn share_key(v: &Value) -> Option<(u8, usize)> {
+/// The identity of a shared buffer: its kind and address (and, for a list, which is a view of
+/// its buffer, the count of the elements it views).
+fn share_key(v: &Value) -> Option<(u8, usize, usize)> {
     match v {
-        Value::Text(t) => Some((1, Rc::as_ptr(t) as *const u8 as usize)),
-        Value::Bytes(b) => Some((2, Rc::as_ptr(b) as *const u8 as usize)),
-        Value::List(xs) => Some((3, Rc::as_ptr(xs) as *const Value as usize)),
-        Value::Struct { fields, .. } => Some((4, Rc::as_ptr(fields) as *const Value as usize)),
-        Value::Enum { payload, .. } => Some((5, Rc::as_ptr(payload) as *const Value as usize)),
-        Value::Wrapper { inner, .. } => Some((6, Rc::as_ptr(inner) as usize)),
+        Value::Text(t) => Some((1, Rc::as_ptr(t) as *const u8 as usize, 0)),
+        Value::Bytes(b) => Some((2, Rc::as_ptr(b) as *const u8 as usize, 0)),
+        Value::List(xs) => {
+            let (at, len) = xs.identity();
+            Some((3, at, len))
+        }
+        Value::Struct { fields, .. } => Some((4, Rc::as_ptr(fields) as *const Value as usize, 0)),
+        Value::Enum { payload, .. } => Some((5, Rc::as_ptr(payload) as *const Value as usize, 0)),
+        Value::Wrapper { inner, .. } => Some((6, Rc::as_ptr(inner) as usize, 0)),
         _ => None,
     }
 }
@@ -51,7 +55,7 @@ fn children(v: &Value) -> &[Value] {
 /// The node list of `v`, iteratively; a shared buffer is sent once.
 pub fn to_nodes(v: &Value) -> Nodes {
     let mut nodes: Vec<Node> = Vec::new();
-    let mut seen: HashMap<(u8, usize), u32> = HashMap::new();
+    let mut seen: HashMap<(u8, usize, usize), u32> = HashMap::new();
     // (value, next child, child indices so far)
     let mut stack: Vec<(&Value, usize, Vec<u32>)> = vec![(v, 0, Vec::new())];
     let mut last: u32 = 0;

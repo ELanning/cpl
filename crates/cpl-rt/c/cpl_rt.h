@@ -57,6 +57,7 @@ static inline int cplrt_truth(cplrt_w w) { return w == CPLRT_TRUE; }
 #define CPLRT_WRAPPER 7u
 #define CPLRT_F_NEGATIVE 0x01u         /* a negative bigint */
 #define CPLRT_F_WIDE 0x02u             /* an enum value whose variant index is the small Int in item[0] (2.3) */
+#define CPLRT_F_VIEW 0x08u             /* a List that views len items of another list from u.live.def (2.3) */
 #define CPLRT_RC_SATURATED UINT32_C(0x80000000)   /* every count at or above it is immortal (2.4) */
 #define CPLRT_RC_IMMORTAL UINT32_C(0xC0000000)    /* the count of statics and of objects whose count saturated */
 typedef struct cplrt_obj {
@@ -77,6 +78,7 @@ typedef struct cplrt_bigint { cplrt_obj hdr; uint32_t limb[]; } cplrt_bigint;   
 typedef struct cplrt_text { cplrt_obj hdr; size_t bytes; size_t scalars; char utf8[]; } cplrt_text; /* NUL after */
 typedef struct cplrt_bytes { cplrt_obj hdr; size_t len; uint8_t data[]; } cplrt_bytes;
 typedef struct cplrt_node { cplrt_obj hdr; cplrt_w item[]; } cplrt_node;          /* List, struct, enum, wrapper */
+typedef struct cplrt_listview { cplrt_obj hdr; cplrt_w base; } cplrt_listview;    /* a List view: base is never one */
 static inline cplrt_obj *cplrt_obj_of(cplrt_w w) { return (cplrt_obj *)(uintptr_t)w; }
 static inline cplrt_w cplrt_word_of(const cplrt_obj *o) { return (cplrt_w)(uintptr_t)o; }
 
@@ -112,18 +114,28 @@ static inline void cplrt_release(cplrt_w w)
 
 /* ---- borrowed access (2.3, 2.6); every result is borrowed from v ---------------------------------------------- */
 static inline uint32_t cplrt_len(cplrt_w v) { return cplrt_obj_of(v)->len; }
-static inline cplrt_w cplrt_item(cplrt_w v, uint32_t i) { return ((const cplrt_node *)cplrt_obj_of(v))->item[i]; }
-static inline cplrt_w cplrt_field(cplrt_w v, uint32_t i) { return cplrt_item(v, i); }
-static inline cplrt_w cplrt_inner(cplrt_w v) { return cplrt_item(v, 0); }
+/* The children of a composite; a List view's are the items of its base it views. */
+static inline const cplrt_w *cplrt_items(cplrt_w v)
+{
+    const cplrt_obj *o = cplrt_obj_of(v);
+    if (o->flags & CPLRT_F_VIEW)
+        return ((const cplrt_node *)cplrt_obj_of(((const cplrt_listview *)o)->base))->item + o->u.live.def;
+    return ((const cplrt_node *)o)->item;
+}
+static inline cplrt_w cplrt_item(cplrt_w v, uint32_t i) { return cplrt_items(v)[i]; }
+/* A struct, enum, or wrapper child: never a view. */
+static inline cplrt_w cplrt_node_item(cplrt_w v, uint32_t i) { return ((const cplrt_node *)cplrt_obj_of(v))->item[i]; }
+static inline cplrt_w cplrt_field(cplrt_w v, uint32_t i) { return cplrt_node_item(v, i); }
+static inline cplrt_w cplrt_inner(cplrt_w v) { return cplrt_node_item(v, 0); }
 static inline uint32_t cplrt_variant(cplrt_w v)
 {
     const cplrt_obj *o = cplrt_obj_of(v);
-    return (o->flags & CPLRT_F_WIDE) ? (uint32_t)cplrt_small_value(cplrt_item(v, 0)) : o->variant;
+    return (o->flags & CPLRT_F_WIDE) ? (uint32_t)cplrt_small_value(cplrt_node_item(v, 0)) : o->variant;
 }
 static inline uint32_t cplrt_payload_len(cplrt_w v)
 { return cplrt_len(v) - ((cplrt_obj_of(v)->flags & CPLRT_F_WIDE) ? 1u : 0u); }
 static inline cplrt_w cplrt_payload(cplrt_w v, uint32_t i)
-{ return cplrt_item(v, i + ((cplrt_obj_of(v)->flags & CPLRT_F_WIDE) ? 1u : 0u)); }
+{ return cplrt_node_item(v, i + ((cplrt_obj_of(v)->flags & CPLRT_F_WIDE) ? 1u : 0u)); }
 static inline int cplrt_is_ok(cplrt_w v) { return cplrt_variant(v) == CPL_RESULT_OK; }
 static inline const cplrt_text *cplrt_text_of(cplrt_w v) { return (const cplrt_text *)cplrt_obj_of(v); }
 static inline const cplrt_bytes *cplrt_bytes_of(cplrt_w v) { return (const cplrt_bytes *)cplrt_obj_of(v); }

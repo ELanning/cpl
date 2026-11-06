@@ -23,6 +23,7 @@ pub mod go;
 pub mod java;
 pub mod lir;
 pub mod lower;
+mod moves;
 pub mod rust;
 
 use cpl_diag::FileOrigin;
@@ -369,6 +370,45 @@ pub fn needs_validation(p: &Program, ty: &Ty) -> bool {
                     .kind
                     .as_wrapper()
                     .is_some_and(|w| walk(p, &w.inner, seen))
+            }
+            _ => false,
+        }
+    }
+    walk(p, ty, &mut BTreeSet::new())
+}
+
+/// Whether a value of `ty` can hold a `Text`: a host whose strings need not be Unicode scalar
+/// values (Go's may be any bytes, Java's may hold unpaired surrogates) checks every one that
+/// enters at its boundary.
+pub fn contains_text(p: &Program, ty: &Ty) -> bool {
+    fn walk(p: &Program, ty: &Ty, seen: &mut BTreeSet<String>) -> bool {
+        match ty {
+            Ty::Text => true,
+            Ty::Refined(..) => walk(p, &erase(p, ty), seen),
+            Ty::List(t) => walk(p, t, seen),
+            Ty::Adt(d, args) => {
+                if !seen.insert(p.display_ty(ty)) {
+                    return false;
+                }
+                match &p.def(*d).kind {
+                    DefKind::Struct(s) => s
+                        .fields
+                        .iter()
+                        .any(|f| walk(p, &instantiate(&f.ty, args), seen)),
+                    DefKind::Enum(e) => e.variants.iter().any(|v| {
+                        v.payload
+                            .iter()
+                            .any(|t| walk(p, &instantiate(t, args), seen))
+                    }),
+                    _ => false,
+                }
+            }
+            Ty::Wrapper(d) => {
+                seen.insert(p.display_path(*d))
+                    && p.def(*d)
+                        .kind
+                        .as_wrapper()
+                        .is_some_and(|w| walk(p, &w.inner, seen))
             }
             _ => false,
         }

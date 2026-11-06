@@ -281,42 +281,74 @@ impl Int {
         }
     }
 
+    // Each operation is a machine operation inlined where it is used, and calls its
+    // arbitrary-precision path, kept out of line, only when an operand or the result does not
+    // fit in an `i64` (H4).
+
+    #[inline]
     pub fn add(&self, o: &Int) -> Int {
         if let (Repr::S(a), Repr::S(b)) = (&self.0, &o.0) {
             if let Some(c) = a.checked_add(*b) {
                 return Int(Repr::S(c));
             }
         }
+        self.add_big(o)
+    }
+
+    #[cold]
+    #[inline(never)]
+    fn add_big(&self, o: &Int) -> Int {
         Int::add_parts(self.parts(), o.parts())
     }
 
+    #[inline]
     pub fn sub(&self, o: &Int) -> Int {
         if let (Repr::S(a), Repr::S(b)) = (&self.0, &o.0) {
             if let Some(c) = a.checked_sub(*b) {
                 return Int(Repr::S(c));
             }
         }
+        self.sub_big(o)
+    }
+
+    #[cold]
+    #[inline(never)]
+    fn sub_big(&self, o: &Int) -> Int {
         let (neg, mag) = o.parts();
         Int::add_parts(self.parts(), (!neg && !mag.is_empty(), mag))
     }
 
+    #[inline]
     pub fn mul(&self, o: &Int) -> Int {
         if let (Repr::S(a), Repr::S(b)) = (&self.0, &o.0) {
             if let Some(c) = a.checked_mul(*b) {
                 return Int(Repr::S(c));
             }
         }
+        self.mul_big(o)
+    }
+
+    #[cold]
+    #[inline(never)]
+    fn mul_big(&self, o: &Int) -> Int {
         let (an, am) = self.parts();
         let (bn, bm) = o.parts();
         Int::from_parts(an != bn, mag_mul(&am, &bm))
     }
 
+    #[inline]
     pub fn neg(&self) -> Int {
         if let Repr::S(a) = self.0 {
             if let Some(c) = a.checked_neg() {
                 return Int(Repr::S(c));
             }
         }
+        self.neg_big()
+    }
+
+    #[cold]
+    #[inline(never)]
+    fn neg_big(&self) -> Int {
         let (n, m) = self.parts();
         Int::from_parts(!n && !m.is_empty(), m)
     }
@@ -346,13 +378,38 @@ impl Int {
         Some((Int::from_parts(an != bn, q), Int::from_parts(an, r)))
     }
 
+    #[inline]
     pub fn div(&self, o: &Int, symbol: &str) -> Result<Int, Fault> {
+        if let (Repr::S(a), Repr::S(b)) = (&self.0, &o.0) {
+            if let Some(q) = a.checked_div(*b) {
+                return Ok(Int(Repr::S(q)));
+            }
+        }
+        self.div_big(o, symbol)
+    }
+
+    /// Also division by zero, and `i64::MIN / -1`.
+    #[cold]
+    #[inline(never)]
+    fn div_big(&self, o: &Int, symbol: &str) -> Result<Int, Fault> {
         self.div_rem(o)
             .map(|(q, _)| q)
             .ok_or_else(|| Fault::division_by_zero(symbol))
     }
 
+    #[inline]
     pub fn rem(&self, o: &Int, symbol: &str) -> Result<Int, Fault> {
+        if let (Repr::S(a), Repr::S(b)) = (&self.0, &o.0) {
+            if let Some(r) = a.checked_rem(*b) {
+                return Ok(Int(Repr::S(r)));
+            }
+        }
+        self.rem_big(o, symbol)
+    }
+
+    #[cold]
+    #[inline(never)]
+    fn rem_big(&self, o: &Int, symbol: &str) -> Result<Int, Fault> {
         self.div_rem(o)
             .map(|(_, r)| r)
             .ok_or_else(|| Fault::division_by_zero(symbol))
@@ -403,6 +460,7 @@ impl Int {
 }
 
 impl PartialEq for Int {
+    #[inline]
     fn eq(&self, o: &Int) -> bool {
         match (&self.0, &o.0) {
             (Repr::S(a), Repr::S(b)) => a == b,
@@ -425,26 +483,62 @@ impl Hash for Int {
     }
 }
 
+impl Int {
+    #[cold]
+    #[inline(never)]
+    fn cmp_big(&self, o: &Int) -> Ordering {
+        let (an, am) = self.parts();
+        let (bn, bm) = o.parts();
+        match (an, bn) {
+            (false, true) => Ordering::Greater,
+            (true, false) => Ordering::Less,
+            (false, false) => mag_cmp(&am, &bm),
+            (true, true) => mag_cmp(&bm, &am),
+        }
+    }
+}
+
 impl Ord for Int {
+    #[inline]
     fn cmp(&self, o: &Int) -> Ordering {
         match (&self.0, &o.0) {
             (Repr::S(a), Repr::S(b)) => a.cmp(b),
-            _ => {
-                let (an, am) = self.parts();
-                let (bn, bm) = o.parts();
-                match (an, bn) {
-                    (false, true) => Ordering::Greater,
-                    (true, false) => Ordering::Less,
-                    (false, false) => mag_cmp(&am, &bm),
-                    (true, true) => mag_cmp(&bm, &am),
-                }
-            }
+            _ => self.cmp_big(o),
         }
     }
 }
 impl PartialOrd for Int {
+    #[inline]
     fn partial_cmp(&self, o: &Int) -> Option<Ordering> {
         Some(self.cmp(o))
+    }
+    #[inline]
+    fn lt(&self, o: &Int) -> bool {
+        match (&self.0, &o.0) {
+            (Repr::S(a), Repr::S(b)) => a < b,
+            _ => self.cmp_big(o).is_lt(),
+        }
+    }
+    #[inline]
+    fn le(&self, o: &Int) -> bool {
+        match (&self.0, &o.0) {
+            (Repr::S(a), Repr::S(b)) => a <= b,
+            _ => self.cmp_big(o).is_le(),
+        }
+    }
+    #[inline]
+    fn gt(&self, o: &Int) -> bool {
+        match (&self.0, &o.0) {
+            (Repr::S(a), Repr::S(b)) => a > b,
+            _ => self.cmp_big(o).is_gt(),
+        }
+    }
+    #[inline]
+    fn ge(&self, o: &Int) -> bool {
+        match (&self.0, &o.0) {
+            (Repr::S(a), Repr::S(b)) => a >= b,
+            _ => self.cmp_big(o).is_ge(),
+        }
     }
 }
 
@@ -501,8 +595,15 @@ impl From<usize> for Int {
 impl TryFrom<&Int> for i64 {
     type Error = Fault;
     fn try_from(v: &Int) -> Result<i64, Fault> {
-        v.to_i64()
-            .ok_or_else(|| Fault::new("interop_int_out_of_range", None, "", "", &format!("{v} does not fit in an i64")))
+        v.to_i64().ok_or_else(|| {
+            Fault::new(
+                "interop_int_out_of_range",
+                None,
+                "",
+                "",
+                &format!("{v} does not fit in an i64"),
+            )
+        })
     }
 }
 
@@ -845,7 +946,13 @@ impl fmt::Debug for Fault {
 }
 
 impl Fault {
-    pub fn new(code: &'static str, clause_kind: Option<&'static str>, clause: &str, symbol: &str, message: &str) -> Fault {
+    pub fn new(
+        code: &'static str,
+        clause_kind: Option<&'static str>,
+        clause: &str,
+        symbol: &str,
+        message: &str,
+    ) -> Fault {
         Fault(Box::new(FaultInfo {
             code,
             clause_kind,
@@ -858,7 +965,13 @@ impl Fault {
         Fault::new("division_by_zero", None, "", symbol, "division by zero")
     }
     pub fn requires(clause: &str, symbol: &str) -> Fault {
-        Fault::new("contract_violation", Some("requires"), clause, symbol, &format!("requires clause failed: {clause}"))
+        Fault::new(
+            "contract_violation",
+            Some("requires"),
+            clause,
+            symbol,
+            &format!("requires clause failed: {clause}"),
+        )
     }
     pub fn stack(limit: u32) -> Fault {
         Fault::new(
@@ -962,7 +1075,8 @@ fn thread_stack_floor(here: usize) -> usize {
     extern "C" {
         fn pthread_self() -> usize;
         fn pthread_getattr_np(thread: usize, attr: *mut [u64; 16]) -> i32;
-        fn pthread_attr_getstack(attr: *const [u64; 16], addr: *mut usize, size: *mut usize) -> i32;
+        fn pthread_attr_getstack(attr: *const [u64; 16], addr: *mut usize, size: *mut usize)
+            -> i32;
         fn pthread_attr_destroy(attr: *mut [u64; 16]) -> i32;
     }
     let mut attr = [0u64; 16];
@@ -1022,7 +1136,10 @@ impl Cx {
                 None,
                 "",
                 "",
-                &format!("the stack is exhausted at call depth {} (limit {})", self.depth, self.limit),
+                &format!(
+                    "the stack is exhausted at call depth {} (limit {})",
+                    self.depth, self.limit
+                ),
             ));
         }
         Ok(())
@@ -1125,7 +1242,9 @@ pub fn quote_text(value: &str) -> String {
             '\n' => out.push_str("\\n"),
             '\r' => out.push_str("\\r"),
             '\t' => out.push_str("\\t"),
-            c if (c as u32) < 0x20 || c == '\x7f' => out.push_str(&format!("\\u{{{:x}}}", c as u32)),
+            c if (c as u32) < 0x20 || c == '\x7f' => {
+                out.push_str(&format!("\\u{{{:x}}}", c as u32))
+            }
             c => out.push(c),
         }
     }
@@ -1244,10 +1363,17 @@ impl ValueText for ForeignError {
 }
 
 /// `check<R>`'s error when the predicate of `type_name` fails on `value` (semantics 6.10).
-pub fn check_failure<T: ValueText, U>(value: &T, type_name: &'static str, predicate: &'static str) -> Result<U, ConstraintError> {
+pub fn check_failure<T: ValueText, U>(
+    value: &T,
+    type_name: &'static str,
+    predicate: &'static str,
+) -> Result<U, ConstraintError> {
     Err(ConstraintError {
         type_name: Text::lit(type_name),
-        message: Text::from_string(format!("{} does not satisfy {predicate}", value.value_text())),
+        message: Text::from_string(format!(
+            "{} does not satisfy {predicate}",
+            value.value_text()
+        )),
     })
 }
 
@@ -1314,7 +1440,10 @@ impl Json {
     }
     /// Read a JSON document.
     pub fn parse(text: &str) -> Result<Json, String> {
-        let mut p = JsonParser { s: text.as_bytes(), i: 0 };
+        let mut p = JsonParser {
+            s: text.as_bytes(),
+            i: 0,
+        };
         let v = p.value(0)?;
         p.ws();
         if p.i != p.s.len() {
@@ -1418,10 +1547,17 @@ impl JsonParser<'_> {
             Some(c) if *c == b'-' || c.is_ascii_digit() => {
                 let start = self.i;
                 self.i += 1;
-                while self.i < self.s.len() && matches!(self.s[self.i], b'0'..=b'9' | b'.' | b'e' | b'E' | b'+' | b'-') {
+                while self.i < self.s.len()
+                    && matches!(
+                        self.s[self.i],
+                        b'0'..=b'9' | b'.' | b'e' | b'E' | b'+' | b'-'
+                    )
+                {
                     self.i += 1;
                 }
-                Ok(Json::Number(String::from_utf8_lossy(&self.s[start..self.i]).into_owned()))
+                Ok(Json::Number(
+                    String::from_utf8_lossy(&self.s[start..self.i]).into_owned(),
+                ))
             }
             Some(c) => Err(format!("unexpected {:?} at {}", *c as char, self.i)),
         }
@@ -1437,7 +1573,8 @@ impl JsonParser<'_> {
     fn hex4(&mut self) -> Result<u32, String> {
         let h = self.s.get(self.i..self.i + 4).ok_or("short \\u escape")?;
         self.i += 4;
-        u32::from_str_radix(std::str::from_utf8(h).map_err(|e| e.to_string())?, 16).map_err(|e| e.to_string())
+        u32::from_str_radix(std::str::from_utf8(h).map_err(|e| e.to_string())?, 16)
+            .map_err(|e| e.to_string())
     }
     fn string(&mut self) -> Result<String, String> {
         self.i += 1;
@@ -1485,10 +1622,13 @@ impl JsonParser<'_> {
                 }
                 _ => {
                     let start = self.i;
-                    while self.i < self.s.len() && self.s[self.i] != b'"' && self.s[self.i] != b'\\' {
+                    while self.i < self.s.len() && self.s[self.i] != b'"' && self.s[self.i] != b'\\'
+                    {
                         self.i += 1;
                     }
-                    out.push_str(std::str::from_utf8(&self.s[start..self.i]).map_err(|e| e.to_string())?);
+                    out.push_str(
+                        std::str::from_utf8(&self.s[start..self.i]).map_err(|e| e.to_string())?,
+                    );
                 }
             }
         }
@@ -1617,7 +1757,11 @@ impl<T: ToJson> ToJson for List<T> {
 impl<T: FromJson + Clone> FromJson for List<T> {
     fn from_json(j: &Json) -> Result<List<T>, String> {
         match j {
-            Json::Array(items) => items.iter().map(T::from_json).collect::<Result<Vec<_>, _>>().map(List::from_vec),
+            Json::Array(items) => items
+                .iter()
+                .map(T::from_json)
+                .collect::<Result<Vec<_>, _>>()
+                .map(List::from_vec),
             _ => Err("expected a list".into()),
         }
     }
@@ -1691,7 +1835,10 @@ impl FromJson for ForeignErrorKind {
 impl ToJson for ForeignDetail {
     fn to_json(&self) -> Json {
         Json::object(vec![
-            ("$type".into(), Json::Str("std.foreign.ForeignDetail".into())),
+            (
+                "$type".into(),
+                Json::Str("std.foreign.ForeignDetail".into()),
+            ),
             ("key".into(), self.key.to_json()),
             ("value".into(), self.value.to_json()),
         ])
@@ -1742,8 +1889,14 @@ impl<T: FromJson> FromJson for Arc<T> {
 }
 
 /// What every CPL value of a generic position supports.
-pub trait Value: Clone + PartialEq + Eq + Hash + fmt::Debug + ValueText + ToJson + FromJson + 'static {}
-impl<T> Value for T where T: Clone + PartialEq + Eq + Hash + fmt::Debug + ValueText + ToJson + FromJson + 'static {}
+pub trait Value:
+    Clone + PartialEq + Eq + Hash + fmt::Debug + ValueText + ToJson + FromJson + 'static
+{
+}
+impl<T> Value for T where
+    T: Clone + PartialEq + Eq + Hash + fmt::Debug + ValueText + ToJson + FromJson + 'static
+{
+}
 
 // ===========================================================================
 // The builtins of the standard library (stdlib 1.4-7)
@@ -1855,14 +2008,22 @@ pub fn list_take<T: Clone>(l: &List<T>, n: Int) -> Result<List<T>, Fault> {
         return Err(Fault::requires("n >= 0", "std.prelude.List.take"));
     }
     let k = count(&n, l.len());
-    Ok(if k == l.len() { l.clone() } else { l.view(0, k) })
+    Ok(if k == l.len() {
+        l.clone()
+    } else {
+        l.view(0, k)
+    })
 }
 pub fn list_drop<T: Clone>(l: &List<T>, n: Int) -> Result<List<T>, Fault> {
     if n.is_negative() {
         return Err(Fault::requires("n >= 0", "std.prelude.List.drop"));
     }
     let k = count(&n, l.len());
-    Ok(if k == 0 { l.clone() } else { l.view(k, l.len()) })
+    Ok(if k == 0 {
+        l.clone()
+    } else {
+        l.view(k, l.len())
+    })
 }
 pub fn list_drop_last<T: Clone>(l: &List<T>) -> List<T> {
     if l.is_empty() {
@@ -1986,7 +2147,9 @@ pub fn text_from_int(v: Int) -> Text {
 }
 pub fn text_chars(t: Text) -> List<Text> {
     let mut buf = [0u8; 4];
-    t.chars().map(|c| Text::new(c.encode_utf8(&mut buf))).collect()
+    t.chars()
+        .map(|c| Text::new(c.encode_utf8(&mut buf)))
+        .collect()
 }
 pub fn bytes_from_list(values: List<Int>) -> Result<Bytes, Fault> {
     let mut out = Vec::with_capacity(values.len());

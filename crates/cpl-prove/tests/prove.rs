@@ -346,3 +346,92 @@ fn a_guard_protects_what_it_short_circuits() {
     );
     assert_eq!(verify(&p, def(&p, "bare")).unwrap().status, Status::Failed);
 }
+
+#[test]
+fn a_hole_in_a_loop_does_not_unroll_without_end() {
+    // The concrete run of a candidate unrolled this loop: the hole gives `i` a fresh value
+    // each iteration, so the condition was never decided, and every iteration added an exit
+    // and a longer path up to the unrolling limit (gigabytes, found by fuzzing). A loop whose
+    // condition concrete inputs do not decide now ends the run.
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let (_, r) = report(
+            "fn in_loop(n: Int) -> Int {\n    var i = 0\n    while i < n\n        invariant i >= 0\n        decreases n - i\n    {\n        i = ?next\n    }\n    i\n}\n",
+            "in_loop",
+        );
+        let _ = tx.send((r.status, r.reason));
+    });
+    let (status, reason) = rx
+        .recv_timeout(std::time::Duration::from_secs(20))
+        .expect("the verifier answers within 20 s");
+    assert_eq!(status, Status::Unknown);
+    assert_eq!(reason, Some("unresolved_hole"));
+}
+
+#[test]
+fn a_concrete_run_drops_a_path_once_it_abstracts() {
+    // The concrete run of the candidate `[]` abstracted `es.first()` and then executed the
+    // recursive call in place on the abstract rest, to the depth limit, forking on `lt` at
+    // every level (gigabytes, found by fuzzing). A concrete run keeps only exact paths, so an
+    // abstracting path is dropped at once; and `first`, `drop`, and the `Option` tests are
+    // exact on a list of known length.
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let (_, r) = report(
+            "fn lt(x: Int) -> Int\n    ensures result >= 0\n{\n    if x < 0 { 0 } else { x }\n}\n\npure fn sub(es: List<Int>) -> Int\n    ensures result >= 0\n    decreases es.len\n{\n    match es.first() {\n        None => 0\n        Some(e) => lt(e) % sub(es.drop(1))\n    }\n}\n",
+            "sub",
+        );
+        // `reverse` stays abstract on a known list: the run abstracts, and is dropped
+        let (_, s) = report(
+            "fn lt(x: Int) -> Int\n    ensures result >= 0\n{\n    if x < 0 { 0 } else { x }\n}\n\npure fn sub(es: List<Int>) -> Int\n    ensures result >= 0\n    decreases es.len\n{\n    match es.reverse().first() {\n        None => 0\n        Some(e) => lt(e) % sub(es.drop(1))\n    }\n}\n",
+            "sub",
+        );
+        let _ = tx.send((r.status, s.status));
+    });
+    let (exact, abstracted) = rx
+        .recv_timeout(std::time::Duration::from_secs(20))
+        .expect("the verifier answers within 20 s");
+    // `[x] % sub([])` divides by zero; the abstractions cannot prove the division safe
+    assert_ne!(exact, Status::Proved);
+    assert_ne!(abstracted, Status::Proved);
+}
+
+#[test]
+fn a_concrete_run_has_a_step_budget() {
+    // A concrete run executes every call in place: this function calls itself in a loop of
+    // `y` iterations, so a candidate's run did `y` to the power of `x` calls, forking nothing
+    // the path budget counts (found by fuzzing). The run now stops after a fixed number of
+    // steps, deciding nothing, and the verdict is the abstractions'.
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let (_, r) = report(
+            "type Nat = Int where self >= 0\n\nfn target(x: Int, y: Int, n: Nat) -> Int\n    requires x >= 0\n    decreases x\n    requires ((n + 0) < y)\n    requires ((2 < y) and true)\n    ensures ((n + 0) < y)\n{\n    var i1 = 1\n    var a2 = -1\n    while i1 < y\n        invariant i1 >= 1\n        invariant i1 <= (y).max(1)\n        decreases y - i1\n    {\n        let l3 = (if x > 0 { target(x - 1, y, n) } else { ((n + 0) * ((n + 0)).min(x)) })\n        a2 = a2 + -1\n        i1 = i1 + 1\n    }\n    if ((5 < (n + 0)) and ((n + 0) < a2)) {\n        var i4 = 0\n        var a5 = -1\n        while i4 < n\n            invariant i4 >= 0\n            invariant i4 <= n\n            decreases n - i4\n        {\n            concurrent {\n                let c6 = (-(if (8 < x) { i4 } else { (n + 0) }))\n                let c7 = ((x - a2) * 5)\n            }\n            a5 = a5 + 3\n            i4 = i4 + 3\n        }\n    }\n    if ((2).max(y) >= i1) {\n        let l8 = ((if x > 0 { target(x - 1, y, n) } else { (if x > 0 { target(x - 1, y, n) } else { x }) }) + (if ((n + 0) != x) { (a2).abs() } else { (n + 0) }))\n        concurrent {\n            let c9 = ((y + (n + 0)) % -3)\n            let c10 = (i1 - (6 * -1))\n        }\n    } else {\n        if (y != ((n + 0) * -1)) {\n        }\n    }\n    -2\n}\n",
+            "target",
+        );
+        let _ = tx.send(r.status);
+    });
+    let status = rx
+        .recv_timeout(std::time::Duration::from_secs(20))
+        .expect("the verifier answers within 20 s");
+    assert_eq!(status, Status::Proved);
+}
+
+#[test]
+fn an_empty_list_candidate_also_runs_with_one_and_two_elements() {
+    // The solver knows nothing of `es` (the division's divisor is a recursive call), so the
+    // candidate's `es` is `[]`, which never reaches the division. One element does:
+    // `sub([x]) = lt(x) % sub([]) = lt(x) % 0`.
+    let (_, r) = report(
+        "fn lt(x: Int) -> Int\n    ensures result >= 0\n{\n    if x < 0 { 0 } else { x }\n}\n\npure fn sub(es: List<Int>) -> Int\n    ensures result >= 0\n    decreases es.len\n{\n    match es.first() {\n        None => 0\n        Some(e) => lt(e) % sub(es.drop(1))\n    }\n}\n",
+        "sub",
+    );
+    assert_eq!(r.status, Status::Failed);
+    let (_, division) = r
+        .verdicts
+        .iter()
+        .find(|(s, _)| matches!(s, cpl_prove::Site::Division(_)))
+        .expect("a division site");
+    assert_eq!(division.status, Status::Failed);
+    let model = &division.evidence.as_ref().expect("evidence")["model"];
+    assert_eq!(model["es"].as_array().map(Vec::len), Some(1), "{model}");
+}

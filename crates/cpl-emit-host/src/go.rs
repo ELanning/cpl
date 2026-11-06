@@ -12,11 +12,17 @@
 
 use crate::lir::*;
 use crate::lower::{diverges, Lowered};
-use crate::{erase, instantiate, needs_validation, pascal, std_type, Options, Package, StdType};
+use crate::{erase, instantiate, pascal, std_type, Options, Package, StdType};
 use cpl_hir::{DefId, DefKind, Program, Ty};
 use num_traits::ToPrimitive;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write as _;
+
+/// Whether a value entering at `ty` is checked at the boundary: its refinements and invariants,
+/// and its texts, which a Go string or a Java string may hold invalid (not Unicode scalars).
+fn needs_validation(p: &Program, ty: &Ty) -> bool {
+    crate::needs_validation(p, ty) || crate::contains_text(p, ty)
+}
 
 /// Go's keywords and the predeclared names the generated code relies on.
 const RESERVED: &[&str] = &[
@@ -838,7 +844,9 @@ impl<'p> Printer<'p> {
         params.push("cx *cpl.Cx".into());
         let _ = writeln!(b, "func b_{short}{g}({}) {ret} {{", params.join(", "));
         fx.stmts(&f.body, 1, &mut b);
-        if !matches!(f.body.last(), Some(LStmt::Return(_) | LStmt::Fault(_))) {
+        // A body that diverges ends in a terminating statement in Go's sense (all breaks are
+        // labeled, a match is a `switch` with a `default`), and nothing may follow it there.
+        if !diverges(&f.body) {
             b.push_str("\tpanic(\"cpl: unreachable\")\n");
         }
         b.push_str("}\n\n");
@@ -876,7 +884,8 @@ impl<'p> Printer<'p> {
         );
         let symbol = go_str(def.stable_id.as_str());
         for q in &fd.params {
-            if matches!(erase(p, &q.ty), Ty::Text) {
+            // a generic function's arguments get no validator; its plain texts are still checked
+            if !f.generics.is_empty() && matches!(erase(p, &q.ty), Ty::Text) {
                 let _ = writeln!(out, "\tif !cpl.ValidText({}) {{\n\t\treturn r__, cpl.RefinementFault(\"Text\", {symbol})\n\t}}", ident(&q.name));
             }
             if f.generics.is_empty() && needs_validation(p, &q.ty) {
@@ -919,9 +928,7 @@ impl<'p> Printer<'p> {
         let mut body = String::new();
         fx.stmts(&q.body, 1, &mut body);
         out.push_str(&body);
-        if diverges(&q.body) {
-            out.push_str("\tpanic(\"cpl: unreachable\")\n");
-        } else {
+        if !diverges(&q.body) {
             let v = fx.expr(&q.value);
             let _ = writeln!(out, "\treturn {v}");
         }
@@ -985,6 +992,16 @@ impl<'p> Printer<'p> {
                             let v = self.validator_name(&args[0]);
                             let _ = writeln!(body, "\tif y, ok := x.Get(); ok && !{v}(y, cx) {{\n\t\treturn false\n\t}}");
                         }
+                    }
+                    // the runtime's records hold texts a host may have made
+                    (Some(StdType::ForeignError), _) => {
+                        let _ = writeln!(body, "\tif !cpl.ValidText(x.Message) {{\n\t\treturn false\n\t}}\n\tfor _, d := range x.Details.Items() {{\n\t\tif !cpl.ValidText(d.Key) || !cpl.ValidText(d.Value) {{\n\t\t\treturn false\n\t\t}}\n\t}}");
+                    }
+                    (Some(StdType::ForeignDetail), _) => {
+                        let _ = writeln!(body, "\tif !cpl.ValidText(x.Key) || !cpl.ValidText(x.Value) {{\n\t\treturn false\n\t}}");
+                    }
+                    (Some(StdType::ConstraintError), _) => {
+                        let _ = writeln!(body, "\tif !cpl.ValidText(x.TypeName) || !cpl.ValidText(x.Message) {{\n\t\treturn false\n\t}}");
                     }
                     (Some(StdType::Result), _) => {
                         if needs_validation(p, &args[0]) {
@@ -1051,6 +1068,9 @@ impl<'p> Printer<'p> {
                     }
                     _ => {}
                 }
+            }
+            Ty::Text => {
+                let _ = writeln!(body, "\tif !cpl.ValidText(x) {{\n\t\treturn false\n\t}}");
             }
             _ => {}
         }
@@ -1320,6 +1340,8 @@ impl Fx<'_, '_> {
             LStmt::Match { scrutinee, arms } => {
                 let label = self.r.fresh("m");
                 let mut body = String::new();
+                // an arm whose pattern tests nothing always matches: no arm after it runs
+                let mut caught = false;
                 for arm in arms {
                     let mut opens = 0;
                     self.pattern(
@@ -1338,13 +1360,20 @@ impl Fx<'_, '_> {
                     for k in (0..opens).rev() {
                         let _ = writeln!(body, "{}}}", "\t".repeat(depth + 1 + k));
                     }
+                    if opens == 0 {
+                        caught = true;
+                        break;
+                    }
+                }
+                if !caught {
+                    let _ = writeln!(body, "{pad}\tpanic(\"cpl: no arm matched\")");
                 }
                 let head = if self.r.used_labels.contains(&label) {
                     format!("{label}:\n{pad}")
                 } else {
                     String::new()
                 };
-                let _ = writeln!(out, "{pad}{head}switch {{\n{pad}default:\n{body}{pad}\tpanic(\"cpl: no arm matched\")\n{pad}}}");
+                let _ = writeln!(out, "{pad}{head}switch {{\n{pad}default:\n{body}{pad}}}");
             }
             LStmt::Loop { label, body } => {
                 // Labels are numbered per function: whether this one is used is known after
@@ -1786,6 +1815,11 @@ impl Fx<'_, '_> {
                     )
                 };
                 format!("pred_{}{targs}({a}, cx)", self.r.short(*def))
+            }
+            LExpr::Valid { ty, arg } => {
+                let a = self.expr(arg);
+                let v = self.r.validator_name(ty);
+                format!("{v}({a}, cx)")
             }
             LExpr::CheckFailure {
                 value,

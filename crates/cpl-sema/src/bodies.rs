@@ -156,7 +156,7 @@ fn visit_block<'h>(b: &'h Block, ctx: Ctx<'h>, v: &mut impl Visitor<'h>) {
 fn visit_stmt<'h>(s: &'h Stmt, ctx: Ctx<'h>, v: &mut impl Visitor<'h>) {
     v.stmt(s, ctx.site(Position::Value));
     match s {
-        Stmt::Let { value, .. } | Stmt::Assign { value, .. } => {
+        Stmt::Let { value, .. } | Stmt::Assign { value, .. } | Stmt::Context { value, .. } => {
             visit_expr_in(value, ctx, Position::Value, v)
         }
         Stmt::Discard(e) | Stmt::Expr(e) | Stmt::Assert { expr: e, .. } => {
@@ -213,7 +213,7 @@ fn visit_expr_in<'h>(e: &'h Expr, ctx: Ctx<'h>, position: Position, v: &mut impl
                 visit_expr_in(u, ctx, Position::UsingArg, v);
             }
         }
-        ExprKind::CapCall { handle, args, .. } => {
+        ExprKind::CapCall { handle, args, .. } | ExprKind::ContextOp { handle, args, .. } => {
             visit_expr_in(handle, ctx, Position::Receiver, v);
             for a in args {
                 visit_expr_in(a, ctx, value, v);
@@ -289,7 +289,7 @@ mod tests {
     impl<'h> Visitor<'h> for Collect {
         fn expr(&mut self, e: &'h Expr, site: Site<'h>) {
             let what = match &e.kind {
-                ExprKind::Local(_) if matches!(e.ty, Ty::Capability(_)) => "handle",
+                ExprKind::Local(_) if matches!(e.ty, Ty::Capability(_) | Ty::Context(_)) => "handle",
                 ExprKind::CapCall { .. } => "capcall",
                 ExprKind::Call { .. } => "call",
                 ExprKind::Hole { .. } => "hole",

@@ -333,6 +333,25 @@ impl<'c> Resolver<'c> {
                 "text" if arity(0, out) => Ty::Text,
                 "bytes" if arity(0, out) => Ty::Bytes,
                 "list" if arity(1, out) => Ty::List(Box::new(args[0].clone())),
+                // `Context<S>`: the handle of program `S`'s state machine (spec/state-machines.md)
+                "context" if arity(1, out) => match &args[0] {
+                    Ty::Adt(d, a) if a.is_empty() && self.program.is_program_state(*d) => Ty::Context(*d),
+                    Ty::Error => Ty::Error,
+                    other => {
+                        out.push(
+                            diag(
+                                codes::CONTEXT_NOT_PROGRAM,
+                                Some(t.span),
+                                format!(
+                                    "`Context<{}>` names no program: a context runs the state machine of a `program` type",
+                                    self.program.display_ty(other)
+                                ),
+                            )
+                            .with_data("type", json!(self.program.display_ty(other))),
+                        );
+                        Ty::Error
+                    }
+                },
                 "gen" if !self.file.is_std => {
                     out.push(
                         diag(
@@ -1040,6 +1059,18 @@ pub(crate) fn value_type_errors(
                 ),
             )
             .with_data("name", json!(program.def(*def).name.display()))
+            .with_data("type", json!(program.display_ty(ty))),
+        ),
+        Ty::Context(def) => out.push(
+            diag(
+                codes::CAPABILITY_IN_VALUE_POSITION,
+                Some(t.span),
+                format!(
+                    "`Context<{}>` cannot be used as a value type; a context handle is received only through a `using` parameter or made by a `context` statement",
+                    program.def(*def).name.display()
+                ),
+            )
+            .with_data("name", json!("Context"))
             .with_data("type", json!(program.display_ty(ty))),
         ),
         Ty::Gen(_) if !in_std => out.push(

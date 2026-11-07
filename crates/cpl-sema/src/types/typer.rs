@@ -883,7 +883,7 @@ impl<'t, 'c, 'a> Typer<'t, 'c, 'a> {
                     self.zonk_expr(a);
                 }
             }
-            ExprKind::CapCall { handle, args, .. } => {
+            ExprKind::CapCall { handle, args, .. } | ExprKind::ContextOp { handle, args, .. } => {
                 self.zonk_expr(handle);
                 for a in args {
                     self.zonk_expr(a);
@@ -962,7 +962,9 @@ impl<'t, 'c, 'a> Typer<'t, 'c, 'a> {
 
     fn zonk_stmt(&self, s: &mut Stmt) {
         match s {
-            Stmt::Let { value, .. } | Stmt::Assign { value, .. } => self.zonk_expr(value),
+            Stmt::Let { value, .. } | Stmt::Assign { value, .. } | Stmt::Context { value, .. } => {
+                self.zonk_expr(value)
+            }
             Stmt::Discard(e) | Stmt::Expr(e) | Stmt::Assert { expr: e, .. } => self.zonk_expr(e),
             Stmt::Return(e) => {
                 if let Some(e) = e {

@@ -107,6 +107,11 @@ pub enum LStmt {
         list: Var,
         value: LExpr,
     },
+    /// The state machine `handle` commits `value` as its state (a `dispatch`'s new state).
+    ContextSet {
+        handle: LExpr,
+        value: LExpr,
+    },
     /// The evaluation of a contract expression of the declaration `owner` (a clause, a
     /// measure, a refinement or invariant predicate) begins: a fault that escapes it is
     /// reported as `owner`'s, unless a clause inside it claims the fault first (semantics S34).
@@ -251,6 +256,10 @@ pub enum LExpr {
         elem: Ty,
         items: Vec<LExpr>,
     },
+    /// A state machine started from `value` (`context app = e`); its type is `Ty::Context`.
+    ContextNew(Box<LExpr>),
+    /// The current state of the state machine `handle` (a copy).
+    ContextGet(Box<LExpr>),
     /// An operation of a capability handle (its contracts are statements around it).
     CapCall {
         handle: Box<LExpr>,
@@ -316,6 +325,10 @@ pub fn visit_exprs(stmts: &[LStmt], f: &mut dyn FnMut(&LExpr)) {
                 visit_expr(value, f)
             }
             LStmt::Expr(e) | LStmt::Return(e) => visit_expr(e, f),
+            LStmt::ContextSet { handle, value } => {
+                visit_expr(handle, f);
+                visit_expr(value, f);
+            }
             LStmt::If { cond, then, els } => {
                 visit_expr(cond, f);
                 visit_exprs(then, f);
@@ -382,6 +395,7 @@ pub fn visit_expr(e: &LExpr, f: &mut dyn FnMut(&LExpr)) {
         | LExpr::IsVariant { base, .. }
         | LExpr::Unwrap { base, .. } => visit_expr(base, f),
         LExpr::CheckFailure { value, .. } => visit_expr(value, f),
+        LExpr::ContextNew(x) | LExpr::ContextGet(x) => visit_expr(x, f),
         LExpr::Var(_) | LExpr::Int(_) | LExpr::Text(_) | LExpr::Bool(_) | LExpr::Unit => {}
     }
 }
@@ -403,6 +417,7 @@ fn stmt_can_fault(s: &LStmt) -> bool {
         | LStmt::Push { value, .. }
         | LStmt::Expr(value)
         | LStmt::Return(value) => expr_can_fault(value),
+        LStmt::ContextSet { handle, value } => expr_can_fault(handle) || expr_can_fault(value),
         LStmt::If { cond, then, els } => expr_can_fault(cond) || can_fault(then) || can_fault(els),
         LStmt::Match { arms, .. } => arms.iter().any(|a| can_fault(&a.body)),
         LStmt::Loop { body, .. } => can_fault(body),

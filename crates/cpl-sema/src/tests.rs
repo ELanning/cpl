@@ -170,6 +170,10 @@ impl Coverage<'_, '_> {
                     }
                     self.binder(&v.name);
                 }
+                ast::Statement::Context(c) => {
+                    self.expr(&c.value);
+                    self.binder(&c.name);
+                }
                 ast::Statement::Assign(a) => {
                     self.expr(&a.value);
                     let table = &self.cx.names.assigns;

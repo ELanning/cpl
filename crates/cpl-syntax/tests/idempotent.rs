@@ -712,6 +712,17 @@ impl StripLayout for Statement {
                 ty.strip();
                 value.strip();
             }
+            Statement::Context(ContextStmt {
+                span,
+                trivia,
+                name,
+                value,
+            }) => {
+                span.strip();
+                trivia.strip();
+                name.strip();
+                value.strip();
+            }
             Statement::Var(VarStmt {
                 span,
                 trivia,

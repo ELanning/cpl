@@ -492,8 +492,38 @@ test "a transition returns a new state and command values" {
     assert update(next.state, Reset).state.value == 0
 }
 
-// Calling update computes a candidate transition. A host MachineContext
-// validates and commits it atomically, preserving the old state on faults.
+// One state machine per call stack. A `context` statement starts this
+// call stack's state machine, which lives until press returns. Its handle
+// is passed down as a `using` argument, like a capability, and is never
+// stored or returned. dispatch runs the root machine and commits the new
+// state; state() reads a snapshot. Nothing press calls may start a second
+// state machine (context_nested), and only machines, tests, and
+// properties call update directly.
+fn press(times: Int) -> List<CounterCommand> {
+    context counter = start()
+    var commands: List<CounterCommand> = []
+    var i = 0
+    while i < times {
+        commands = commands ++ counter.dispatch(Increment)
+        i = i + 1
+    }
+    commands.push(Report(reading(using counter)))
+}
+
+// Operations through a received handle are declared effects.
+fn reading(using counter: Context<Counter>) -> Int
+    effects { counter.state }
+{
+    counter.state().value
+}
+
+test "a context dispatches events through its root machine" {
+    assert press(2) == [Report(1), Report(2), Report(2)]
+    assert press(0) == [Report(0)]
+}
+
+// A host that keeps state itself uses a MachineContext, which validates
+// and commits each transition atomically, preserving the old state on faults.
 // The host executes returned commands after commit; replay runs no effects.
 // Child machines can operate on a subtree of the root's state.
 
@@ -633,6 +663,7 @@ Run the tour from the directory that contains `hello`:
 cpl --project hello check
 cpl --project hello run learn.greet '"world"'
 cpl --project hello run learn.sum_below 10
+cpl --project hello run learn.press 3
 cpl --project hello test --seed 1 --cases 100
 
 # Every obligation of a @prove function, with the verifier's verdict.

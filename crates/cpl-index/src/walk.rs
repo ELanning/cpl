@@ -76,7 +76,9 @@ pub(crate) fn block<'h>(b: &'h Block, v: &mut impl Visitor<'h>) {
 fn stmt<'h>(s: &'h Stmt, v: &mut impl Visitor<'h>) {
     v.stmt(s);
     match s {
-        Stmt::Let { value, .. } | Stmt::Assign { value, .. } => expr(value, v),
+        Stmt::Let { value, .. } | Stmt::Assign { value, .. } | Stmt::Context { value, .. } => {
+            expr(value, v)
+        }
         Stmt::Discard(e) | Stmt::Expr(e) | Stmt::Assert { expr: e, .. } => expr(e, v),
         Stmt::Return(e) => {
             if let Some(e) = e {
@@ -121,7 +123,7 @@ pub(crate) fn expr<'h>(e: &'h Expr, v: &mut impl Visitor<'h>) {
                 expr(a, v);
             }
         }
-        ExprKind::CapCall { handle, args, .. } => {
+        ExprKind::CapCall { handle, args, .. } | ExprKind::ContextOp { handle, args, .. } => {
             expr(handle, v);
             for a in args {
                 expr(a, v);

@@ -376,6 +376,9 @@ impl Evaluator<'_> {
             ExprKind::CapCall { .. } => {
                 Err(self.unsupported("calls a capability operation".to_string()))
             }
+            ExprKind::ContextOp { .. } => {
+                Err(self.unsupported("uses a state machine's context".to_string()))
+            }
             ExprKind::Propagate(_) => Err(self.unsupported("uses `?`".to_string())),
             ExprKind::Hole { name, .. } => {
                 Err(self.unsupported(format!("contains the hole `?{name}`")))

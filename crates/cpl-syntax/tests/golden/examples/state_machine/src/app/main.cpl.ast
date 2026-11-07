@@ -19,7 +19,7 @@
     (trivia blank))
   (enum Command (variant HttpGet (ty Int) (ty Text)) (trivia blank))
   (struct Step (generics S C) (field state (ty S)) (field commands (ty List (ty C))) (trivia blank))
-  (interface Http
+  (interface Http pub
     (op get (params (param url (ty Text))) (ret (ty Result (ty Text) (ty Text))))
     (trivia blank))
   (initial fn start
@@ -106,4 +106,45 @@
               (arm (ctor Ok (bind body)) (call (name Received) (name id) (name body)))
               (arm (ctor Err (bind message)) (call (name RequestFailed) (name id) (name message))))))))
     (trivia
-      (lead-blank "// The host runs commands after commit and dispatches each returned event."))))
+      (lead-blank "// The host runs commands after commit and dispatches each returned event.")))
+  (mutate fn fetch pub
+    (params (param id (ty Int)) (param url (ty Text)) (using http (ty Http)))
+    (ret (ty Text))
+    (effects http.get)
+    (block
+      (context app (call (name start)))
+      (var queue (call (member (name app) dispatch) (call (name Start) (name id) (name url))))
+      (while
+        (> (member (name queue) len) (int 0))
+        (block
+          (tail
+            (match
+              (call (member (name queue) get) (int 0))
+              (arm
+                (ctor Some (bind command))
+                (block
+                  (assign queue
+                    (++
+                      (call (member (name queue) drop) (int 1))
+                      (call
+                        (member (name app) dispatch)
+                        (call (name perform) (name command) (using (name http))))))))
+              (arm (ctor None) (block (assign queue (list))))))))
+      (tail (call (name outcome) (using (name app)))))
+    (trivia
+      (lead-blank "// The state machine of one download lives here: `fetch` starts it, runs each")
+      (lead "// command after its transition commits, and dispatches the resulting event.")
+      (lead "// `outcome` lower in the call stack receives the same context; nothing below")
+      (lead "// `fetch` can start another state machine.")))
+  (fn outcome
+    (params (using app (ty Context (ty App))))
+    (ret (ty Text))
+    (effects app.state)
+    (block
+      (tail
+        (match
+          (member (call (member (name app) state)) download)
+          (arm (ctor Done (bind body)) (name body))
+          (arm (ctor Failed (bind message)) (++ (text "failed: ") (name message)))
+          (arm _ (text "pending")))))
+    (trivia blank)))

@@ -49,6 +49,8 @@ pub enum Value {
     /// A host-provided capability handle (none exist in Milestone 1,
     /// semantics 6.9).
     Capability(HandleId),
+    /// The handle of a running state machine (`context app = e`).
+    Context(crate::interp::ContextId),
 }
 
 /// The index of the variant called `name` of the enum `def`, or `fallback`
@@ -280,6 +282,7 @@ impl Value {
             Value::Enum { .. } => "enum",
             Value::Wrapper { .. } => "wrapper",
             Value::Capability(_) => "capability",
+            Value::Context(_) => "context",
         }
     }
 

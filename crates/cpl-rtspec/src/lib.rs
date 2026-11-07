@@ -10,7 +10,7 @@
 //! | - | - | - |
 //! | [`messages`] | every fault and value message whose text a specification fixes, as a `{name}` template, and [`messages::render`] | semantics 6.7, S77, S80; stdlib 1.5, S45; toolchain 1.7.3 |
 //! | [`whitespace`] | the 25 `White_Space` scalars of `trim` as inclusive ranges | stdlib S22, S47 |
-//! | [`builtins`] | the 59 builtin specifications of the registry: ids, callability, C entry points, fallback symbols, precondition texts and input names | stdlib 10.4, 10.6; cabi 2.7; toolchain 1.7.4 |
+//! | [`builtins`] | the 60 builtin specifications of the registry: ids, callability, C entry points, fallback symbols, precondition texts and input names | stdlib 10.4, 10.6; cabi 2.7; toolchain 1.7.4 |
 //! | [`limits`] | the default call-depth limit, the evaluation stack and its guard margin, the C API and driver protocol versions | semantics S38; toolchain 1.7; cabi 3.4, 3.8, 4.2 |
 //! | [`arith`] | the one `Int` division, [`arith::div_rem`] | semantics S37; toolchain T9 as amended by T70 |
 //! | [`foreign`] | the `ForeignErrorKind` names in declaration order and the fixed order of the detail keys | stdlib 7, S45 |

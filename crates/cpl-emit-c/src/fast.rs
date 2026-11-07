@@ -870,7 +870,7 @@ impl Emitter<'_> {
                 self.line("}");
             }
             // excluded by local_check
-            Stmt::Return(None) | Stmt::Concurrent(_) => self.line("goto bail;"),
+            Stmt::Return(None) | Stmt::Concurrent(_) | Stmt::Context { .. } => self.line("goto bail;"),
         }
     }
 

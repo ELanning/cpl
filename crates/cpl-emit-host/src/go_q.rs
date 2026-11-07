@@ -584,7 +584,7 @@ impl<'a> Emitter<'a> {
                 self.indent -= 1;
                 self.brace("}");
             }
-            Stmt::Return(None) | Stmt::Concurrent(_) => self.fail(),
+            Stmt::Return(None) | Stmt::Concurrent(_) | Stmt::Context { .. } => self.fail(),
         }
     }
 

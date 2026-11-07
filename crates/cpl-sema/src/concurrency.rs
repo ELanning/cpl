@@ -54,6 +54,26 @@ pub(crate) fn check(cx: &mut Checker<'_>) {
             for d in safety(tasks) {
                 found.push((def.id, d, Facet::Body));
             }
+            // one state machine runs its transitions in order: no task may touch it
+            for task in tasks {
+                let mut uses = None;
+                task.stmt.walk(&mut |e| {
+                    if uses.is_none() && matches!(e.ty, Ty::Context(_)) {
+                        uses = Some(e.span);
+                    }
+                });
+                if let Some(span) = uses {
+                    found.push((
+                        def.id,
+                        diag(
+                            codes::CONTEXT_IN_CONCURRENT,
+                            Some(span),
+                            "a `concurrent` task cannot use the state machine's context: its transitions happen one at a time, in order; dispatch before or after the block",
+                        ),
+                        Facet::Body,
+                    ));
+                }
+            }
             if let Some(f) = def.kind.as_fn() {
                 for d in conflicts(p, f, tasks) {
                     found.push((def.id, d, Facet::Effects));

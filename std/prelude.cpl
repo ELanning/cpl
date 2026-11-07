@@ -251,3 +251,10 @@ pub fn ok<T, E>(res: Result<T, E>) -> Option<T>
 @builtin("result_err")
 pub fn err<T, E>(res: Result<T, E>) -> Option<E>
     ensures result.is_some() == res.is_err()
+
+// ---- state machines -----------------------------------------------------
+
+/// The running state machine of program `S`: a handle, created by `context app = start(...)` and passed down
+/// as `using app: Context<S>`, with the operations `app.dispatch(event)` and `app.state()`. One per call stack.
+@builtin("context")
+pub type Context<S>

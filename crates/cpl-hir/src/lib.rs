@@ -267,6 +267,14 @@ pub struct FnDef {
     pub body: FnBody,
 }
 
+impl FnDef {
+    /// Whether the function receives a state machine's handle (`using app: Context<S>`): only CPL code passes
+    /// one, so no host interface (C, Python, Rust, Go, Java) exports such a function.
+    pub fn takes_context(&self) -> bool {
+        self.using.iter().any(|u| matches!(u.ty, Ty::Context(_)))
+    }
+}
+
 /// A function body.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum FnBody {
@@ -446,6 +454,9 @@ pub enum Ty {
     /// Generic parameter of the enclosing definition.
     Param(u32),
     Capability(DefId),
+    /// `Context<S>`, the handle of the running state machine of program `S` (spec/state-machines.md, "One state
+    /// machine per call stack"): like a capability, a handle and not a value type (S27); the DefId is the program.
+    Context(DefId),
     /// Hermetic generator type (semantics S14): only `for` ranges and `gen` arguments.
     Gen(Box<Ty>),
     Error,
@@ -461,7 +472,9 @@ impl PartialEq for Ty {
             | (Ty::Error, Ty::Error) => true,
             (Ty::List(a), Ty::List(b)) | (Ty::Gen(a), Ty::Gen(b)) => a == b,
             (Ty::Adt(d, a), Ty::Adt(e, b)) => d == e && a == b,
-            (Ty::Wrapper(a), Ty::Wrapper(b)) | (Ty::Capability(a), Ty::Capability(b)) => a == b,
+            (Ty::Wrapper(a), Ty::Wrapper(b))
+            | (Ty::Capability(a), Ty::Capability(b))
+            | (Ty::Context(a), Ty::Context(b)) => a == b,
             (Ty::Refined(a, _), Ty::Refined(b, _)) => a == b,
             (Ty::Param(a), Ty::Param(b)) => a == b,
             _ => false,
@@ -479,7 +492,7 @@ impl Hash for Ty {
                 d.hash(state);
                 args.hash(state);
             }
-            Ty::Wrapper(d) | Ty::Capability(d) => d.hash(state),
+            Ty::Wrapper(d) | Ty::Capability(d) | Ty::Context(d) => d.hash(state),
             Ty::Refined(class, _) => class.hash(state),
             Ty::Param(i) => i.hash(state),
         }
@@ -489,6 +502,33 @@ impl Hash for Ty {
 // ---------------------------------------------------------------------------
 // Expressions, blocks, statements, patterns
 // ---------------------------------------------------------------------------
+
+/// An operation of a context handle (`Ty::Context`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum ContextOp {
+    /// `app.dispatch(event)`: the root machine runs on the current state and the event; its new state is
+    /// committed and its commands (a `List`) or `Unit` returned.
+    Dispatch,
+    /// `app.state()`: the current state.
+    State,
+}
+
+impl ContextOp {
+    pub fn name(self) -> &'static str {
+        match self {
+            ContextOp::Dispatch => "dispatch",
+            ContextOp::State => "state",
+        }
+    }
+
+    pub fn from_name(name: &str) -> Option<ContextOp> {
+        match name {
+            "dispatch" => Some(ContextOp::Dispatch),
+            "state" => Some(ContextOp::State),
+            _ => None,
+        }
+    }
+}
 
 /// A typed expression.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -530,6 +570,13 @@ pub enum ExprKind {
         handle: Box<Expr>,
         capability: DefId,
         op: u32,
+        args: Vec<Expr>,
+    },
+    /// `app.dispatch(event)` or `app.state()` on a context handle of program `program`.
+    ContextOp {
+        handle: Box<Expr>,
+        program: DefId,
+        op: ContextOp,
         args: Vec<Expr>,
     },
     /// `check<R>(x)`: `Result<R, ConstraintError>`.
@@ -656,6 +703,12 @@ pub enum Stmt {
     /// ([`Program::footprint`]). The result is that of running them in order;
     /// a runtime may overlap tasks whose actual handles are disjoint.
     Concurrent(Vec<Task>),
+    /// `context app = e`: the state machine of this call stack starts from `e`, a value of a program type; `local`
+    /// is its handle (`Ty::Context`), alive until the function returns (spec/state-machines.md).
+    Context {
+        local: LocalId,
+        value: Expr,
+    },
 }
 
 /// One task of a `concurrent` block: a `Let`, `Discard`, or `Expr` statement.

@@ -49,6 +49,10 @@ pub(super) fn type_list(_it: &mut Interpreter<'_>, _args: &[Value]) -> Out {
     Err(builtin_type("list"))
 }
 
+pub(super) fn type_context(_it: &mut Interpreter<'_>, _args: &[Value]) -> Out {
+    Err(builtin_type("context"))
+}
+
 pub(super) fn type_gen(_it: &mut Interpreter<'_>, _args: &[Value]) -> Out {
     Err(builtin_type("gen"))
 }

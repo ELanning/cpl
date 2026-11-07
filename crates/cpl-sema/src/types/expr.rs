@@ -746,7 +746,7 @@ impl<'t, 'c, 'a> Typer<'t, 'c, 'a> {
     fn local_callee(&mut self, e: &ast::Expr, c: &ast::CallExpr, id: cpl_hir::LocalId) -> Expr {
         let ty = self.local_ty(id);
         self.args_infer(c);
-        if matches!(ty, Ty::Capability(_)) {
+        if matches!(ty, Ty::Capability(_) | Ty::Context(_)) {
             return Expr::new(ExprKind::Local(id), ty, c.callee.span);
         }
         if !ty.is_error() {
@@ -1015,14 +1015,15 @@ impl<'t, 'c, 'a> Typer<'t, 'c, 'a> {
                 return match self.tcx.cx.names.exprs.get(&x.span).cloned() {
                     Some(Res::Local(id)) => {
                         let lt = self.local_ty(id);
-                        let is_using = self
-                            .locals
-                            .get(id.0 as usize)
-                            .is_some_and(|l| l.kind == cpl_hir::BindingKind::Using);
+                        // a handle: a `using` parameter, or the context a `context` statement made
+                        let is_using = self.locals.get(id.0 as usize).is_some_and(|l| {
+                            matches!(l.kind, cpl_hir::BindingKind::Using | cpl_hir::BindingKind::Context)
+                        });
+                        let handle = |t: &Ty| matches!(t, Ty::Capability(_) | Ty::Context(_));
                         if !is_using {
                             self.not_a_handle(x, &lt, false);
-                        } else if let (Ty::Capability(a), Some(Ty::Capability(b))) = (&lt, &param) {
-                            if a != b {
+                        } else if let Some(p) = param.as_ref().filter(|p| handle(p) && handle(&lt)) {
+                            if *p != lt {
                                 let p = param.clone().unwrap_or(Ty::Error);
                                 let (expected, actual) = self.render_pair(&p, &lt);
                                 self.error(
@@ -1049,10 +1050,12 @@ impl<'t, 'c, 'a> Typer<'t, 'c, 'a> {
         // genuine handle in the wrong shape (S28). The effect stage builds
         // S28's σ from bare names only.
         let handle = match e.kind {
-            ExprKind::Local(id) if matches!(ty, Ty::Capability(_)) => self
+            ExprKind::Local(id) if matches!(ty, Ty::Capability(_) | Ty::Context(_)) => self
                 .locals
                 .get(id.0 as usize)
-                .filter(|l| l.kind == cpl_hir::BindingKind::Using)
+                .filter(|l| {
+                    matches!(l.kind, cpl_hir::BindingKind::Using | cpl_hir::BindingKind::Context)
+                })
                 .map(|l| l.name.clone()),
             _ => None,
         };
@@ -1102,7 +1105,7 @@ impl<'t, 'c, 'a> Typer<'t, 'c, 'a> {
     fn contract_using_arg(&mut self, x: &ast::Expr) -> Expr {
         let e = self.quiet(|t| t.infer(x));
         let handle = match e.kind {
-            ExprKind::Local(id) if matches!(e.ty, Ty::Capability(_)) => self
+            ExprKind::Local(id) if matches!(e.ty, Ty::Capability(_) | Ty::Context(_)) => self
                 .locals
                 .get(id.0 as usize)
                 .filter(|l| l.kind == cpl_hir::BindingKind::Using)
@@ -1364,6 +1367,7 @@ impl<'t, 'c, 'a> Typer<'t, 'c, 'a> {
                 return self.error_expr(e.span);
             }
             Ty::Capability(cap) => return self.op_call(e, c, recv, *cap, name, &rt),
+            Ty::Context(program) => return self.context_call(e, c, recv, *program, name, &rt),
             Ty::Adt(def, _) => {
                 if let DefKind::Struct(sd) = &self.program.def(*def).kind {
                     if sd.fields.iter().any(|f| f.name == name.text) {
@@ -1497,6 +1501,68 @@ impl<'t, 'c, 'a> Typer<'t, 'c, 'a> {
                 args,
             },
             if arity_ok { op.ret.clone() } else { Ty::Error },
+            e.span,
+        )
+    }
+
+    /// `app.dispatch(event)` or `app.state()` on a context handle of `program` (spec/state-machines.md): `dispatch`
+    /// takes the root machine's event and gives its commands (or `Unit`), `state` the program's current state.
+    fn context_call(
+        &mut self,
+        e: &ast::Expr,
+        c: &ast::CallExpr,
+        recv: Expr,
+        program: DefId,
+        name: &ast::Name,
+        rt: &Ty,
+    ) -> Expr {
+        let Some(op) = cpl_hir::ContextOp::from_name(&name.text) else {
+            self.unknown_member(name, rt);
+            self.args_infer(c);
+            return self.error_expr(e.span);
+        };
+        let machine = self.program.root_machine(program);
+        // (no single root machine: `program_machine_count` is reported)
+        let Some(sig) = machine.and_then(|m| self.program.machine_signature(m)) else {
+            self.args_infer(c);
+            return self.error_expr(e.span);
+        };
+        let qname = format!("Context<{}>.{}", self.program.def(program).name.display(), op.name());
+        let (params, ret) = match op {
+            cpl_hir::ContextOp::Dispatch => (
+                vec![sig.event.clone()],
+                match &sig.command {
+                    Some(command) => Ty::List(Box::new(command.clone())),
+                    None => self.unit(),
+                },
+            ),
+            cpl_hir::ContextOp::State => (Vec::new(), sig.state.clone()),
+        };
+        let arity_ok = c.args.positional.len() == params.len();
+        if !arity_ok {
+            self.arity_mismatch(e.span, &qname, params.len(), c.args.positional.len());
+        }
+        let mut args = Vec::new();
+        for (i, a) in c.args.positional.iter().enumerate() {
+            match params.get(i) {
+                Some(t) => args.push(self.check(&a.expr, t)),
+                None => args.push(self.accept_any(&a.expr)),
+            }
+        }
+        if !c.args.using.is_empty() {
+            self.using_args(e.span, c, &qname, &[], &[]);
+        }
+        if let (cpl_hir::ContextOp::Dispatch, Some(m)) = (op, machine) {
+            self.add_ref(m, RefKind::Call, name.span);
+        }
+        Expr::new(
+            ExprKind::ContextOp {
+                handle: Box::new(recv),
+                program,
+                op,
+                args,
+            },
+            if arity_ok { ret } else { Ty::Error },
             e.span,
         )
     }

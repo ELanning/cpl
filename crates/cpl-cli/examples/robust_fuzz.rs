@@ -11,7 +11,8 @@
 //! * a file that checks compiles to the source of every host (`cpl_emit_host::emit`).
 //!
 //! A violation is printed with the mutated source and its seed; the process exits 1 when there
-//! was one.
+//! was one. `FUZZ_ONLY=contexts,state_machine` mutates only the files whose path contains one of
+//! the substrings.
 
 use cpl_diag::{FileId, FileOrigin};
 use cpl_eval::testing::programs::{generate, Rng};
@@ -42,6 +43,12 @@ fn corpus() -> Vec<(PathBuf, String)> {
                 }
             }
         }
+    }
+    // FUZZ_ONLY=a,b keeps the files whose path contains one of the comma-separated substrings
+    if let Ok(only) = std::env::var("FUZZ_ONLY") {
+        let keep: Vec<&str> = only.split(',').filter(|s| !s.is_empty()).collect();
+        out.retain(|(path, _)| keep.iter().any(|k| path.to_string_lossy().contains(k)));
+        assert!(!out.is_empty(), "FUZZ_ONLY={only} matches no .cpl file");
     }
     out.sort();
     out

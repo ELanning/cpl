@@ -101,6 +101,7 @@ fn block<'a>(b: &'a ast::Block, f: &mut dyn FnMut(Node<'a>)) {
             ast::Statement::Let(s) => expr(&s.value, f),
             ast::Statement::Var(s) => expr(&s.value, f),
             ast::Statement::Assign(s) => expr(&s.value, f),
+            ast::Statement::Context(s) => expr(&s.value, f),
             ast::Statement::Return(s) => {
                 if let Some(e) = &s.value {
                     expr(e, f);

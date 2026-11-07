@@ -2310,6 +2310,32 @@ pub fn list_get<T: Clone>(l: &List<T>, i: Int) -> Option<T> {
 
 /// The list reads of the speculative forms (spec/hosts.md H14): element `i` as an `i64`, `Some(None)` past the
 /// ends, `None` (a bail) for an element that is a bigint.
+/// The state machine of one call stack (`context app = start(...)`, spec/state-machines.md): the current state of
+/// a program, shared by the functions the handle is passed to (`using app: Context<App>`). A host starts none:
+/// functions taking one are CPL's own.
+#[derive(Debug)]
+pub struct Context<T>(std::rc::Rc<std::cell::RefCell<T>>);
+
+impl<T> Clone for Context<T> {
+    fn clone(&self) -> Context<T> {
+        Context(self.0.clone())
+    }
+}
+
+impl<T: Clone> Context<T> {
+    pub fn new(state: T) -> Context<T> {
+        Context(std::rc::Rc::new(std::cell::RefCell::new(state)))
+    }
+    /// The current state.
+    pub fn get(&self) -> T {
+        self.0.borrow().clone()
+    }
+    /// Commit `state` (a transition's result).
+    pub fn set(&self, state: T) {
+        *self.0.borrow_mut() = state;
+    }
+}
+
 /// An element type of a list of lists in a speculative form: its empty list, shared.
 #[doc(hidden)]
 pub trait QLeaf: Sized + Clone + 'static {

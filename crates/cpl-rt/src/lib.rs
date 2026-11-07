@@ -204,7 +204,7 @@ pub fn generated_header() -> String {
          } cplrt_requires_spec;\n\
          typedef struct cplrt_builtin_spec {\n    \
          const char *id;\n    \
-         uint32_t callable;                          /* 0 for the 6 type ids and the 7 generator ids */\n    \
+         uint32_t callable;                          /* 0 for the 7 type ids and the 7 generator ids */\n    \
          uint32_t nrequires;\n    \
          const char *fallback_symbol;                /* the stub's qualified name, for a program that does not declare it */\n    \
          const cplrt_requires_spec *requires;        /* the precondition clauses in source order (stdlib.md 10.4) */\n\

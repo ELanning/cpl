@@ -244,7 +244,8 @@ pub fn emit(p: &Program, lowered: &Lowered, options: &Options) -> Package {
                 DefKind::Fn(_) => {
                     if let Some(f) = fns.get(d) {
                         j.function(f, &mut fns_out);
-                        if def.is_pub {
+                        // (a function taking a context handle is CPL's alone: a host starts none)
+                        if def.is_pub && !def.kind.as_fn().is_some_and(cpl_hir::FnDef::takes_context) {
                             exports.push(p.display_path(*d));
                             j.host_function(f, &mut fns_out);
                         }
@@ -501,6 +502,8 @@ impl<'p> Printer<'p> {
                 }
             }
             Ty::Wrapper(d) | Ty::Capability(d) => self.fqn(*d),
+            // the call stack's state machine: a shared cell
+            Ty::Context(d) => format!("{}.Context<{}>", self.rt, self.fqn(*d)),
             Ty::Refined(..) => self.jty(&erase(p, t), generics, boxed),
             Ty::Param(i) => generics
                 .get(*i as usize)
@@ -1326,6 +1329,12 @@ impl Fx<'_, '_> {
         let pad = "    ".repeat(depth);
         let rt = self.r.rt.clone();
         match s {
+            LStmt::ContextSet { handle, value } => {
+                let h = self.expr(handle);
+                let v = self.expr(value);
+                let _ = writeln!(out, "{pad}({h}).set({v});");
+                true
+            }
             LStmt::Let { var, value } => {
                 if let Some(call) = self.unit_cap_call(value) {
                     let _ = writeln!(out, "{pad}{call};\n{pad}{rt}.Unit v{var} = {rt}.Unit.UNIT;");
@@ -1635,6 +1644,8 @@ impl Fx<'_, '_> {
             LExpr::Text(s) => java_str(s),
             LExpr::Bool(b) => b.to_string(),
             LExpr::Unit => format!("{rt}.Unit.UNIT"),
+            LExpr::ContextNew(x) => format!("new {rt}.Context<>({})", self.expr(x)),
+            LExpr::ContextGet(h) => format!("({}).get()", self.expr(h)),
             LExpr::Call {
                 def,
                 generics,

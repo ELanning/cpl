@@ -81,6 +81,9 @@ impl<'p> Interpreter<'p> {
                 op,
                 args,
             } => self.eval_cap_call(handle, *capability, *op, args, e.span),
+            ExprKind::ContextOp {
+                handle, op, args, ..
+            } => self.eval_context_op(handle, *op, args, e.span),
             ExprKind::Check { refined, arg } => self.eval_check(*refined, arg, e.span),
             ExprKind::Propagate(inner) => self.eval_propagate(inner, e.span),
             ExprKind::Unary { op, operand } => self.eval_unary(*op, operand, e.span),
@@ -632,6 +635,12 @@ impl<'p> Interpreter<'p> {
                 self.bind(*local, v);
                 Ok(())
             }
+            Stmt::Context { local, value } => {
+                let state = self.eval_expr(value)?;
+                let id = self.start_context(state, value.span)?;
+                self.bind(*local, Value::Context(id));
+                Ok(())
+            }
             Stmt::Discard(e) | Stmt::Expr(e) => self.eval_expr(e).map(drop),
             Stmt::Assign { local, value } => {
                 if self.assign_int_leaf(*local, value) {
@@ -1029,6 +1038,80 @@ impl<'p> Interpreter<'p> {
     }
 
     // =======================================================================
+    // State machines (spec/state-machines.md, "One state machine per call stack")
+    // =======================================================================
+
+    /// A context for `state`, a value of a program type: its root machine and how its result splits.
+    fn start_context(&mut self, state: Value, span: Span) -> Eval<crate::interp::ContextId> {
+        let p = self.program;
+        let program = match &state {
+            Value::Struct { def, .. } => *def,
+            other => return self.confusion("a program state", other, span),
+        };
+        // (the checker reports a program without exactly one root machine: `program_machine_count`)
+        let Some(machine) = p.root_machine(program) else {
+            return self.confusion("the state of a program with one root machine", &state, span);
+        };
+        let sig = p.machine_signature(machine);
+        let id = crate::interp::ContextId(self.contexts.len() as u32);
+        self.contexts.push(crate::interp::ContextCell {
+            state,
+            machine,
+            state_field: sig.as_ref().and_then(|s| s.state_field),
+            commands_field: sig.as_ref().and_then(|s| s.commands_field),
+        });
+        Ok(id)
+    }
+
+    /// `app.state()` (the current state) or `app.dispatch(event)`: the root machine on the current state and
+    /// the event, its new state committed once it returns (a fault leaves the context as it was), its commands
+    /// (or `Unit`) the value.
+    fn eval_context_op(
+        &mut self,
+        handle: &'p Expr,
+        op: cpl_hir::ContextOp,
+        args: &'p [Expr],
+        span: Span,
+    ) -> Eval<Value> {
+        let id = match self.eval_expr(handle)? {
+            Value::Context(id) => id,
+            other => return self.confusion("a context handle", &other, handle.span),
+        };
+        // the event first: the machine then runs on the state as it is after the event's own evaluation
+        let event = match (op, args.first()) {
+            (cpl_hir::ContextOp::Dispatch, Some(a)) => Some(self.eval_expr(a)?),
+            _ => None,
+        };
+        let Some(cell) = self.contexts.get(id.0 as usize).cloned() else {
+            // (a handle never outlives the frame that started its context: S27)
+            return self.confusion("a live context handle", &Value::Context(id), span);
+        };
+        match op {
+            cpl_hir::ContextOp::State => Ok(cell.state),
+            cpl_hir::ContextOp::Dispatch => {
+                let Some(event) = event else {
+                    return self.confusion("an event", &Value::unit(self.program), span);
+                };
+                let result = self.call_fn(cell.machine, vec![cell.state, event], Vec::new(), Some(span))?;
+                let (state, commands) = match (cell.state_field, cell.commands_field, &result) {
+                    (Some(si), Some(ci), Value::Struct { fields, .. }) => {
+                        match (fields.get(si as usize), fields.get(ci as usize)) {
+                            (Some(s), Some(c)) => (s.clone(), c.clone()),
+                            _ => return self.confusion("a step with its state and commands", &result, span),
+                        }
+                    }
+                    (None, None, _) => (result.clone(), Value::unit(self.program)),
+                    (_, _, other) => return self.confusion("a machine's step", other, span),
+                };
+                if let Some(c) = self.contexts.get_mut(id.0 as usize) {
+                    c.state = state;
+                }
+                Ok(commands)
+            }
+        }
+    }
+
+    // =======================================================================
     // Calls (semantics 5.2, 5.4, 6.10, S31, S58)
     // =======================================================================
 
@@ -1059,7 +1142,7 @@ impl<'p> Interpreter<'p> {
         let mut handles = Vec::with_capacity(using.len());
         for u in using {
             match self.eval_expr(u)? {
-                Value::Capability(h) => handles.push(h),
+                h @ (Value::Capability(_) | Value::Context(_)) => handles.push(h),
                 other => return self.confusion("a capability handle", &other, u.span),
             }
         }
@@ -1071,7 +1154,7 @@ impl<'p> Interpreter<'p> {
         &mut self,
         f: DefId,
         args: Vec<Value>,
-        using: Vec<HandleId>,
+        using: Vec<Value>,
         span: Option<Span>,
     ) -> Eval<Value> {
         let p = self.program;
@@ -1119,9 +1202,12 @@ impl<'p> Interpreter<'p> {
             self.bind(param.local, v);
         }
         for (param, h) in fd.using.iter().zip(using) {
-            self.bind(param.local, Value::Capability(h));
+            self.bind(param.local, h);
         }
+        // the state machines this activation starts end with it (none outlives its function)
+        let contexts = self.contexts.len();
         let outcome = self.run_fn(f, fd);
+        self.contexts.truncate(contexts);
         self.calls -= 1;
         self.leave_activation();
         outcome.map_err(|flow| leaving(flow, f, span))

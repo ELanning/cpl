@@ -188,6 +188,11 @@ fn assemble_json(p: &Program, v: &Value, kids: Vec<Json>) -> Json {
             m.insert("$handle".to_string(), Json::from(h.0));
             Json::Object(m)
         }
+        Value::Context(c) => {
+            let mut m = Map::new();
+            m.insert("$context".to_string(), Json::from(c.0));
+            Json::Object(m)
+        }
     }
 }
 
@@ -317,6 +322,9 @@ fn write_text(p: &Program, v: &Value, out: &mut String) {
             }
             Value::Capability(h) => {
                 let _ = write!(out, "<handle {}>", h.0);
+            }
+            Value::Context(c) => {
+                let _ = write!(out, "<context {}>", c.0);
             }
         }
     }
@@ -478,6 +486,10 @@ impl Decoder<'_> {
             )),
             Ty::Capability(_) => Err(self.error(format!(
                 "a capability handle (`{}`) cannot be supplied as JSON",
+                self.p.display_ty(ty)
+            ))),
+            Ty::Context(_) => Err(self.error(format!(
+                "a context handle (`{}`) cannot be supplied as JSON",
                 self.p.display_ty(ty)
             ))),
             Ty::Gen(_) => Err(self.error("a generator is not a value")),

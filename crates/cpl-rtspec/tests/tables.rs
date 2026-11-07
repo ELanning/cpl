@@ -231,8 +231,8 @@ fn builtins_hold_exactly_the_ids_of_stdlib_10_6() {
             assert!(ids.insert(id.clone()), "stdlib 10.6 lists `{id}` twice");
         }
     }
-    assert_eq!(ids.len(), 59, "stdlib 10.6 lists 59 ids");
-    assert_eq!(not_callable.len(), 13, "6 type ids and 7 generator ids");
+    assert_eq!(ids.len(), 60, "stdlib 10.6 lists 60 ids");
+    assert_eq!(not_callable.len(), 14, "7 type ids and 7 generator ids");
     let ours: Vec<&str> = BUILTINS.iter().map(|b| b.id).collect();
     assert_eq!(ours, ids.iter().map(String::as_str).collect::<Vec<_>>());
     for b in &BUILTINS {

@@ -678,6 +678,11 @@ pub(crate) fn walk(p: &Program, v: &Value, ty: &Ty) -> Result<Vec<Position>, Sha
                     return Err(mismatch(&path));
                 }
             }
+            Ty::Context(_) => {
+                if !matches!(value, Value::Context(_)) {
+                    return Err(mismatch(&path));
+                }
+            }
             Ty::Param(_) => {}
             Ty::Gen(_) | Ty::Error => return Err(mismatch(&path)),
         }

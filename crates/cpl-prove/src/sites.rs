@@ -71,7 +71,9 @@ impl Walk<'_> {
 
     fn stmt(&mut self, s: &Stmt) {
         match s {
-            Stmt::Let { value, .. } | Stmt::Assign { value, .. } => self.expr(value),
+            Stmt::Let { value, .. } | Stmt::Assign { value, .. } | Stmt::Context { value, .. } => {
+                self.expr(value)
+            }
             Stmt::Discard(e) | Stmt::Expr(e) => self.expr(e),
             Stmt::Assert { expr, .. } => {
                 self.asserts += 1;
@@ -125,6 +127,12 @@ impl Walk<'_> {
 
     fn expr(&mut self, e: &Expr) {
         match &e.kind {
+            ExprKind::ContextOp { handle, args, .. } => {
+                self.expr(handle);
+                for a in args {
+                    self.expr(a);
+                }
+            }
             ExprKind::Call {
                 callee,
                 args,

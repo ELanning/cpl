@@ -94,7 +94,7 @@ impl Walker {
 
     fn stmt(&mut self, s: &Stmt) {
         match s {
-            Stmt::Let { local, value } => {
+            Stmt::Let { local, value } | Stmt::Context { local, value } => {
                 self.expr(value);
                 self.scope.push(*local);
             }
@@ -142,7 +142,7 @@ impl Walker {
                 self.exprs(args);
                 self.exprs(using);
             }
-            ExprKind::CapCall { handle, args, .. } => {
+            ExprKind::CapCall { handle, args, .. } | ExprKind::ContextOp { handle, args, .. } => {
                 self.expr(handle);
                 self.exprs(args);
             }

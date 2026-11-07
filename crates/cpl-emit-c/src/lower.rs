@@ -104,6 +104,10 @@ enum LocalC {
     Slot(String, bool),
     /// the result of an ensures clause: `rv`
     Rv,
+    /// the state machine a `context` statement starts: an owned slot holding its state; the handle is its address
+    Context(String),
+    /// a context handle a caller passed: a `cplrt_w *` to the slot of the caller's state machine
+    ContextParam(String),
 }
 
 pub(crate) struct Lowerer<'a, 'p> {
@@ -266,7 +270,7 @@ fn maybe_locals(p: &Program, def: DefId) -> BTreeSet<LocalId> {
 
 /// Every HIR variant the coverage counters name (cabi.md 1.4), as `<enum>::<variant>`: what the coverage gate of
 /// toolchain 12.6 requires to occur.
-pub const COVERAGE_KINDS: [&str; 37] = [
+pub const COVERAGE_KINDS: [&str; 39] = [
     "ExprKind::Lit",
     "ExprKind::Local",
     "ExprKind::Ctor",
@@ -274,6 +278,7 @@ pub const COVERAGE_KINDS: [&str; 37] = [
     "ExprKind::Field",
     "ExprKind::Call",
     "ExprKind::CapCall",
+    "ExprKind::ContextOp",
     "ExprKind::Check",
     "ExprKind::Propagate",
     "ExprKind::Unary",
@@ -297,6 +302,7 @@ pub const COVERAGE_KINDS: [&str; 37] = [
     "Stmt::While",
     "Stmt::Expr",
     "Stmt::Concurrent",
+    "Stmt::Context",
     "PatternKind::Wildcard",
     "PatternKind::Int",
     "PatternKind::Text",
@@ -315,6 +321,7 @@ fn expr_kind(k: &ExprKind) -> &'static str {
         ExprKind::Field { .. } => "ExprKind::Field",
         ExprKind::Call { .. } => "ExprKind::Call",
         ExprKind::CapCall { .. } => "ExprKind::CapCall",
+        ExprKind::ContextOp { .. } => "ExprKind::ContextOp",
         ExprKind::Check { .. } => "ExprKind::Check",
         ExprKind::Propagate { .. } => "ExprKind::Propagate",
         ExprKind::Unary { .. } => "ExprKind::Unary",
@@ -343,6 +350,7 @@ fn stmt_kind(s: &Stmt) -> &'static str {
         Stmt::While { .. } => "Stmt::While",
         Stmt::Expr(..) => "Stmt::Expr",
         Stmt::Concurrent(..) => "Stmt::Concurrent",
+        Stmt::Context { .. } => "Stmt::Context",
     }
 }
 
@@ -411,7 +419,12 @@ impl<'a, 'p> Lowerer<'a, 'p> {
         // every local of the definition's table is a slot unless it is a parameter
         for ld in d.kind.locals() {
             let name = format!("l{}_{}", ld.id.0, ident(&ld.name));
-            l.locals.insert(ld.id, LocalC::Slot(name, ld.mutable));
+            let c = if ld.kind == cpl_hir::BindingKind::Context {
+                LocalC::Context(name)
+            } else {
+                LocalC::Slot(name, ld.mutable)
+            };
+            l.locals.insert(ld.id, c);
         }
         l
     }
@@ -501,7 +514,8 @@ impl<'a, 'p> Lowerer<'a, 'p> {
             .map(|id| match self.locals.get(id) {
                 Some(LocalC::Param(n)) => n.clone(),
                 Some(LocalC::Using(n)) => format!("(cplrt_w)(uintptr_t){n}"),
-                Some(LocalC::Slot(n, _)) => n.clone(),
+                Some(LocalC::Slot(n, _)) | Some(LocalC::Context(n)) => n.clone(),
+                Some(LocalC::ContextParam(n)) => format!("(*{n})"),
                 Some(LocalC::Rv) => "rv".to_string(),
                 None => "0".to_string(),
             })
@@ -633,6 +647,8 @@ impl<'a, 'p> Lowerer<'a, 'p> {
         match self.locals.get(&id).cloned() {
             Some(LocalC::Param(n)) => Op::Borrowed(n),
             Some(LocalC::Using(n)) => Op::Imm(format!("(cplrt_w)(uintptr_t){n}")),
+            Some(LocalC::Context(n)) => Op::Borrowed(n),
+            Some(LocalC::ContextParam(n)) => Op::Borrowed(format!("(*{n})")),
             Some(LocalC::Rv) => Op::Borrowed("rv".to_string()),
             Some(LocalC::Slot(n, mutable)) => {
                 if mutable {
@@ -648,14 +664,65 @@ impl<'a, 'p> Lowerer<'a, 'p> {
         }
     }
 
-    /// The C of a using argument: the capability reference of a using parameter.
+    /// The C of a using argument: the capability reference of a using parameter, or a context handle (the
+    /// address of the state machine's slot).
     fn using_arg(&mut self, e: &'p Expr) -> String {
         if let ExprKind::Local(id) = &e.kind {
-            if let Some(LocalC::Using(n)) = self.locals.get(id) {
-                return n.clone();
+            match self.locals.get(id) {
+                Some(LocalC::Using(n)) | Some(LocalC::ContextParam(n)) => return n.clone(),
+                Some(LocalC::Context(n)) => return format!("(&{n})"),
+                _ => {}
             }
         }
         "NULL".to_string()
+    }
+
+    /// `app.state()` (a reference of the state's own), or `app.dispatch(event)`: the event, then the root machine
+    /// on the current state, its new state committed, its commands (or `Unit`) the value.
+    fn context_op(
+        &mut self,
+        handle: &'p Expr,
+        program: DefId,
+        op: cpl_hir::ContextOp,
+        args: &'p [Expr],
+        span: Span,
+    ) -> Op {
+        let ptr = self.using_arg(handle);
+        let t = self.temp();
+        if op == cpl_hir::ContextOp::State {
+            self.line(&format!("CPLRT_COPY({t}, (*{ptr}));"));
+            return Op::Slot(t);
+        }
+        let ops = self.lower_all(args);
+        let p = self.p;
+        let (Some(machine), Some(event)) = (p.root_machine(program), ops.first()) else {
+            // (the checker reports a program without exactly one root machine: `program_machine_count`)
+            let detail = render(
+                &messages::DETAIL_TYPE_CONFUSION,
+                &[("found", "struct"), ("expected", "the state of a program with one root machine")],
+            );
+            self.internal_here(Some(span), "type_confusion", &detail);
+            return Op::Slot(t);
+        };
+        let sig = p.machine_signature(machine);
+        let step = self.temp();
+        let site = self.site(span);
+        self.checked(&format!(
+            "cpl_f{}(cx, {site}, (*{ptr}), {}, &{step})",
+            machine.0,
+            event.expr()
+        ));
+        match sig.and_then(|s| s.state_field.zip(s.commands_field)) {
+            Some((si, ci)) => {
+                self.line(&format!("CPLRT_COPY((*{ptr}), cplrt_field({step}, {si}u));"));
+                self.line(&format!("CPLRT_COPY({t}, cplrt_field({step}, {ci}u));"));
+            }
+            None => {
+                self.line(&format!("CPLRT_MOVE((*{ptr}), {step});"));
+                self.unit(&t);
+            }
+        }
+        Op::Slot(t)
     }
 
     fn internal_here(&mut self, span: Option<Span>, kind: &str, detail: &str) {
@@ -862,6 +929,12 @@ impl<'a, 'p> Lowerer<'a, 'p> {
                 using,
                 ..
             } => self.call(*callee, args, using, e.span),
+            ExprKind::ContextOp {
+                handle,
+                program,
+                op,
+                args,
+            } => self.context_op(handle, *program, *op, args, e.span),
             ExprKind::CapCall {
                 handle,
                 capability,
@@ -1896,6 +1969,13 @@ impl<'a, 'p> Lowerer<'a, 'p> {
                     self.stmt(&task.stmt);
                 }
             }
+            // the state machine's slot holds its state (the handle is the slot's address)
+            Stmt::Context { local, value } => {
+                let v = self.expr(value);
+                if let Some(LocalC::Context(n)) = self.locals.get(local).cloned() {
+                    self.store(&n, v);
+                }
+            }
         }
     }
 
@@ -2048,7 +2128,7 @@ impl<'a, 'p> Lowerer<'a, 'p> {
             .locals
             .iter()
             .filter_map(|(id, c)| match c {
-                LocalC::Slot(n, _) => Some((id.0, n.clone())),
+                LocalC::Slot(n, _) | LocalC::Context(n) => Some((id.0, n.clone())),
                 _ => None,
             })
             .collect();
@@ -2081,7 +2161,7 @@ impl<'a, 'p> Lowerer<'a, 'p> {
             .locals
             .iter()
             .filter_map(|(id, c)| match c {
-                LocalC::Slot(n, _) => Some((id.0, n.clone())),
+                LocalC::Slot(n, _) | LocalC::Context(n) => Some((id.0, n.clone())),
                 _ => None,
             })
             .collect();
@@ -2127,7 +2207,15 @@ pub(crate) fn fn_prototype(p: &Program, def: DefId) -> String {
         let _ = write!(s, ", cplrt_w {}", param_name(param.local, &param.name));
     }
     for u in &fd.using {
-        let _ = write!(s, ", const cplrt_capref *{}", using_name(u.local, &u.name));
+        match u.ty {
+            // a context handle: the address of the state machine's slot
+            Ty::Context(_) => {
+                let _ = write!(s, ", cplrt_w *{}", using_name(u.local, &u.name));
+            }
+            _ => {
+                let _ = write!(s, ", const cplrt_capref *{}", using_name(u.local, &u.name));
+            }
+        }
     }
     s.push_str(", cplrt_w *out)");
     s
@@ -2180,8 +2268,12 @@ pub(crate) fn emit_fn(t: &mut Tables<'_>, names: &mut Names, def: DefId) -> Stri
         );
     }
     for u in &fd.using {
-        l.locals
-            .insert(u.local, LocalC::Using(using_name(u.local, &u.name)));
+        let name = using_name(u.local, &u.name);
+        let c = match u.ty {
+            Ty::Context(_) => LocalC::ContextParam(name),
+            _ => LocalC::Using(name),
+        };
+        l.locals.insert(u.local, c);
     }
     if let Some(r) = fd.result_local {
         l.locals.insert(r, LocalC::Rv);
@@ -2498,6 +2590,10 @@ pub(crate) fn emit_bounds(
 /// `cpl_e<n>`: the entry trampoline of a function with a block body, or of a callable builtin stub.
 pub(crate) fn emit_entry(p: &Program, names: &mut Names, def: DefId) -> Option<String> {
     let fd = p.def(def).kind.as_fn()?;
+    // a context handle is passed only by CPL code: no host calls such a function
+    if fd.takes_context() {
+        return None;
+    }
     let mut call = match &fd.body {
         FnBody::Block(_) => format!("cpl_f{}(cx, CPLRT_NO_SITE", def.0),
         FnBody::Builtin(id) => {

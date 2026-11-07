@@ -643,7 +643,7 @@ impl Check<'_> {
                 self.expr(cond);
                 self.block(body);
             }
-            Stmt::Return(None) | Stmt::Concurrent(_) => self.ok = false,
+            Stmt::Return(None) | Stmt::Concurrent(_) | Stmt::Context { .. } => self.ok = false,
         }
     }
 

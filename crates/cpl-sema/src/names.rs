@@ -1086,6 +1086,10 @@ impl<'c, 'a> Walker<'c, 'a> {
                 self.expr(&a.value, Expect::Maybe);
                 self.assign_target(a);
             }
+            ast::Statement::Context(c) => {
+                self.expr(&c.value, Expect::No);
+                self.bind(&c.name, BindingKind::Context, false);
+            }
             ast::Statement::Return(r) => {
                 if self.outside_fn() {
                     self.diags.push(diag(

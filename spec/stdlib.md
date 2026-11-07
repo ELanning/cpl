@@ -2087,7 +2087,7 @@ check error `std_builtin_missing`, 10.2):
 
 | Group | Ids |
 | - | - |
-| types | `int` `bool` `text` `bytes` `list` `gen` |
+| types | `int` `bool` `text` `bytes` `list` `gen` `context` |
 | prelude functions | `flatten` |
 | `Int` members | `int_to_text` `int_abs` `int_min` `int_max` |
 | `Text` members | `text_len` `text_is_empty` |
@@ -2099,7 +2099,7 @@ check error `std_builtin_missing`, 10.2):
 | `std.bytes` | `bytes_from_list` `bytes_to_list` `bytes_from_text` `bytes_to_text` |
 | `std.gen` | `gen_int` `gen_positive_int` `gen_bool` `gen_text` `gen_list` `gen_option` `gen_range` |
 
-The six type ids and the seven `gen_*` ids are registered so that the
+The seven type ids and the seven `gen_*` ids are registered so that the
 check knows them but are not callable: a builtin type is never called, and
 a generator is lowered to `ExprKind::Gen` and interpreted by the property
 runner (`toolchain.md` T18), so calling one is `internal_error` (`kind`

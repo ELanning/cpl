@@ -741,6 +741,29 @@ public final class Q {
         return a / b;
     }
 }
+//// FILE: Context.java
+package __PKG__.cpl;
+
+/** The state machine of one call stack ({@code context app = start(...)}, spec/state-machines.md): the current state
+ *  of a program, shared by the functions its handle is passed to. A host starts none: functions taking one are
+ *  CPL's own. */
+public final class Context<T> {
+    private T state;
+
+    public Context(T state) {
+        this.state = state;
+    }
+
+    /** The current state. */
+    public T get() {
+        return state;
+    }
+
+    /** Commit {@code state} (a transition's result). */
+    public void set(T state) {
+        this.state = state;
+    }
+}
 //// FILE: TextBuf.java
 package __PKG__.cpl;
 

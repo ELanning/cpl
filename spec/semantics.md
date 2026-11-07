@@ -1473,6 +1473,12 @@ case. Rejected alternative: capabilities as first-class values stored in
 records (`ctx.reader`), which D31's grammar leaves room for and a later
 edition may add together with an alias analysis.
 
+A context handle (`Context<S>`, `spec/state-machines.md`) is a handle in
+this sense: it is named only by the `context` statement or `using`
+parameter that bound it, it appears only as the receiver of `dispatch` and
+`state`, as a `using` argument, and in an `effect_ref`, and the table's
+diagnostics apply to it unchanged.
+
 ### 4.3 `using` arguments and forwarding
 
 Decision: [D-105] S28. at a call `g(a1, ..., an, using c1, ..., using cm)` the

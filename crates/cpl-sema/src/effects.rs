@@ -193,17 +193,27 @@ impl<'c, 'a, 'h> Walk<'c, 'a, 'h> {
             .is_some_and(|c| c.ops.iter().any(|o| o.name == name))
     }
 
-    /// The `using` parameter an expression names (a handle, S27), with its
-    /// capability.
-    fn handle(&self, e: &Expr) -> Option<(LocalId, DefId)> {
+    /// The handle an expression names (S27): a `using` parameter of a capability or a context, or the context a
+    /// `context` statement of this function made; with its type.
+    fn handle(&self, e: &Expr) -> Option<(LocalId, Ty)> {
         let ExprKind::Local(id) = e.kind else {
             return None;
         };
         let local = self.f.locals.get(id.0 as usize)?;
         match (&local.kind, &local.ty) {
-            (BindingKind::Using, Ty::Capability(cap)) => Some((id, *cap)),
+            (BindingKind::Using, Ty::Capability(_) | Ty::Context(_))
+            | (BindingKind::Context, Ty::Context(_)) => Some((id, local.ty.clone())),
             _ => None,
         }
+    }
+
+    /// Whether `id` is the context a `context` statement of this function made: what is done through it is the
+    /// function's own business, no effect of its callers' (spec/state-machines.md).
+    fn own_context(&self, id: LocalId) -> bool {
+        self.f
+            .locals
+            .get(id.0 as usize)
+            .is_some_and(|l| l.kind == BindingKind::Context)
     }
 
     fn name(&self, id: LocalId) -> String {
@@ -240,8 +250,8 @@ impl<'c, 'a, 'h> Walk<'c, 'a, 'h> {
     /// handle of exactly `param`'s capability (S28); `None` for an argument
     /// the typer rejected.
     fn argument(&self, param: &cpl_hir::ParamDef, arg: &Expr) -> Option<LocalId> {
-        let (id, cap) = self.handle(arg)?;
-        (self.bare.contains(&arg.span) && param.ty == Ty::Capability(cap)).then_some(id)
+        let (id, ty) = self.handle(arg)?;
+        (self.bare.contains(&arg.span) && param.ty == ty).then_some(id)
     }
 
     fn facet(site: &Site<'_>) -> Facet {
@@ -253,12 +263,17 @@ impl<'c, 'a, 'h> Walk<'c, 'a, 'h> {
     }
 
     /// `capability_as_value` (S27) for a handle in a value position.
-    fn as_value(&mut self, e: &Expr, id: LocalId, cap: DefId, site: &Site<'_>) {
+    fn as_value(&mut self, e: &Expr, id: LocalId, handle: &Ty, site: &Site<'_>) {
         let name = self.name(id);
-        let ty = self.cx.program.display_ty(&Ty::Capability(cap));
-        let message = format!(
-            "`{name}` is a capability handle, not a value: it can only receive an operation call (`{name}.op(...)`) or be passed as `using {name}`"
-        );
+        let ty = self.cx.program.display_ty(handle);
+        let message = match handle {
+            Ty::Context(_) => format!(
+                "`{name}` is a context handle, not a value: it can only receive `{name}.dispatch(event)` or `{name}.state()`, or be passed as `using {name}`"
+            ),
+            _ => format!(
+                "`{name}` is a capability handle, not a value: it can only receive an operation call (`{name}.op(...)`) or be passed as `using {name}`"
+            ),
+        };
         let d = diag(codes::CAPABILITY_AS_VALUE, Some(e.span), message)
             .with_data("name", json!(name))
             .with_data("type", json!(ty));
@@ -267,9 +282,9 @@ impl<'c, 'a, 'h> Walk<'c, 'a, 'h> {
     }
 
     /// `capability_equality` (S27) at one handle operand of `==`/`!=`.
-    fn compared(&mut self, e: &Expr, id: LocalId, cap: DefId, site: &Site<'_>) {
+    fn compared(&mut self, e: &Expr, id: LocalId, handle: &Ty, site: &Site<'_>) {
         let name = self.name(id);
-        let ty = self.cx.program.display_ty(&Ty::Capability(cap));
+        let ty = self.cx.program.display_ty(handle);
         let d = diag(
             codes::CAPABILITY_EQUALITY,
             Some(e.span),
@@ -342,12 +357,12 @@ impl<'h> Visitor<'h> for Walk<'_, '_, 'h> {
     fn expr(&mut self, e: &'h Expr, site: Site<'h>) {
         match &e.kind {
             ExprKind::Local(_) => {
-                let Some((id, cap)) = self.handle(e) else {
+                let Some((id, ty)) = self.handle(e) else {
                     return;
                 };
                 match site.position {
-                    Position::Value => self.as_value(e, id, cap, &site),
-                    Position::Compared => self.compared(e, id, cap, &site),
+                    Position::Value => self.as_value(e, id, &ty, &site),
+                    Position::Compared => self.compared(e, id, &ty, &site),
                     // A `using` argument inside a contract expression is the
                     // typer's `capability_as_value` (5.1), spanning the
                     // whole argument whatever its form.
@@ -391,6 +406,28 @@ impl<'h> Visitor<'h> for Walk<'_, '_, 'h> {
                     self.undeclared(e, &effect, callee, None);
                 }
             }
+            // a context handle's operation: an effect of this function when its caller passed the handle
+            ExprKind::ContextOp { handle, op, .. } => {
+                if site.contract {
+                    // `effect_in_contract` (crate::contracts).
+                    return;
+                }
+                let Some((id, ty)) = self.handle(handle) else {
+                    return;
+                };
+                if self.own_context(id) {
+                    return;
+                }
+                let effect = EffectRef {
+                    param: id,
+                    op: op.name().to_string(),
+                };
+                self.inferred.insert(effect.clone());
+                if !self.allowed(&effect) {
+                    let callee = format!("{}.{}", self.cx.program.display_ty(&ty), op.name());
+                    self.undeclared(e, &effect, callee, None);
+                }
+            }
             ExprKind::Call { callee, using, .. } => {
                 let Some(g) = self.cx.program.def(*callee).kind.as_fn() else {
                     return;
@@ -422,6 +459,10 @@ impl<'h> Visitor<'h> for Walk<'_, '_, 'h> {
                     let Some(&handle) = sigma.get(&effect.param) else {
                         continue;
                     };
+                    // what a callee does through this function's own context is no effect of this function
+                    if self.own_context(handle) {
+                        continue;
+                    }
                     let effect = EffectRef {
                         param: handle,
                         op: effect.op.clone(),

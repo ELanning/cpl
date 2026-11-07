@@ -546,7 +546,8 @@ impl<'p> Tables<'p> {
                     row.def = def.0;
                 }
                 Ty::Param(_) => row.form = TY_PARAM,
-                Ty::Gen(_) | Ty::Error => {}
+                // (a handle, never a value: no form)
+                Ty::Context(_) | Ty::Gen(_) | Ty::Error => {}
             }
             rows.push(row);
         }

@@ -5,11 +5,11 @@
 #include "cpl_rt.h"
 
 #define CPL_D8 8u
-#define CPL_D54 54u
-#define CPL_D64 64u
-#define CPL_D67 67u
+#define CPL_D55 55u
+#define CPL_D65 65u
 #define CPL_D68 68u
 #define CPL_D69 69u
+#define CPL_D70 70u
 #define CPL_S74 74u
 #define CPL_S75 75u
 #define CPL_S76 76u
@@ -20,9 +20,9 @@
 
 
 static int cpl_p8(cplrt_cx *cx, uint32_t site, cplrt_w p0_self, int *out_holds);
-static int cpl_p67(cplrt_cx *cx, uint32_t site, cplrt_w p0_self, int *out_holds);
-static int cpl_f68(cplrt_cx *cx, uint32_t site, cplrt_w p0_text, cplrt_w *out);
+static int cpl_p68(cplrt_cx *cx, uint32_t site, cplrt_w p0_self, int *out_holds);
 static int cpl_f69(cplrt_cx *cx, uint32_t site, cplrt_w p0_text, cplrt_w *out);
+static int cpl_f70(cplrt_cx *cx, uint32_t site, cplrt_w p0_text, cplrt_w *out);
 
 /* std.gen.Positive  [identity std.gen.Positive, DefId 8] */
 static int cpl_p8(cplrt_cx *cx, uint32_t site, cplrt_w p0_self, int *out_holds)
@@ -42,13 +42,13 @@ done:
     return cplrt_fast_leave(cx, &fr, st);
 }
 
-/* positive.ops.Positive  [identity positive.ops.Positive, DefId 67] */
-static int cpl_p67(cplrt_cx *cx, uint32_t site, cplrt_w p0_self, int *out_holds)
+/* positive.ops.Positive  [identity positive.ops.Positive, DefId 68] */
+static int cpl_p68(cplrt_cx *cx, uint32_t site, cplrt_w p0_self, int *out_holds)
 {
     int st = CPLRT_OK, eq = 0, holds = 0;
     cplrt_w t0 = 0, rv = 0;
     cplrt_frame fr;
-    if (cplrt_enter_act(cx, &fr, CPL_D67, site) != CPLRT_OK)
+    if (cplrt_enter_act(cx, &fr, CPL_D68, site) != CPLRT_OK)
         return CPLRT_FAULT;
     CPLRT_SET(t0, cplrt_bool(cplrt_int_cmp(p0_self, cplrt_small(INT64_C(0))) > 0));
     *out_holds = cplrt_truth(t0);
@@ -60,17 +60,17 @@ done:
     return cplrt_fast_leave(cx, &fr, st);
 }
 
-/* positive.ops.parse_size  [identity positive.ops.parse_size, DefId 68] */
-static int cpl_f68(cplrt_cx *cx, uint32_t site, cplrt_w p0_text, cplrt_w *out)
+/* positive.ops.parse_size  [identity positive.ops.parse_size, DefId 69] */
+static int cpl_f69(cplrt_cx *cx, uint32_t site, cplrt_w p0_text, cplrt_w *out)
 {
     int st = CPLRT_OK, eq = 0, holds = 0;
     cplrt_w t0 = 0, t1 = 0, rv = 0;
     cplrt_frame fr;
     const cplrt_w params[1] = { p0_text };
-    if (cplrt_fast_enter_fn(cx, &fr, CPL_D68, site, params, 1u) != CPLRT_OK)
+    if (cplrt_fast_enter_fn(cx, &fr, CPL_D69, site, params, 1u) != CPLRT_OK)
         return CPLRT_FAULT;
-    if (cplrt_bi(text_trim)(cx, CPL_S74, CPL_D54, p0_text, &t0) != CPLRT_OK) goto fail;
-    if (cplrt_bi(text_parse_int)(cx, CPL_S75, CPL_D64, t0, &t1) != CPLRT_OK) goto fail;
+    if (cplrt_bi(text_trim)(cx, CPL_S74, CPL_D55, p0_text, &t0) != CPLRT_OK) goto fail;
+    if (cplrt_bi(text_parse_int)(cx, CPL_S75, CPL_D65, t0, &t1) != CPLRT_OK) goto fail;
     CPLRT_MOVE(rv, t1);
     CPLRT_MOVE(*out, rv);
     goto done;
@@ -81,23 +81,23 @@ done:
     return cplrt_fast_leave(cx, &fr, st);
 }
 
-/* positive.ops.positive_size  [identity positive.ops.positive_size, DefId 69] */
-static int cpl_f69(cplrt_cx *cx, uint32_t site, cplrt_w p0_text, cplrt_w *out)
+/* positive.ops.positive_size  [identity positive.ops.positive_size, DefId 70] */
+static int cpl_f70(cplrt_cx *cx, uint32_t site, cplrt_w p0_text, cplrt_w *out)
 {
     int st = CPLRT_OK, eq = 0, holds = 0;
     cplrt_w l1_n = 0, t0 = 0, t1 = 0, t2 = 0, rv = 0;
     cplrt_frame fr;
     const cplrt_w params[1] = { p0_text };
-    if (cplrt_fast_enter_fn(cx, &fr, CPL_D69, site, params, 1u) != CPLRT_OK)
+    if (cplrt_fast_enter_fn(cx, &fr, CPL_D70, site, params, 1u) != CPLRT_OK)
         return CPLRT_FAULT;
-    if (cpl_f68(cx, CPL_S76, p0_text, &t0) != CPLRT_OK) goto fail;
+    if (cpl_f69(cx, CPL_S76, p0_text, &t0) != CPLRT_OK) goto fail;
     if (!cplrt_is_ok(t0)) {
         CPLRT_MOVE(rv, t0);
         goto exit;
     }
     CPLRT_COPY(l1_n, cplrt_payload(t0, 0u));
     CPLRT_COPY(t1, l1_n);
-    if (cpl_p67(cx, CPL_S77, t1, &holds) != CPLRT_OK) goto fail;
+    if (cpl_p68(cx, CPL_S77, t1, &holds) != CPLRT_OK) goto fail;
     if (!holds) { if (cplrt_check_failure(cx, CPL_R1, t1, &t2) != CPLRT_OK) goto fail; } else {
         if (cplrt_result_ok(cx, t1, &t2) != CPLRT_OK) goto fail;
     }
@@ -113,6 +113,6 @@ done:
 }
 
 
-static const cplrt_fn_entry cpl_fns[70] = { 0 };
-static const cplrt_pred_entry cpl_preds[70] = { [8] = cpl_p8, [67] = cpl_p67 };
-const cplrt_code CPLPKG(code) = { 70u, cpl_fns, cpl_preds, NULL, 0u, NULL };
+static const cplrt_fn_entry cpl_fns[71] = { 0 };
+static const cplrt_pred_entry cpl_preds[71] = { [8] = cpl_p8, [68] = cpl_p68 };
+const cplrt_code CPLPKG(code) = { 71u, cpl_fns, cpl_preds, NULL, 0u, NULL };

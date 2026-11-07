@@ -493,6 +493,8 @@ impl<'p> Printer<'p> {
                 }
             }
             Ty::Wrapper(d) | Ty::Capability(d) => self.type_name(*d),
+            // the call stack's state machine: a shared cell
+            Ty::Context(d) => format!("*cpl.Context[{}]", self.type_name(*d)),
             Ty::Refined(..) => self.ty(&erase(p, t), generics),
             Ty::Param(i) => generics
                 .get(*i as usize)
@@ -786,7 +788,8 @@ impl<'p> Printer<'p> {
             DefKind::Fn(_) => {
                 if let Some(f) = fns.get(&d) {
                     self.function(f, out);
-                    if def.is_pub {
+                    // (a function taking a context handle is CPL's alone: a host starts none)
+                    if def.is_pub && !def.kind.as_fn().is_some_and(cpl_hir::FnDef::takes_context) {
                         exports.push(p.display_path(d));
                         self.host_function(f, out);
                     }
@@ -1377,6 +1380,11 @@ impl Fx<'_, '_> {
     fn stmt(&mut self, s: &LStmt, depth: usize, out: &mut String) {
         let pad = "\t".repeat(depth);
         match s {
+            LStmt::ContextSet { handle, value } => {
+                let h = self.expr(handle);
+                let v = self.expr(value);
+                let _ = writeln!(out, "{pad}({h}).Set({v})");
+            }
             LStmt::Let { var, value } => {
                 if let Some(call) = self.unit_cap_call(value) {
                     let _ = writeln!(
@@ -1661,6 +1669,8 @@ impl Fx<'_, '_> {
             LExpr::Text(s) => go_str(s),
             LExpr::Bool(b) => b.to_string(),
             LExpr::Unit => "cpl.Unit{}".into(),
+            LExpr::ContextNew(x) => format!("cpl.NewContext({})", self.expr(x)),
+            LExpr::ContextGet(h) => format!("({}).Get()", self.expr(h)),
             LExpr::Call {
                 def,
                 generics,

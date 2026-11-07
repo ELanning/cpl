@@ -1,8 +1,8 @@
 //! The builtin registry of the standard library (`spec/stdlib.md` 10.4, 10.6, S47; `spec/cabi.md` 2.7;
 //! `spec/toolchain.md` 1.7.4, T70).
 //!
-//! The 59 ids of stdlib 10.6, sorted by id, each with whether it is callable, its C entry point, the qualified name
-//! of its stub, and its precondition clauses. The six type ids (`bool`, `bytes`, `gen`, `int`, `list`, `text`) and
+//! The 60 ids of stdlib 10.6, sorted by id, each with whether it is callable, its C entry point, the qualified name
+//! of its stub, and its precondition clauses. The seven type ids (`bool`, `bytes`, `context`, `gen`, `int`, `list`, `text`) and
 //! the seven generator ids (`gen_*`) are registered so that the check knows them but are not callable (toolchain 3.6,
 //! T18): a builtin type is never called, and a generator is `ExprKind::Gen`, drawn by the property runner. The 46
 //! callable ones are C functions of the runtime, `cplrt_bi(<id>)` in emitted code (`spec/cabi.md` 2.7, Appendix
@@ -27,7 +27,7 @@ pub struct RequiresSpec {
 pub struct BuiltinSpec {
     /// The registry id of `@builtin("<id>")` (stdlib 10.6).
     pub id: &'static str,
-    /// False for the 6 type ids and the 7 generator ids (toolchain 3.6).
+    /// False for the 7 type ids and the 7 generator ids (toolchain 3.6).
     pub callable: bool,
     /// The C entry point of a callable builtin as emitted code calls it, `cplrt_bi(<id>)`, which `cpl_rt.h` expands
     /// to the namespaced runtime symbol `cplrt_<prefix>__bi_<id>` (`spec/cabi.md` 2.7, Appendix B.1); `""` for an id
@@ -107,7 +107,7 @@ const TEXT_SPLIT_REQUIRES: &[RequiresSpec] = &[RequiresSpec {
 }];
 
 /// The registry of stdlib 10.6, sorted by id (byte order).
-pub const BUILTINS: [BuiltinSpec; 59] = [
+pub const BUILTINS: [BuiltinSpec; 60] = [
     ty("bool", "std.prelude.Bool"),
     ty("bytes", "std.prelude.Bytes"),
     call(
@@ -146,6 +146,7 @@ pub const BUILTINS: [BuiltinSpec; 59] = [
         "std.bytes.to_text",
         NONE,
     ),
+    ty("context", "std.prelude.Context"),
     call("flatten", "cplrt_bi(flatten)", "std.prelude.flatten", NONE),
     ty("gen", "std.gen.Gen"),
     generator("gen_bool", "std.gen.bool", NONE),
@@ -366,8 +367,8 @@ pub const BUILTINS: [BuiltinSpec; 59] = [
 
 /// The ids of [`BUILTINS`], in the same (sorted) order: what `cpl_sema::codes::BUILTIN_IDS` is defined as from
 /// Milestone 2 (toolchain 1.6) and what the evaluator's registry is tested equal to (toolchain 1.7.4).
-pub const IDS: [&str; 59] = {
-    let mut ids = [""; 59];
+pub const IDS: [&str; 60] = {
+    let mut ids = [""; 60];
     let mut i = 0;
     while i < ids.len() {
         ids[i] = BUILTINS[i].id;
@@ -377,7 +378,7 @@ pub const IDS: [&str; 59] = {
 };
 
 /// [`BUILTINS`] as a static, so that [`spec`] can hand out `'static` references.
-static REGISTRY: [BuiltinSpec; 59] = BUILTINS;
+static REGISTRY: [BuiltinSpec; 60] = BUILTINS;
 
 /// The specification of the builtin with registry id `id`, or `None` for an id the registry does not know (which a
 /// stub naming it makes the check error `std_builtin_missing`, stdlib 10.2).

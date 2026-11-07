@@ -162,6 +162,10 @@ or `ListLit` and a Java `List.of` or `List.lit` copy the host's slice or
 array, and Go's `Items` returns a copy, so a host cannot change a list
 after a CPL function checked it.
 
+A function with a `using` parameter of type `Context<S>` has no host form:
+only CPL code passes a context handle, so a host calls the function whose
+`context` statement starts the state machine (`spec/state-machines.md`).
+
 ### 3.4 Capabilities
 
 A capability is a trait (Rust: `&dyn Cap` parameters) or an interface (Go,

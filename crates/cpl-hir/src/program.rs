@@ -156,6 +156,11 @@ impl Program {
             Ty::Wrapper(def) | Ty::Refined(_, def) | Ty::Capability(def) => {
                 out.push_str(&self.def_name(*def))
             }
+            Ty::Context(def) => {
+                out.push_str("Context<");
+                out.push_str(&self.def_name(*def));
+                out.push('>');
+            }
             Ty::Param(i) => match generics.get(*i as usize) {
                 Some(name) => out.push_str(name),
                 None => out.push_str(&format!("${i}")),
@@ -377,6 +382,26 @@ impl Program {
         result.state_field = Some(state_field as u32);
         result.commands_field = Some(commands_field as u32);
         Some(result)
+    }
+
+    /// The root machine of program state `program`: its one machine whose state is the program (`None` without
+    /// exactly one; `program_machine_count` reports that).
+    pub fn root_machine(&self, program: DefId) -> Option<DefId> {
+        let mut found = None;
+        for d in self.defs() {
+            if self.function_mode(d.id) != FunctionMode::Machine {
+                continue;
+            }
+            if let Some(sig) = self.machine_signature(d.id) {
+                if matches!(sig.state, Ty::Adt(s, _) if s == program) {
+                    if found.is_some() {
+                        return None;
+                    }
+                    found = Some(d.id);
+                }
+            }
+        }
+        found
     }
 
     /// The refinement class with this id. Panics when out of range.

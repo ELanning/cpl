@@ -1413,6 +1413,22 @@ func QGetP[T any](l List[T], i int64) *T {
 	return &l.s[i]
 }
 
+// Context is the state machine of one call stack (`context app = start(...)`, spec/state-machines.md): the current
+// state of a program, shared by the functions its handle is passed to. A host starts none: functions taking one
+// are CPL's own.
+type Context[T any] struct {
+	state T
+}
+
+// NewContext starts a state machine from state.
+func NewContext[T any](state T) *Context[T] { return &Context[T]{state: state} }
+
+// Get is the current state.
+func (c *Context[T]) Get() T { return c.state }
+
+// Set commits state (a transition's result).
+func (c *Context[T]) Set(state T) { c.state = state }
+
 // QFreeze, QFreezeI, and QFreezeF make the list a speculative form built as a slice, once nothing writes the slice
 // again (the list copies on its first push).
 func QFreeze[T any](s []T) List[T] { return List[T]{s: s} }

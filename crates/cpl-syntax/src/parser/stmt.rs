@@ -2,7 +2,7 @@
 
 use super::{Continuation, PResult, Parser};
 use crate::ast::{
-    AssertStmt, AssignStmt, Block, Comment, ConcurrentStmt, DecreasesClause, ExprStmt,
+    AssertStmt, AssignStmt, Block, Comment, ConcurrentStmt, ContextStmt, DecreasesClause, ExprStmt,
     InvariantClause, LetBinding, LetStmt, ReturnStmt, Statement, Trivia, VarStmt, WhileClause,
     WhileStmt,
 };
@@ -75,6 +75,14 @@ impl<'a> Parser<'a> {
             T::LowerIdent if self.at_word("concurrent") && self.nth_kind(1) == T::LBrace => {
                 self.parse_concurrent()
             }
+            // Contextual: `context` followed by a name and `=` starts the call stack's state machine.
+            T::LowerIdent
+                if self.at_word("context")
+                    && self.nth_kind(1) == T::LowerIdent
+                    && self.nth_kind(2) == T::Eq =>
+            {
+                self.parse_context()
+            }
             T::KwPub
             | T::KwFn
             | T::KwStruct
@@ -139,6 +147,21 @@ impl<'a> Parser<'a> {
             trivia: Trivia::default(),
             binding,
             ty,
+            value,
+        }))
+    }
+
+    /// `context_stmt = "context" LOWER_IDENT "=" expr`
+    fn parse_context(&mut self) -> PResult<Statement> {
+        let kw = self.bump();
+        let name = self.parse_lower_name("a context name")?;
+        self.expect(T::Eq, "`=`")?;
+        let value = self.parse_expr()?;
+        let span = kw.span.join(value.span);
+        Ok(Statement::Context(ContextStmt {
+            span,
+            trivia: Trivia::default(),
+            name,
             value,
         }))
     }

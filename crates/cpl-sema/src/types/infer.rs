@@ -244,7 +244,7 @@ pub(crate) fn subst(t: &Ty, args: &[Ty]) -> Ty {
 /// effect stage's `capability_as_value` (S27) and must not also be a type
 /// diagnostic.
 pub(crate) fn is_poison(t: &Ty) -> bool {
-    matches!(t, Ty::Error | Ty::Capability(_))
+    matches!(t, Ty::Error | Ty::Capability(_) | Ty::Context(_))
 }
 
 /// True when `t` mentions the error type anywhere.
@@ -311,6 +311,11 @@ fn write(program: &Program, out: &mut String, t: &Ty, generics: &[String], quali
             }
         }
         Ty::Wrapper(d) | Ty::Refined(_, d) | Ty::Capability(d) => out.push_str(&name(*d)),
+        Ty::Context(d) => {
+            out.push_str("Context<");
+            out.push_str(&name(*d));
+            out.push('>');
+        }
         Ty::Param(i) if *i >= VAR_BASE => out.push('?'),
         Ty::Param(i) => match generics.get(*i as usize) {
             Some(n) => out.push_str(n),

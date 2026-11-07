@@ -429,6 +429,7 @@ pub(crate) enum SKey {
     While(PKey, Vec<PKey>, BKey),
     Concurrent(BKey),
     Expr(PKey),
+    Context(u32, PKey),
 }
 
 /// A resolved expression tree (see the module docs).
@@ -693,6 +694,10 @@ impl<'r, 'c> KeyBuilder<'r, 'c> {
                     SKey::While(cond, clauses, self.block(&w.body))
                 }
                 ast::Statement::Concurrent(c) => SKey::Concurrent(self.block(&c.body)),
+                ast::Statement::Context(c) => {
+                    let value = self.expr(&c.value);
+                    SKey::Context(self.bind(&c.name.text), value)
+                }
                 ast::Statement::Expr(x) => SKey::Expr(self.expr(&x.expr)),
             });
         }

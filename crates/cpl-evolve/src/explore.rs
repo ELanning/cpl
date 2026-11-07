@@ -238,7 +238,7 @@ pub fn explore(
             .as_ref()
             .map(|name| predicate(s, name, &signature.state))
             .transpose()?;
-        let context = MachineContext::new(p, id, &initial, &cfg)?;
+        let context = MachineContext::for_analysis(p, id, &initial, &cfg)?;
         let mut event_validator = Interpreter::new(p, cfg.clone());
         for (n, event) in events.iter().enumerate() {
             let value = cpl_eval::value_from_json(p, event, &signature.event)

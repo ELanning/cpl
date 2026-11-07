@@ -252,6 +252,11 @@ fn write_type_text(program: &Program, ty: &Ty, out: &mut String) {
         Ty::Wrapper(def) | Ty::Refined(_, def) | Ty::Capability(def) => {
             out.push_str(&type_name(program, *def))
         }
+        Ty::Context(def) => {
+            out.push_str("Context<");
+            out.push_str(&type_name(program, *def));
+            out.push('>');
+        }
         Ty::Param(i) => {
             out.push('$');
             out.push_str(&i.to_string());
@@ -340,6 +345,10 @@ fn name_parts(program: &Program, ty: &Ty, out: &mut Vec<String>) {
         }
         Ty::Wrapper(def) | Ty::Refined(_, def) | Ty::Capability(def) => {
             out.push(snake_case(&bare_name(program, *def)))
+        }
+        Ty::Context(def) => {
+            out.push("context".into());
+            out.push(snake_case(&bare_name(program, *def)));
         }
         Ty::Param(i) => out.push(format!("t{i}")),
         Ty::Error => out.push("error".into()),
@@ -515,6 +524,17 @@ impl Planner<'_> {
                 );
                 continue;
             }
+            if f.takes_context() {
+                self.diagnostics.push(
+                    error(
+                        codes::PROJECT_EXPORT_NOT_FUNCTION,
+                        format!("`{target}` names {name}, which takes a context handle; only CPL code passes one, so export the function whose `context` statement starts the state machine"),
+                    )
+                    .with_data("entry", json!(target))
+                    .with_data("kind", json!("context")),
+                );
+                continue;
+            }
             if is_std(program, def) {
                 self.diagnostics.push(
                     error(
@@ -608,6 +628,11 @@ impl Planner<'_> {
                 .kind
                 .as_fn()
                 .expect("filtered to functions");
+            // a context handle is passed only by CPL code: the function starting the context is the export, and one
+            // taking a handle is left out without a report (it is not generic)
+            if f.takes_context() {
+                continue;
+            }
             if !f.generics.is_empty() {
                 skipped.push(def);
                 continue;
@@ -989,7 +1014,8 @@ impl TypeWalk<'_> {
                 self.declaration(ty)
             }
             Ty::Gen(elem) => self.signature(elem),
-            Ty::Int | Ty::Bool | Ty::Text | Ty::Bytes | Ty::Param(_) | Ty::Error => {}
+            // (never exported: see `FnDef::takes_context`)
+            Ty::Context(_) | Ty::Int | Ty::Bool | Ty::Text | Ty::Bytes | Ty::Param(_) | Ty::Error => {}
         }
     }
 
@@ -1049,7 +1075,7 @@ impl TypeWalk<'_> {
                 }
             }
             Ty::Wrapper(_) | Ty::Refined(..) | Ty::Capability(_) => self.declaration(ty),
-            Ty::Int | Ty::Bool | Ty::Text | Ty::Bytes | Ty::Param(_) | Ty::Error => {}
+            Ty::Context(_) | Ty::Int | Ty::Bool | Ty::Text | Ty::Bytes | Ty::Param(_) | Ty::Error => {}
         }
     }
 }

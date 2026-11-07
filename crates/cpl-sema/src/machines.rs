@@ -22,11 +22,26 @@ struct Uses<'h> {
     calls: Vec<Call>,
     constructors: Vec<(DefId, Span)>,
     parallel: Vec<&'h Expr>,
+    /// The `context` statements: each starts a state machine (its handle's local).
+    contexts: Vec<cpl_hir::LocalId>,
+    /// `app.dispatch(event)`: a call of the program's root machine.
+    dispatches: Vec<(DefId, Span)>,
 }
 
 impl<'h> Visitor<'h> for Uses<'h> {
+    fn stmt(&mut self, s: &'h cpl_hir::Stmt, _: Site<'h>) {
+        if let cpl_hir::Stmt::Context { local, .. } = s {
+            self.contexts.push(*local);
+        }
+    }
+
     fn expr(&mut self, e: &'h Expr, site: Site<'h>) {
         match &e.kind {
+            ExprKind::ContextOp {
+                program,
+                op: cpl_hir::ContextOp::Dispatch,
+                ..
+            } => self.dispatches.push((*program, e.span)),
             ExprKind::Call { callee, .. } => self.calls.push(Call {
                 callee: *callee,
                 span: e.span,
@@ -159,7 +174,7 @@ pub(crate) fn check(cx: &mut Checker<'_>) {
                     ExprKind::Call { callee, using, .. } => {
                         !using.is_empty() || any[callee.0 as usize].is_some()
                     }
-                    _ => matches!(e.ty, Ty::Capability(_)),
+                    _ => matches!(e.ty, Ty::Capability(_) | Ty::Context(_)),
                 };
             });
             if unsafe_body {
@@ -208,16 +223,17 @@ pub(crate) fn check(cx: &mut Checker<'_>) {
             }
         }
         if mode == FunctionMode::Mutate {
-            for first in u
-                .calls
-                .iter()
-                .filter(|c| !c.contract && p.function_mode(c.callee) == FunctionMode::Mutate)
-            {
-                if let Some(second) = uses[first.callee.0 as usize]
-                    .calls
-                    .iter()
-                    .find(|c| !c.contract && p.function_mode(c.callee) == FunctionMode::Mutate)
-                {
+            // a function whose only handles are the state machine's changes nothing outside it: passing the
+            // context down the call stack is the design (spec/state-machines.md), no effect to pull up
+            let context_only = |d: DefId| {
+                p.def(d).kind.as_fn().is_some_and(|f| {
+                    !f.using.is_empty() && f.using.iter().all(|x| matches!(x.ty, Ty::Context(_)))
+                })
+            };
+            let effectful =
+                |c: &&Call| !c.contract && p.function_mode(c.callee) == FunctionMode::Mutate && !context_only(c.callee);
+            for first in u.calls.iter().filter(effectful) {
+                if let Some(second) = uses[first.callee.0 as usize].calls.iter().find(effectful) {
                     let path = [
                         p.display_path(def.id),
                         p.display_path(first.callee),
@@ -231,6 +247,7 @@ pub(crate) fn check(cx: &mut Checker<'_>) {
             }
         }
     }
+    one_machine_per_stack(p, &uses, &mut diagnostics);
     for def in p.defs().filter(|d| p.is_program_state(d.id)) {
         let count = roots.get(&def.id).map_or(0, Vec::len);
         if count != 1 {
@@ -261,7 +278,12 @@ pub(crate) fn check(cx: &mut Checker<'_>) {
             Facet::Signature
         } else if d.code == codes::MUTATE_IN_CONTRACT {
             Facet::Contract
-        } else if d.code == codes::STATE_CONSTRUCTION_OUTSIDE_MACHINE {
+        } else if d.code == codes::STATE_CONSTRUCTION_OUTSIDE_MACHINE
+            || d.code == codes::CONTEXT_NESTED
+            || d.code == codes::CONTEXT_IN_REDUCER
+            || d.code == codes::MACHINE_CALL_OUTSIDE_MACHINE
+            || d.code == codes::MACHINE_UNROOTED
+        {
             Facet::Body
         } else {
             Facet::Effects
@@ -271,6 +293,136 @@ pub(crate) fn check(cx: &mut Checker<'_>) {
             cx.fail(def);
         }
         cx.emit(Stage::Effect, d);
+    }
+}
+
+/// One state machine per call stack (spec/state-machines.md): a function that holds a context (its `context`
+/// statement made one, or a caller passed its handle) reaches no function whose `context` statement makes another,
+/// through calls and through `dispatch` (a call of the program's root machine); machines and initializers start
+/// none; only machines, tests, and properties call a machine; and a machine no root machine reaches is reported.
+fn one_machine_per_stack(p: &Program, uses: &[Uses<'_>], out: &mut Vec<(DefId, Diagnostic)>) {
+    let n = p.defs.len();
+    let roots: BTreeMap<DefId, DefId> = p
+        .defs()
+        .filter(|d| p.is_program_state(d.id))
+        .filter_map(|d| p.root_machine(d.id).map(|m| (d.id, m)))
+        .collect();
+    // every call edge, a dispatch being a call of the root machine
+    let edges = |d: DefId| -> Vec<(DefId, Span)> {
+        let u = &uses[d.0 as usize];
+        let mut e: Vec<(DefId, Span)> = u.calls.iter().map(|c| (c.callee, c.span)).collect();
+        e.extend(u.dispatches.iter().filter_map(|(prog, span)| roots.get(prog).map(|m| (*m, *span))));
+        e
+    };
+    let mut reverse = vec![Vec::new(); n];
+    for d in p.defs() {
+        for (to, _) in edges(d.id) {
+            reverse[to.0 as usize].push(d.id);
+        }
+    }
+    // `next[d]`: the next function on a shortest path from `d` to one that starts a context
+    let mut next: Vec<Option<(DefId, DefId)>> = vec![None; n];
+    let mut queue = VecDeque::new();
+    for d in p.defs() {
+        if !uses[d.id.0 as usize].contexts.is_empty() {
+            next[d.id.0 as usize] = Some((d.id, d.id));
+            queue.push_back(d.id);
+        }
+    }
+    while let Some(to) = queue.pop_front() {
+        for &from in &reverse[to.0 as usize] {
+            if next[from.0 as usize].is_none() {
+                next[from.0 as usize] = Some((to, next[to.0 as usize].unwrap().1));
+                queue.push_back(from);
+            }
+        }
+    }
+    let local_span = |d: DefId, l: cpl_hir::LocalId| {
+        p.def(d).kind.locals().get(l.0 as usize).map_or(p.def(d).span, |x| x.span)
+    };
+    for def in p.defs() {
+        let u = &uses[def.id.0 as usize];
+        let mode = p.function_mode(def.id);
+        let received: Vec<&cpl_hir::ParamDef> = def
+            .kind
+            .as_fn()
+            .map(|f| f.using.iter().filter(|x| matches!(x.ty, Ty::Context(_))).collect())
+            .unwrap_or_default();
+        if matches!(mode, FunctionMode::Machine | FunctionMode::Initial) {
+            for &l in &u.contexts {
+                out.push((def.id, diag(codes::CONTEXT_IN_REDUCER, Some(local_span(def.id, l)),
+                    "a machine or an initializer computes one step of a state machine and starts none; start the context in the function that runs it")));
+            }
+        }
+        // a second context in the function itself, or one made while a caller's is held
+        let mut second: Vec<Span> = u.contexts.iter().skip(1).map(|&l| local_span(def.id, l)).collect();
+        if !received.is_empty() {
+            second.extend(u.contexts.iter().map(|&l| local_span(def.id, l)));
+        }
+        second.extend(received.iter().skip(1).map(|x| x.span));
+        for span in second {
+            out.push((def.id, diag(codes::CONTEXT_NESTED, Some(span),
+                "a second state machine on one call stack: this function already has one; pass its handle (`using app`) instead of starting another")));
+        }
+        if u.contexts.is_empty() && received.is_empty() {
+            continue;
+        }
+        // calls, while holding the context, of functions that start another
+        let mut seen = BTreeSet::new();
+        for (callee, span) in edges(def.id) {
+            if next[callee.0 as usize].is_none() || !seen.insert(callee) {
+                continue;
+            }
+            let mut path = vec![p.display_path(def.id)];
+            let (witness, truncated) = chain(p, callee, &next);
+            path.extend(witness);
+            let mut d = diag(codes::CONTEXT_NESTED, Some(span),
+                format!("a second state machine on one call stack: {} starts one while this function's is running; pass this function's handle down (`using app`) instead", path.join(" -> ")))
+                .with_data("call_chain", json!(path));
+            if truncated {
+                d = d.with_data("call_chain_truncated", json!(true));
+            }
+            out.push((def.id, d));
+        }
+    }
+    // machines are called by machines (composition) and by tests; everything else dispatches to a context
+    for def in p.defs() {
+        let caller = p.function_mode(def.id);
+        let checks = matches!(def.kind, DefKind::Test(_) | DefKind::Property(_));
+        if caller == FunctionMode::Machine || checks {
+            continue;
+        }
+        for c in &uses[def.id.0 as usize].calls {
+            if p.function_mode(c.callee) == FunctionMode::Machine {
+                let name = p.def(c.callee).name.display();
+                out.push((def.id, diag(codes::MACHINE_CALL_OUTSIDE_MACHINE, Some(c.span),
+                    format!("`{name}` is a state machine: only a machine (its parent) or a test calls it; run its program in a context (`context app = start(...)`) and send events with `app.dispatch(event)`"))
+                    .with_data("machine", json!(p.display_path(c.callee)))));
+            }
+        }
+    }
+    // the machines each root machine reaches by composition
+    let mut reached: BTreeSet<DefId> = roots.values().copied().collect();
+    let mut work: Vec<DefId> = reached.iter().copied().collect();
+    while let Some(m) = work.pop() {
+        for c in &uses[m.0 as usize].calls {
+            if p.function_mode(c.callee) == FunctionMode::Machine && reached.insert(c.callee) {
+                work.push(c.callee);
+            }
+        }
+    }
+    for def in p.defs() {
+        if p.function_mode(def.id) != FunctionMode::Machine || reached.contains(&def.id) {
+            continue;
+        }
+        let state_is_program = p
+            .machine_signature(def.id)
+            .is_some_and(|s| matches!(s.state, Ty::Adt(d, _) if p.is_program_state(d)));
+        if state_is_program {
+            continue; // a second root: `program_machine_count`
+        }
+        out.push((def.id, diag(codes::MACHINE_UNROOTED, Some(def.span),
+            format!("machine `{}` is no program's root and no root machine calls it, so no context ever runs it; call it from its parent machine", def.name.display()))));
     }
 }
 

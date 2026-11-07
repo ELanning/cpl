@@ -944,7 +944,10 @@ impl<'p, 's> Exec<'p, 's> {
     fn stmt(&mut self, path: Path, s: &Stmt) -> Outs {
         let unit = self.unit();
         match s {
-            Stmt::Let { local, value } | Stmt::Assign { local, value } => self
+            // a context handle's value is its starting state; what its operations return is unknown (below)
+            Stmt::Let { local, value }
+            | Stmt::Assign { local, value }
+            | Stmt::Context { local, value } => self
                 .expr(path, value)
                 .into_iter()
                 .map(|(mut q, flow)| match flow {
@@ -1700,7 +1703,10 @@ impl<'p, 's> Exec<'p, 's> {
                 }
                 callees.insert(d.stable_id.as_str().to_string());
             }
-            ExprKind::CapCall { .. } | ExprKind::Hole { .. } | ExprKind::Error => ok = false,
+            ExprKind::CapCall { .. }
+            | ExprKind::ContextOp { .. }
+            | ExprKind::Hole { .. }
+            | ExprKind::Error => ok = false,
             ExprKind::Local(l) => {
                 reads.insert(*l);
             }
@@ -1922,6 +1928,23 @@ impl<'p, 's> Exec<'p, 's> {
                 for (q, r) in self.seq(path, &refs) {
                     match r {
                         Ok(values) => out.extend(self.cap_call(q, e, *capability, *op, values)),
+                        Err(flow) => out.push((q, flow)),
+                    }
+                }
+                out
+            }
+            // a state machine's step or state: unknown here (the machine is not followed)
+            ExprKind::ContextOp { handle, args, .. } => {
+                let mut refs: Vec<&Expr> = vec![handle];
+                refs.extend(args.iter());
+                let mut out = Vec::new();
+                for (mut q, r) in self.seq(path, &refs) {
+                    match r {
+                        Ok(_) => {
+                            q.inexact |= ABSTRACT;
+                            let v = self.fresh(&mut q, &e.ty);
+                            out.push((q, Flow::Val(v)));
+                        }
                         Err(flow) => out.push((q, flow)),
                     }
                 }

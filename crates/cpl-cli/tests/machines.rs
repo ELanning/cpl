@@ -95,11 +95,24 @@ fn replay_cli_runs_both_engines_verifies_receipts_and_reports_rollback() {
     assert_eq!(fault["diagnostics"][0]["state_unchanged"], true);
     let path = root.join("src/m.cpl");
     let mut source = std::fs::read_to_string(&path).unwrap();
+    // a replay runs a program's root machine (a child machine runs only as part of one)
     source.push_str(
-        "\nmachine spin(state: Count, event: Event) -> Count {\n    while true { }\n    state\n}\n",
+        "\nprogram Spinner { n: Int }\nmachine spin(state: Spinner, event: Event) -> Spinner {\n    while true { }\n    state\n}\n",
     );
-    std::fs::write(path, source).unwrap();
-    let state = json!({"$type":"m.Count","n":1}).to_string();
+    std::fs::write(&path, &source).unwrap();
+    let child = source.replace(
+        "program Spinner { n: Int }\nmachine spin(state: Spinner, event: Event) -> Spinner {",
+        "machine spin(state: Count, event: Event) -> Count {",
+    );
+    std::fs::write(&path, &child).unwrap();
+    let refused = run(
+        &root,
+        &["replay", "m.spin", "--state", &json!({"$type":"m.Count","n":1}).to_string()],
+        2,
+    );
+    assert_eq!(refused["diagnostics"][0]["code"], "usage_not_a_root_machine", "{refused}");
+    std::fs::write(&path, &source).unwrap();
+    let state = json!({"$type":"m.Spinner","n":1}).to_string();
     let timed = run(
         &root,
         &[

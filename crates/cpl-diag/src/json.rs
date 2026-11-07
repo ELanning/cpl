@@ -279,6 +279,8 @@ pub enum BindingKind {
     Result,
     #[serde(rename = "self")]
     SelfValue,
+    /// `context app = e`: the handle of the call stack's state machine.
+    Context,
 }
 
 impl BindingKind {
@@ -294,6 +296,7 @@ impl BindingKind {
             BindingKind::For => "for",
             BindingKind::Result => "result",
             BindingKind::SelfValue => "self",
+            BindingKind::Context => "context",
         }
     }
 }

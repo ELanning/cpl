@@ -105,16 +105,118 @@ configuration data loaded by the host.
 
 Pure helpers can inspect snapshots. Smaller machines accept ordinary
 structs or enums as scoped state; the parent calls them and assembles the
-new root. Calling a reducer or initializer computes a candidate snapshot;
-it cannot itself install it in a running context. A host may own several
+new root. Only machines, tests, and properties call a machine; an
+initializer computes a candidate snapshot that only a `context` statement
+or a host context installs (next section). A host may own several
 contexts and decide their event delivery order. Determinism is per
 context and ordered input history, not a promise about concurrent
 external systems.
 
 `examples/state_machine` demonstrates composition, typed commands,
-explicit effect handling, and rejection of stale asynchronous replies
-using request IDs. IDs must not be reused while an old reply can still
-arrive; the example leaves ID allocation to its host.
+explicit effect handling, a `context` that runs one download, and
+rejection of stale asynchronous replies using request IDs. IDs must not be
+reused while an old reply can still arrive; the example leaves ID
+allocation to its host.
+
+## One state machine per call stack
+
+Code and data stay apart: state is a value of a `program` type, behavior
+is its machines, and a running application holds exactly one state
+machine per call stack. A function starts it; the functions below it
+receive its handle; nothing else keeps evolving state of its own.
+
+```cpl
+mutate fn invite_to_calendar(req: Request, using db: Db) -> Response
+    effects { db.get_user, db.get_calendar }
+{
+    let user = db.get_user(req.user)
+    let calendar = db.get_calendar(req.calendar)
+    context app = start(user, calendar)     // the state machine of this call stack
+    let sent = send_invites(req.invitees, using app)
+    respond(app.state(), sent)
+}
+
+mutate fn send_invites(people: List<Text>, using app: Context<App>) -> Int
+    effects { app.dispatch }
+{
+    var sent = 0
+    var i = 0
+    while i < people.len {
+        sent = sent + app.dispatch(Invite(people.get(i).unwrap_or(""))).len
+        i = i + 1
+    }
+    sent
+}
+```
+
+`context NAME = EXPR` is a statement (`context` is contextual: a
+statement that begins with `context`, a name, and `=`). `EXPR` has a
+program type `S` (`context_not_program` otherwise): usually an `initial
+fn` call, or a snapshot the host loaded. `NAME` is the *context handle*,
+of type `Context<S>`, for the rest of the function; the state machine ends
+when the function returns.
+
+`Context<S>` is a handle type, like a capability (semantics S27): `S` must
+be a program (`context_not_program`); a handle is passed only as a
+`using app: Context<S>` parameter and a `using app` argument, and is never
+stored, compared, returned, or held in data (`capability_as_value`,
+`capability_equality`, `capability_in_value_position`). It has two
+operations:
+
+- `app.dispatch(event)`: `event` (of the root machine's event type) is
+  evaluated, then `S`'s root machine runs on the current state and the
+  event, and its new state is committed when it returns. The value is the
+  machine's commands (`List<C>`) for a machine returning
+  `{ state, commands }`, or `Unit` for one returning `S`. Commands are
+  values, so a `dispatch` whose commands are not used is written
+  `let _ = app.dispatch(event)`. A fault ends the call as any fault does.
+- `app.state()`: the current state, an ordinary immutable value that
+  pure helpers can read.
+
+Through a handle it *received*, a function's `dispatch` and `state` are
+tracked effects (`effects { app.dispatch, app.state }`), so such a
+function is a `mutate fn` or an effectful `fn`. What a function does
+through the context it started itself, directly or through a callee, is
+none of its callers' business: a pure function may run a state machine to
+completion and return a value from it. The usual purity rule still holds:
+a pure function cannot call a `mutate fn`, so a function that passes its
+handle to one is itself `mutate`. A function whose only handles are
+contexts adds no level to `mutation_depth`: passing the state machine down
+the stack is the design, not an effect to pull up.
+
+At most one state machine is running on any call
+stack, checked on the call graph. A function contains at most one
+`context` statement, and none when it receives a handle (at most one
+`Context` parameter); and no function that holds a context (started or
+received) reaches a function that starts one, through calls, contract
+calls, or `dispatch` (a call of the root machine), its own recursion
+included (`context_nested`, with a `call_chain` witness). Separate call
+chains each start their own context, one after another (one per request,
+say). Machines and initializers start none (`context_in_reducer`); only
+machines (composing child machines), tests, and properties call a
+machine (`machine_call_outside_machine`), so application code changes
+state only through its context; and a machine that is no program's root
+and that no root machine reaches by composition is `machine_unrooted` (a
+warning: no context ever runs it). A `concurrent` task cannot use a
+context (`context_in_concurrent`), and a `parallel` body cannot capture
+one (`parallel_unsafe`). Rationale: CPL has no function values, so the
+call graph is exact and the rule is a static guarantee, not a convention;
+each context grows by composition (child machines over parts of the
+root's state) rather than by more machines beside it.
+
+A context lives in the frame of the function that started it. Hosts start
+none: no function taking a context handle is exported to C, Python, Rust,
+Go, Java, or Kotlin (the default exports skip it, and naming it in
+`[interop.c] exports` is `project_export_not_function` with `kind:
+"context"`); the function whose `context` statement starts the machine is
+the export. A host that keeps state itself uses the runtime context below,
+which runs only a program's root machine (`usage_not_a_root_machine`);
+analysis tools such as `cpl explore` may still examine a child machine.
+The evaluator keeps a function's contexts in a table it truncates when the
+function returns; the C engine holds the state in one slot of the starting
+function, the handle being its address (a `cplrt_w *` parameter); the
+hosts use a shared cell (`cpl::Context<S>`, `*cpl.Context[S]`,
+`Context<S>`), internal to the generated code.
 
 ## Constructor invariants
 
@@ -163,7 +265,8 @@ function preconditions/postconditions in this amendment.
 
 `cpl_eval::machine::MachineContext` owns its state privately. Creation
 validates the initial snapshot and selected machine against the checked
-program. `snapshot()` returns detached JSON. There is no setter or
+program; the machine must be its program's root machine
+(`usage_not_a_root_machine`, which `cpl replay` reports too). `snapshot()` returns detached JSON. There is no setter or
 mutable reference to the state. `dispatch(&mut self, engine, event)`:
 
 1. Validates the event and its nested constraints.
@@ -237,9 +340,13 @@ New checker codes: `pure_calls_mutate`, `mutate_in_contract`,
 `pure_declares_effects`, `mutation_depth` (warning),
 `machine_signature`, `program_machine_count`, `program_generic`,
 `state_construction_outside_machine`, `initial_signature`, and
-`constructor_invariant_false`. Context codes: `machine_program_invalid`,
-`usage_not_a_machine`, `machine_value_invalid`, `machine_result_invalid`,
-`machine_sequence_exhausted`, and `machine_replay_mismatch`.
+`constructor_invariant_false`; for contexts, `context_not_program`,
+`context_nested`, `context_in_reducer`, `context_in_concurrent`,
+`machine_call_outside_machine`, and `machine_unrooted` (warning). Runtime
+context codes: `machine_program_invalid`, `usage_not_a_machine`,
+`usage_not_a_root_machine`, `machine_value_invalid`,
+`machine_result_invalid`, `machine_sequence_exhausted`, and
+`machine_replay_mismatch`.
 
 ## Design sources
 

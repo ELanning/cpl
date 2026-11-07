@@ -550,7 +550,7 @@ impl Printer<'_> {
                 let b = self.block(body);
                 format!("while {c} {{ let _ = {b}; }}")
             }
-            Stmt::Return(None) | Stmt::Concurrent(_) => "return None;".to_string(),
+            Stmt::Return(None) | Stmt::Concurrent(_) | Stmt::Context { .. } => "return None;".to_string(),
         }
     }
 

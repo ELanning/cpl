@@ -46,6 +46,7 @@ tasks, so that a runtime may overlap them:
 | a task assigns a variable declared outside it, contains `return`, or uses `?` | `concurrent_unsafe` |
 | two tasks' footprints share a `using` handle with an operation that is not read-only | `concurrent_conflict` |
 | an `@read_only` argument names no operation of its capability | `read_only_unknown_operation` |
+| a task names a state machine's context handle, as a receiver or a `using` argument (`spec/state-machines.md`) | `context_in_concurrent` |
 
 A task's *footprint* is the set of handle operations it may perform: its
 operation calls `h.op(...)` and, for each call `g(..., using h1, ...)`, the

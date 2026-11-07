@@ -414,6 +414,7 @@ impl<'a> SyntaxVisitor<'a> for Syntax<'_, '_> {
             ast::Statement::While(_) => "a `while` loop",
             ast::Statement::Concurrent(_) => "a `concurrent` block",
             ast::Statement::Expr(_) => "an expression statement",
+            ast::Statement::Context(_) => "a `context` statement",
         };
         let span = s.span();
         if self.reported.iter().any(|r| contains(*r, span)) {
@@ -443,14 +444,28 @@ struct Hir<'c, 'a, 'h> {
 
 impl<'h> Visitor<'h> for Hir<'_, '_, 'h> {
     fn expr(&mut self, e: &'h Expr, site: Site<'h>) {
-        let ExprKind::CapCall {
-            handle,
-            capability,
-            op,
-            ..
-        } = &e.kind
-        else {
-            return;
+        // a capability operation, or a context handle's `dispatch` or `state`
+        let (handle, op_name) = match &e.kind {
+            ExprKind::CapCall {
+                handle,
+                capability,
+                op,
+                ..
+            } => {
+                let Some(op_def) = self
+                    .cx
+                    .program
+                    .def(*capability)
+                    .kind
+                    .as_capability()
+                    .and_then(|c| c.ops.get(*op as usize))
+                else {
+                    return;
+                };
+                (handle, op_def.name.clone())
+            }
+            ExprKind::ContextOp { handle, op, .. } => (handle, op.name().to_string()),
+            _ => return,
         };
         if !site.contract {
             return;
@@ -464,22 +479,12 @@ impl<'h> Visitor<'h> for Hir<'_, '_, 'h> {
         let Some(local) = f.locals.get(id.0 as usize) else {
             return;
         };
-        if local.kind != BindingKind::Using || !matches!(local.ty, Ty::Capability(_)) {
+        if local.kind != BindingKind::Using || !matches!(local.ty, Ty::Capability(_) | Ty::Context(_)) {
             // A positional parameter of a capability type was
             // `capability_in_value_position` (S62).
             return;
         }
-        let Some(op_def) = self
-            .cx
-            .program
-            .def(*capability)
-            .kind
-            .as_capability()
-            .and_then(|c| c.ops.get(*op as usize))
-        else {
-            return;
-        };
-        let effect = format!("{}.{}", local.name, op_def.name);
+        let effect = format!("{}.{}", local.name, op_name);
         // A property's `for` range has no HIR clause; no handle can occur
         // there (S30), so the expression stands in for it.
         let (span, text) = match site.clause {

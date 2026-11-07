@@ -288,6 +288,14 @@ impl Render<'_> {
                 self.args(args);
                 self.push(")");
             }
+            ExprKind::ContextOp { handle, op, args, .. } => {
+                self.operand(handle, 7);
+                self.push(".");
+                self.push(op.name());
+                self.push("(");
+                self.args(args);
+                self.push(")");
+            }
             ExprKind::Check { refined, arg } => {
                 let name = self.def_name(*refined);
                 self.push("check<");
@@ -472,6 +480,13 @@ impl Render<'_> {
             Stmt::Let { local, value } => {
                 let name = self.local(*local);
                 self.push("let ");
+                self.push(&name);
+                self.push(" = ");
+                self.expr(value);
+            }
+            Stmt::Context { local, value } => {
+                let name = self.local(*local);
+                self.push("context ");
                 self.push(&name);
                 self.push(" = ");
                 self.expr(value);

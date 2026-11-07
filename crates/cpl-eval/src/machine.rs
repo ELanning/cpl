@@ -34,11 +34,34 @@ pub struct MachineContext<'p> {
 }
 
 impl<'p> MachineContext<'p> {
+    /// A running state machine of `machine`, which must be a program's root machine: a context runs a program's
+    /// machine, and its child machines only as parts of it (spec/state-machines.md).
     pub fn new(
         program: &'p Program,
         machine: DefId,
         state: &Json,
         config: &EvalConfig,
+    ) -> Result<Self, Diagnostic> {
+        Self::open(program, machine, state, config, true)
+    }
+
+    /// A context of any machine, a child machine included, for tools that analyze transitions without running
+    /// an application (`cpl explore`).
+    pub fn for_analysis(
+        program: &'p Program,
+        machine: DefId,
+        state: &Json,
+        config: &EvalConfig,
+    ) -> Result<Self, Diagnostic> {
+        Self::open(program, machine, state, config, false)
+    }
+
+    fn open(
+        program: &'p Program,
+        machine: DefId,
+        state: &Json,
+        config: &EvalConfig,
+        root_only: bool,
     ) -> Result<Self, Diagnostic> {
         if program
             .defs
@@ -60,6 +83,13 @@ impl<'p> MachineContext<'p> {
                     "select a checked machine declaration",
                 )
             })?;
+        let root = matches!(signature.state, cpl_hir::Ty::Adt(d, _) if program.is_program_state(d));
+        if root_only && !root {
+            return Err(error(
+                "usage_not_a_root_machine",
+                "select a program's root machine: a child machine runs only as a part of its program's machine",
+            ));
+        }
         let state = validate(program, state, &signature.state, config)?;
         let mut hash = blake3::Hasher::new();
         hash.update(b"cpl-machine-replay-v1\0");

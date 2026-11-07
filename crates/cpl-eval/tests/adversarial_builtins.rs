@@ -3616,7 +3616,7 @@ fn every_builtin_accepts_its_stub_signature_and_returns_its_declared_type() {
         );
         checked += 1;
     }
-    // 59 registry ids less the 6 builtin types and the 7 generators.
+    // 60 registry ids less the 7 builtin types and the 7 generators.
     assert_eq!(checked, 46);
 }
 

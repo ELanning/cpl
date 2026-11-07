@@ -3,8 +3,16 @@
 `src/app/main.cpl` keeps settings and a download state under one `App`
 root. `download` is a child reducer. `reduce` installs its candidate
 state in a new root and returns command values. `perform` is the only
-effectful function; a host supplies its `Http` interface after committing
-a transition, then dispatches the returned event.
+function that performs I/O; a host supplies its `Http` interface.
+
+`fetch` is where the state machine of one download lives. Its `context
+app = start()` statement starts the call stack's only state machine;
+`fetch` dispatches `Start`, performs each command after its transition
+commits, and dispatches the resulting event, until no commands remain.
+`outcome` receives the same context as `using app: Context<App>` and reads
+its state. No function that `fetch` calls can start a second state
+machine, and only `reduce` calls `download`. A host calls `fetch` with
+its `Http` implementation (`cpl build --target rust|go|java|c|python`).
 
 From the repository root:
 

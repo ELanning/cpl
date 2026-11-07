@@ -122,6 +122,7 @@ fn visit_block<'a>(
             ast::Statement::Let(l) => visit_expr(&l.value, clause, v),
             ast::Statement::Var(x) => visit_expr(&x.value, clause, v),
             ast::Statement::Assign(a) => visit_expr(&a.value, clause, v),
+            ast::Statement::Context(c) => visit_expr(&c.value, clause, v),
             ast::Statement::Return(r) => {
                 if let Some(value) = &r.value {
                     visit_expr(value, clause, v);

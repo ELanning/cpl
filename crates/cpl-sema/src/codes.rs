@@ -61,6 +61,19 @@ codes! {
     STATE_CONSTRUCTION_OUTSIDE_MACHINE = "state_construction_outside_machine", Effect, Error;
     INITIAL_SIGNATURE = "initial_signature", Type, Error;
     CONSTRUCTOR_INVARIANT_FALSE = "constructor_invariant_false", Contract, Error;
+    // One state machine per call stack (spec/state-machines.md).
+    /// `Context<S>` or `context app = e` where `S` (the type of `e`) is not a program state.
+    CONTEXT_NOT_PROGRAM = "context_not_program", Type, Error;
+    /// A second state machine on one call stack: a function holding a context reaches one that starts another.
+    CONTEXT_NESTED = "context_nested", Effect, Error;
+    /// A `context` statement in a machine or an initializer.
+    CONTEXT_IN_REDUCER = "context_in_reducer", Effect, Error;
+    /// A context handle used by a task of a `concurrent` block.
+    CONTEXT_IN_CONCURRENT = "context_in_concurrent", Effect, Error;
+    /// A machine called by a function that is not a machine, a test, or a property.
+    MACHINE_CALL_OUTSIDE_MACHINE = "machine_call_outside_machine", Effect, Error;
+    /// A machine that is no program's root and that no root machine reaches.
+    MACHINE_UNROOTED = "machine_unrooted", Effect, Warning;
     // ---- resolve (semantics 9.4) ------------------------------------------
     /// `[project] edition` other than `"0.1"` (raised by project loading).
     UNSUPPORTED_EDITION = "unsupported_edition", Resolve, Error;
@@ -303,7 +316,7 @@ mod tests {
         let mut sorted = BUILTIN_IDS.to_vec();
         sorted.sort_unstable();
         assert_eq!(sorted, BUILTIN_IDS);
-        assert_eq!(BUILTIN_IDS.len(), 59);
+        assert_eq!(BUILTIN_IDS.len(), 60);
     }
 
     #[test]

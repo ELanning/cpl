@@ -1398,6 +1398,12 @@ impl Printer {
                 self.push(" = ");
                 self.expr(&a.value);
             }
+            Statement::Context(c) => {
+                self.push("context ");
+                self.push(&c.name.text);
+                self.push(" = ");
+                self.expr(&c.value);
+            }
             Statement::Return(r) => {
                 self.push("return");
                 if let Some(v) = &r.value {

@@ -143,7 +143,7 @@ fn build(
             for u in &f.params.using {
                 let mut out = ResOut::default();
                 let mut ty = r.resolve_type(&u.ty, &mut out);
-                if !matches!(ty, Ty::Capability(_) | Ty::Error) {
+                if !matches!(ty, Ty::Capability(_) | Ty::Context(_) | Ty::Error) {
                     out.push(
                         diag(
                             codes::USING_PARAM_NOT_CAPABILITY,
@@ -570,6 +570,26 @@ fn effect_bound(
             Some(u) => {
                 // A `using` parameter that is not a capability was reported
                 // (`using_param_not_capability`) and has the error type.
+                // a context handle's operations: `dispatch` and `state`
+                if let Ty::Context(program) = &u.ty {
+                    if cpl_hir::ContextOp::from_name(op).is_some() {
+                        declared.insert(EffectRef {
+                            param: u.local,
+                            op: op.to_string(),
+                        });
+                    } else {
+                        let name = format!("Context<{}>", r.program.def(*program).name.display());
+                        sig.diags.push(
+                            diag(
+                                codes::UNKNOWN_EFFECT_OPERATION,
+                                Some(e.span),
+                                format!("`{name}` has no operation `{op}` (it has `dispatch` and `state`)"),
+                            )
+                            .with_data("name", json!(op))
+                            .with_data("type", json!(name)),
+                        );
+                    }
+                }
                 if let Ty::Capability(cap) = &u.ty {
                     let has = r
                         .program

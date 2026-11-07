@@ -464,6 +464,7 @@ fn statement(s: &Statement) -> S {
             p
         }
         Statement::Assign(st) => vec![a("assign"), a(&st.target.text), expr(&st.value)],
+        Statement::Context(st) => vec![a("context"), a(&st.name.text), expr(&st.value)],
         Statement::Return(st) => {
             let mut p = vec![a("return")];
             if let Some(v) = &st.value {

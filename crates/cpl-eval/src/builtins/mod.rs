@@ -20,7 +20,7 @@
 //! the enclosing declaration ([`Interpreter::current_def`]; absent at the
 //! top level of `cpl run`), and `status: "failed"`.
 //!
-//! The six type ids (`int`, `bool`, `text`, `bytes`, `list`, `gen`) and the
+//! The seven type ids (`int`, `bool`, `text`, `bytes`, `list`, `gen`, `context`) and the
 //! seven `gen_*` ids are registered so that std loading knows them
 //! (`std_builtin_missing`, stdlib 10.2) but are not callable: a builtin type
 //! is never called, and a generator is lowered to `ExprKind::Gen` and
@@ -62,7 +62,7 @@ use std::rc::Rc;
 pub type BuiltinFn = fn(&mut Interpreter<'_>, &[Value]) -> Result<Value, Fault>;
 
 /// The registry of stdlib 10.6, sorted by id (binary search).
-static REGISTRY: [(&str, BuiltinFn); 59] = [
+static REGISTRY: [(&str, BuiltinFn); 60] = [
     ("bool", gen::type_bool),
     ("bytes", gen::type_bytes),
     ("bytes_from_list", bytes::from_list),
@@ -71,6 +71,7 @@ static REGISTRY: [(&str, BuiltinFn); 59] = [
     ("bytes_len", prelude::bytes_len),
     ("bytes_to_list", bytes::to_list),
     ("bytes_to_text", bytes::to_text),
+    ("context", gen::type_context),
     ("flatten", prelude::flatten),
     ("gen", gen::type_gen),
     ("gen_bool", gen::gen_bool),
@@ -134,7 +135,7 @@ pub fn lookup(id: &str) -> Option<BuiltinFn> {
         .map(|i| REGISTRY[i].1)
 }
 
-/// Every registry id, in sorted order: exactly the 59 ids of stdlib 10.6.
+/// Every registry id, in sorted order: exactly the 60 ids of stdlib 10.6.
 pub fn ids() -> impl Iterator<Item = &'static str> {
     REGISTRY.iter().map(|(id, _)| *id)
 }

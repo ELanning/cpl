@@ -5,7 +5,7 @@
 #include "cpl_rt.h"
 
 #define CPL_D8 8u
-#define CPL_D67 67u
+#define CPL_D68 68u
 #define CPL_S75 75u
 #define CPL_S76 76u
 #define CPL_S77 77u
@@ -17,7 +17,7 @@ extern cplrt_obj CPLPKG(s21_0);
 
 
 static int cpl_p8(cplrt_cx *cx, uint32_t site, cplrt_w p0_self, int *out_holds);
-static int cpl_f67(cplrt_cx *cx, uint32_t site, cplrt_w p0_n, cplrt_w *out);
+static int cpl_f68(cplrt_cx *cx, uint32_t site, cplrt_w p0_n, cplrt_w *out);
 
 /* std.gen.Positive  [identity std.gen.Positive, DefId 8] */
 static int cpl_p8(cplrt_cx *cx, uint32_t site, cplrt_w p0_self, int *out_holds)
@@ -37,15 +37,15 @@ done:
     return cplrt_fast_leave(cx, &fr, st);
 }
 
-/* loops.ops.count_up  [identity loops.ops.count_up, DefId 67] */
-static int cpl_f67(cplrt_cx *cx, uint32_t site, cplrt_w p0_n, cplrt_w *out)
+/* loops.ops.count_up  [identity loops.ops.count_up, DefId 68] */
+static int cpl_f68(cplrt_cx *cx, uint32_t site, cplrt_w p0_n, cplrt_w *out)
 {
     int st = CPLRT_OK, eq = 0, holds = 0;
     uint64_t it0 = 0;
     cplrt_w l1_i = 0, t0 = 0, m0 = 0, t1 = 0, t2 = 0, t3 = 0, t4 = 0, t5 = 0, t6 = 0, t7 = 0, rv = 0;
     cplrt_frame fr;
     const cplrt_w params[1] = { p0_n };
-    if (cplrt_fast_enter_fn(cx, &fr, CPL_D67, site, params, 1u) != CPLRT_OK)
+    if (cplrt_fast_enter_fn(cx, &fr, CPL_D68, site, params, 1u) != CPLRT_OK)
         return CPLRT_FAULT;
     if (cx->check_contracts) { /* obl requires/1: n >= 0 */
         CPLRT_SET(t0, cplrt_bool(cplrt_int_cmp(p0_n, cplrt_small(INT64_C(0))) >= 0));
@@ -94,6 +94,6 @@ done:
 }
 
 
-static const cplrt_fn_entry cpl_fns[68] = { 0 };
-static const cplrt_pred_entry cpl_preds[68] = { [8] = cpl_p8 };
-const cplrt_code CPLPKG(code) = { 68u, cpl_fns, cpl_preds, NULL, 0u, NULL };
+static const cplrt_fn_entry cpl_fns[69] = { 0 };
+static const cplrt_pred_entry cpl_preds[69] = { [8] = cpl_p8 };
+const cplrt_code CPLPKG(code) = { 69u, cpl_fns, cpl_preds, NULL, 0u, NULL };

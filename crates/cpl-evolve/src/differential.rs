@@ -144,7 +144,7 @@ pub(crate) fn arbitrary(
             }
             _ => return None,
         },
-        Ty::Param(_) | Ty::Capability(_) | Ty::Gen(_) | Ty::Error => return None,
+        Ty::Param(_) | Ty::Capability(_) | Ty::Context(_) | Ty::Gen(_) | Ty::Error => return None,
     })
 }
 

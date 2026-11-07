@@ -17,13 +17,14 @@ use num_bigint::BigInt;
 use std::collections::BTreeSet;
 
 /// The complete id set of stdlib 10.6, in the table's order.
-const SPEC_IDS: [&str; 59] = [
+const SPEC_IDS: [&str; 60] = [
     "int",
     "bool",
     "text",
     "bytes",
     "list",
     "gen",
+    "context",
     "flatten",
     "int_to_text",
     "int_abs",
@@ -86,13 +87,13 @@ const SPEC_IDS: [&str; 59] = [
 #[test]
 fn registry_is_exactly_stdlib_10_6() {
     let registered: Vec<&str> = ids().collect();
-    assert_eq!(registered.len(), 59);
+    assert_eq!(registered.len(), 60);
     let mut sorted = registered.clone();
     sorted.sort_unstable();
     sorted.dedup();
     assert_eq!(sorted, registered, "sorted and unique (binary search)");
     let spec: BTreeSet<&str> = SPEC_IDS.into_iter().collect();
-    assert_eq!(spec.len(), 59);
+    assert_eq!(spec.len(), 60);
     assert_eq!(registered.into_iter().collect::<BTreeSet<_>>(), spec);
     for id in SPEC_IDS {
         assert!(lookup(id).is_some(), "{id}");

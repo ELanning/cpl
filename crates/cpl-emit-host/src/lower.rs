@@ -409,7 +409,79 @@ impl<'p> Fx<'p> {
                     self.stmt(&task.stmt, out);
                 }
             }
+            // the call stack's state machine, a cell of the host's (spec/state-machines.md)
+            Stmt::Context { local, value } => {
+                let v = self.expr(value, out);
+                let var = self.var_of(*local);
+                push(
+                    out,
+                    LStmt::Let {
+                        var,
+                        value: LExpr::ContextNew(Box::new(v)),
+                    },
+                );
+            }
         }
+    }
+
+    /// `app.state()`, or `app.dispatch(event)`: the event, then the root machine called on the current state, its
+    /// new state committed, its commands (or `Unit`) the value.
+    fn context_op(
+        &mut self,
+        handle: &Expr,
+        program: DefId,
+        op: cpl_hir::ContextOp,
+        args: &[Expr],
+        out: &mut Vec<LStmt>,
+    ) -> LExpr {
+        let p = self.p;
+        let mut all: Vec<&Expr> = vec![handle];
+        all.extend(args.iter());
+        let mut vals = self.exprs(&all, out);
+        let rest = vals.split_off(1);
+        let h = vals.pop().expect("a handle");
+        let machine = p.root_machine(program);
+        let (cpl_hir::ContextOp::Dispatch, Some(machine), Some(event)) = (op, machine, rest.into_iter().next())
+        else {
+            return LExpr::ContextGet(Box::new(h));
+        };
+        let sig = p.machine_signature(machine).expect("a root machine's signature");
+        let ret = p.def(machine).kind.as_fn().expect("a machine").ret.clone();
+        let state = self.temp("state", sig.state.clone(), false);
+        push(
+            out,
+            LStmt::Let {
+                var: state,
+                value: LExpr::ContextGet(Box::new(h.clone())),
+            },
+        );
+        let step = self.temp("step", ret.clone(), false);
+        push(
+            out,
+            LStmt::Let {
+                var: step,
+                value: LExpr::Call {
+                    def: machine,
+                    generics: Vec::new(),
+                    args: vec![LExpr::Var(state), event],
+                    using: Vec::new(),
+                },
+            },
+        );
+        let field = |index: u32| -> Option<LExpr> {
+            let Ty::Adt(def, _) = &ret else {
+                return None;
+            };
+            Some(LExpr::Field {
+                base: Box::new(LExpr::Var(step)),
+                def: *def,
+                index,
+                ty: ret.clone(),
+            })
+        };
+        let next = sig.state_field.and_then(field).unwrap_or(LExpr::Var(step));
+        push(out, LStmt::ContextSet { handle: h, value: next });
+        sig.commands_field.and_then(field).unwrap_or(LExpr::Unit)
     }
 
     /// Semantics 5.3: the invariants before the first test, then per iteration the condition,
@@ -596,6 +668,12 @@ impl<'p> Fx<'p> {
                     },
                 }
             }
+            ExprKind::ContextOp {
+                handle,
+                program,
+                op,
+                args,
+            } => self.context_op(handle, *program, *op, args, out),
             ExprKind::CapCall {
                 handle,
                 capability,

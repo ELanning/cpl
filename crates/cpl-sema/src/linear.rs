@@ -255,7 +255,7 @@ impl<'a, 'p> Walk<'a, 'p> {
                 self.expr(value);
                 self.consumed.remove(local);
             }
-            Stmt::Assign { local, value } => {
+            Stmt::Assign { local, value } | Stmt::Context { local, value } => {
                 self.expr(value);
                 self.consumed.remove(local);
             }
@@ -321,7 +321,7 @@ impl<'a, 'p> Walk<'a, 'p> {
                     }
                 }
             }
-            ExprKind::CapCall { handle, args, .. } => {
+            ExprKind::CapCall { handle, args, .. } | ExprKind::ContextOp { handle, args, .. } => {
                 self.expr(handle);
                 for a in args {
                     self.expr(a);

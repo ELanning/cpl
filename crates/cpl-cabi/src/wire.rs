@@ -103,6 +103,11 @@ pub fn to_nodes(v: &Value) -> Nodes {
                 def: u32::MAX,
                 handle: h.0,
             },
+            // (a context handle never crosses: no argument or result is one, S27)
+            Value::Context(_) => Node::Capability {
+                def: u32::MAX,
+                handle: u32::MAX,
+            },
         };
         let ix = nodes.len() as u32;
         nodes.push(node);

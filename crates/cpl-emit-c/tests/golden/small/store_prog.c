@@ -5,7 +5,7 @@
 #include "cpl_rt.h"
 
 #define CPL_D8 8u
-#define CPL_D69 69u
+#define CPL_D70 70u
 #define CPL_S72 72u
 #define CPL_CL0 0u
 #define CPL_K0 cplrt_word_of(&cpl_k0.hdr)
@@ -15,7 +15,7 @@ static struct { cplrt_obj hdr; size_t bytes, scalars; char utf8[13]; } cpl_k0 = 
 static struct { cplrt_obj hdr; size_t bytes, scalars; char utf8[20]; } cpl_k1 = { { CPLRT_TEXT, 0u, 0u, 0u, { .live = { CPLRT_RC_IMMORTAL, 0u } } }, 19u, 19u, "Storage unavailable" };
 
 static int cpl_p8(cplrt_cx *cx, uint32_t site, cplrt_w p0_self, int *out_holds);
-static int cpl_f69(cplrt_cx *cx, uint32_t site, cplrt_w p0_e, cplrt_w *out);
+static int cpl_f70(cplrt_cx *cx, uint32_t site, cplrt_w p0_e, cplrt_w *out);
 
 /* std.gen.Positive  [identity std.gen.Positive, DefId 8] */
 static int cpl_p8(cplrt_cx *cx, uint32_t site, cplrt_w p0_self, int *out_holds)
@@ -35,14 +35,14 @@ done:
     return cplrt_fast_leave(cx, &fr, st);
 }
 
-/* store.ops.describe  [identity store.ops.describe, DefId 69] */
-static int cpl_f69(cplrt_cx *cx, uint32_t site, cplrt_w p0_e, cplrt_w *out)
+/* store.ops.describe  [identity store.ops.describe, DefId 70] */
+static int cpl_f70(cplrt_cx *cx, uint32_t site, cplrt_w p0_e, cplrt_w *out)
 {
     int st = CPLRT_OK, eq = 0, holds = 0;
     cplrt_w t0 = 0, t1 = 0, rv = 0;
     cplrt_frame fr;
     const cplrt_w params[1] = { p0_e };
-    if (cplrt_fast_enter_fn(cx, &fr, CPL_D69, site, params, 1u) != CPLRT_OK)
+    if (cplrt_fast_enter_fn(cx, &fr, CPL_D70, site, params, 1u) != CPLRT_OK)
         return CPLRT_FAULT;
     CPLRT_COPY(t0, p0_e);
     if (cplrt_variant(t0) == 0u) {
@@ -63,6 +63,6 @@ done:
 }
 
 
-static const cplrt_fn_entry cpl_fns[70] = { 0 };
-static const cplrt_pred_entry cpl_preds[70] = { [8] = cpl_p8 };
-const cplrt_code CPLPKG(code) = { 70u, cpl_fns, cpl_preds, NULL, 0u, NULL };
+static const cplrt_fn_entry cpl_fns[71] = { 0 };
+static const cplrt_pred_entry cpl_preds[71] = { [8] = cpl_p8 };
+const cplrt_code CPLPKG(code) = { 71u, cpl_fns, cpl_preds, NULL, 0u, NULL };

@@ -598,6 +598,7 @@ enum Node {
     Enum(DefId, u32, Vec<usize>),
     Wrapper(DefId, usize),
     Capability(HandleId),
+    Context(crate::interp::ContextId),
 }
 
 /// The buffer a value's children live in, with the value's form: two
@@ -675,6 +676,7 @@ impl From<&Value> for Portable {
                 Value::Enum { def, variant, .. } => Node::Enum(*def, *variant, kids),
                 Value::Wrapper { def, .. } => Node::Wrapper(*def, kids[0]),
                 Value::Capability(h) => Node::Capability(*h),
+                Value::Context(c) => Node::Context(*c),
             });
             let index = nodes.len() - 1;
             if let Some(k) = key {
@@ -717,6 +719,7 @@ impl From<Portable> for Value {
                     inner: Rc::new(built[kid].clone()),
                 },
                 Node::Capability(h) => Value::Capability(h),
+                Node::Context(c) => Value::Context(c),
             };
             built.push(v);
         }

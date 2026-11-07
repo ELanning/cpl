@@ -53,7 +53,7 @@
         "toolchain": {
           "cpl": "0.1.0",
           "edition": "0.1",
-          "std": "42236a5efaffeb1110f986d858c30c7dabeb7efa54a3d80ec548b77135351388"
+          "std": "f3f75c21e2dc40155ca01f8fa1c7320ce2eddb3c441a1db7fa07d1c1812bc83e"
         }
       },
       "status": "tested"
@@ -99,7 +99,7 @@
         "toolchain": {
           "cpl": "0.1.0",
           "edition": "0.1",
-          "std": "42236a5efaffeb1110f986d858c30c7dabeb7efa54a3d80ec548b77135351388"
+          "std": "f3f75c21e2dc40155ca01f8fa1c7320ce2eddb3c441a1db7fa07d1c1812bc83e"
         }
       },
       "status": "tested"
@@ -147,7 +147,7 @@
         "toolchain": {
           "cpl": "0.1.0",
           "edition": "0.1",
-          "std": "42236a5efaffeb1110f986d858c30c7dabeb7efa54a3d80ec548b77135351388"
+          "std": "f3f75c21e2dc40155ca01f8fa1c7320ce2eddb3c441a1db7fa07d1c1812bc83e"
         }
       },
       "seed": 1,
@@ -171,7 +171,7 @@
         "toolchain": {
           "cpl": "0.1.0",
           "edition": "0.1",
-          "std": "42236a5efaffeb1110f986d858c30c7dabeb7efa54a3d80ec548b77135351388"
+          "std": "f3f75c21e2dc40155ca01f8fa1c7320ce2eddb3c441a1db7fa07d1c1812bc83e"
         },
         "modules": [
           {
@@ -208,7 +208,7 @@
         "toolchain": {
           "cpl": "0.1.0",
           "edition": "0.1",
-          "std": "42236a5efaffeb1110f986d858c30c7dabeb7efa54a3d80ec548b77135351388"
+          "std": "f3f75c21e2dc40155ca01f8fa1c7320ce2eddb3c441a1db7fa07d1c1812bc83e"
         },
         "modules": [
           {
@@ -248,7 +248,7 @@
         "toolchain": {
           "cpl": "0.1.0",
           "edition": "0.1",
-          "std": "42236a5efaffeb1110f986d858c30c7dabeb7efa54a3d80ec548b77135351388"
+          "std": "f3f75c21e2dc40155ca01f8fa1c7320ce2eddb3c441a1db7fa07d1c1812bc83e"
         },
         "modules": [
           {
@@ -291,7 +291,7 @@
     "inputs": {
       "manifest": "e74d1df8f21726f407fbba0a7c044aa9198794649c922bf66a08d19c59533668",
       "lock": null,
-      "std": "42236a5efaffeb1110f986d858c30c7dabeb7efa54a3d80ec548b77135351388",
+      "std": "f3f75c21e2dc40155ca01f8fa1c7320ce2eddb3c441a1db7fa07d1c1812bc83e",
       "sources": {
         "cpl.toml": "e74d1df8f21726f407fbba0a7c044aa9198794649c922bf66a08d19c59533668",
         "src/reader/images.cpl": "4df92f1b1b7673b5e7a9b5b20d5a0ba46a4058ce9885cf3d86d7e5611e0a9171",
@@ -306,7 +306,7 @@
       "toolchain": {
         "cpl": "0.1.0",
         "edition": "0.1",
-        "std": "42236a5efaffeb1110f986d858c30c7dabeb7efa54a3d80ec548b77135351388"
+        "std": "f3f75c21e2dc40155ca01f8fa1c7320ce2eddb3c441a1db7fa07d1c1812bc83e"
       },
       "modules": [
         {

@@ -97,6 +97,14 @@ impl Analysis {
                 uses(e, &mut live);
                 live
             }
+            // (the handle is read in place by every host, never moved)
+            LStmt::ContextSet { handle, value } => {
+                let mut live = out.clone();
+                uses(handle, &mut live);
+                self.reads(value, &live, None);
+                uses(value, &mut live);
+                live
+            }
             LStmt::Return(e) => {
                 let mut live = Live::new();
                 self.reads(e, &live, None);
@@ -286,6 +294,7 @@ fn occurrences(e: &LExpr, found: &mut Reads) {
                 | LExpr::IsVariant { base, .. }
                 | LExpr::Unwrap { base, .. } => children.push(base),
                 LExpr::CheckFailure { value, .. } => children.push(value),
+                LExpr::ContextNew(x) | LExpr::ContextGet(x) => children.push(x),
                 LExpr::Var(_) | LExpr::Int(_) | LExpr::Text(_) | LExpr::Bool(_) | LExpr::Unit => {}
             }
             for c in children {

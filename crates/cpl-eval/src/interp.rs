@@ -64,6 +64,23 @@ pub use scope::scope_at;
 #[derive(Copy, Clone, PartialEq, Eq, Hash, Debug, Serialize)]
 pub struct HandleId(pub u32);
 
+/// The identity of a running state machine (`context app = e`, spec/state-machines.md): the index into the
+/// interpreter's context table, which a function's activation truncates on return (a context never outlives the
+/// function that started it).
+#[derive(Copy, Clone, PartialEq, Eq, Hash, Debug, Serialize)]
+pub struct ContextId(pub u32);
+
+/// A running state machine: its current state and its program's root machine.
+#[derive(Clone, Debug)]
+pub(crate) struct ContextCell {
+    pub(crate) state: Value,
+    pub(crate) machine: DefId,
+    /// The `state` and `commands` fields of a `{ state, commands }` result; `None` when the machine returns the
+    /// state itself.
+    pub(crate) state_field: Option<u32>,
+    pub(crate) commands_field: Option<u32>,
+}
+
 /// A bound capability handle, passed to [`Interpreter::call`] for a
 /// function's `using` parameters.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -262,6 +279,8 @@ pub struct Interpreter<'p> {
     builtin_functions: Vec<Option<crate::builtins::BuiltinFn>>,
     /// Index = `HandleId.0`.
     handles: Vec<Binding<'p>>,
+    /// Index = `ContextId.0`: the running state machines, at most one per call stack.
+    pub(crate) contexts: Vec<ContextCell>,
     effects: Vec<EffectEvent>,
     /// The wall-clock deadline of the current top-level evaluation.
     deadline: Option<Instant>,
@@ -300,6 +319,7 @@ impl<'p> Interpreter<'p> {
             spare_envs: Vec::new(),
             builtin_functions: Vec::new(),
             handles: Vec::new(),
+            contexts: Vec::new(),
             effects: Vec::new(),
             deadline: None,
             attributed: false,
@@ -480,7 +500,7 @@ impl<'p> Interpreter<'p> {
                 ));
             }
         }
-        let handles = using.into_iter().map(|h| h.id).collect();
+        let handles = using.into_iter().map(|h| Value::Capability(h.id)).collect();
         self.call_fn(f, args, handles, None)
             .map_err(|flow| flow.into_fault())
     }
@@ -681,6 +701,7 @@ impl<'p> Interpreter<'p> {
     /// keeps the current deadline.
     fn begin_evaluation(&mut self, budget: Budget) {
         if self.frames.is_empty() {
+            self.contexts.clear();
             self.deadline = match budget {
                 Budget::Fresh => self
                     .config
@@ -887,6 +908,14 @@ impl<'p> Interpreter<'p> {
         }
     }
 
+    /// A binding's value as a report shows it: a context handle shows its state machine's current state.
+    fn shown<'v>(&'v self, value: &'v Value) -> &'v Value {
+        match value {
+            Value::Context(c) => self.contexts.get(c.0 as usize).map_or(value, |cell| &cell.state),
+            other => other,
+        }
+    }
+
     /// Every binding visible in the current environment, innermost first,
     /// as the `bindings` objects of `assertion_failed` and `unresolved_hole`
     /// (semantics S41, 6.7): name, type (type parameters by name), kind,
@@ -900,7 +929,7 @@ impl<'p> Interpreter<'p> {
             .rev()
             .filter_map(|id| {
                 let def = locals.get(id.0 as usize)?;
-                let value = env.values.get(id.0 as usize)?.as_ref()?;
+                let value = self.shown(env.values.get(id.0 as usize)?.as_ref()?);
                 Some(binding_json(
                     &def.name,
                     &self.program.display_ty_in(&def.ty, generics),
@@ -923,6 +952,7 @@ impl<'p> Interpreter<'p> {
             if let (Some(def), Some(Some(value))) =
                 (locals.get(id.0 as usize), env.values.get(id.0 as usize))
             {
+                let value = self.shown(value);
                 out.insert(
                     def.name.clone(),
                     value_to_json(self.program, value, &def.ty),

@@ -364,7 +364,7 @@ The five files were extracted mechanically from stdlib.md Section 11 (the
 text between each `### 11.N` heading's code fence) and are byte-identical
 to it (verified by re-extraction and `diff`). They were then audited:
 
-- **Registry (stdlib 10.6):** the stubs carry 59 distinct `@builtin` ids;
+- **Registry (stdlib 10.6):** the stubs carry 60 distinct `@builtin` ids;
   the registry table lists 59; the sets are equal, with no duplicates and
   no unknown id.
 - **Signatures and contracts (stdlib 1.6, 2.3, 3.3, 3.4, 4.2, 4.5, 5.1,

@@ -269,6 +269,33 @@ impl<'t, 'c, 'a> Typer<'t, 'c, 'a> {
                     false,
                 )
             }
+            // `context app = e`: the call stack's state machine, from a value of a program type
+            ast::Statement::Context(c) => {
+                let value = self.infer(&c.value);
+                let handle = match self.zonk(&value.ty) {
+                    Ty::Adt(d, a) if a.is_empty() && self.program.is_program_state(d) => Ty::Context(d),
+                    Ty::Error => Ty::Error,
+                    other => {
+                        let found = self.render(&other);
+                        self.error(
+                            diag(
+                                codes::CONTEXT_NOT_PROGRAM,
+                                Some(c.value.span),
+                                format!("a `context` starts from a value of a `program` type, found `{found}`"),
+                            )
+                            .with_data("type", json!(found)),
+                        );
+                        Ty::Error
+                    }
+                };
+                match self.tcx.cx.names.binders.get(&c.name.span).copied() {
+                    Some(local) => {
+                        self.set_local_ty(local, handle);
+                        (Stmt::Context { local, value }, false)
+                    }
+                    None => (Stmt::Discard(value), false),
+                }
+            }
             ast::Statement::Concurrent(c) => {
                 let mut tasks = Vec::new();
                 for task in &c.body.statements {
@@ -345,7 +372,7 @@ fn binding_type(value: &Ty, annotation: Option<Ty>) -> Ty {
         return a;
     }
     match value {
-        Ty::Capability(_) | Ty::Gen(_) => Ty::Error,
+        Ty::Capability(_) | Ty::Context(_) | Ty::Gen(_) => Ty::Error,
         other => other.clone(),
     }
 }

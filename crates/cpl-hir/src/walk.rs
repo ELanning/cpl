@@ -27,7 +27,7 @@ impl Expr {
                     a.walk(f);
                 }
             }
-            ExprKind::CapCall { handle, args, .. } => {
+            ExprKind::CapCall { handle, args, .. } | ExprKind::ContextOp { handle, args, .. } => {
                 handle.walk(f);
                 for a in args {
                     a.walk(f);
@@ -121,7 +121,9 @@ impl Stmt {
     /// Visit every expression of the statement.
     pub fn walk<F: FnMut(&Expr)>(&self, f: &mut F) {
         match self {
-            Stmt::Let { value, .. } | Stmt::Assign { value, .. } => value.walk(f),
+            Stmt::Let { value, .. } | Stmt::Assign { value, .. } | Stmt::Context { value, .. } => {
+                value.walk(f)
+            }
             Stmt::Discard(e) | Stmt::Expr(e) | Stmt::Assert { expr: e, .. } => e.walk(f),
             Stmt::Return(e) => {
                 if let Some(e) = e {
@@ -235,6 +237,9 @@ impl Stmt {
                     && a.iter()
                         .zip(b)
                         .all(|(x, y)| x.stmt.structurally_eq(&y.stmt))
+            }
+            (Stmt::Context { local: a, value: x }, Stmt::Context { local: b, value: y }) => {
+                a == b && x.structurally_eq(y)
             }
             _ => false,
         }
@@ -372,6 +377,20 @@ fn kind_eq(a: &ExprKind, b: &ExprKind) -> bool {
                 args: a2,
             },
         ) => c1 == c2 && o1 == o2 && h1.structurally_eq(h2) && all_eq(a1, a2),
+        (
+            K::ContextOp {
+                handle: h1,
+                program: p1,
+                op: o1,
+                args: a1,
+            },
+            K::ContextOp {
+                handle: h2,
+                program: p2,
+                op: o2,
+                args: a2,
+            },
+        ) => p1 == p2 && o1 == o2 && h1.structurally_eq(h2) && all_eq(a1, a2),
         (
             K::Check {
                 refined: r1,

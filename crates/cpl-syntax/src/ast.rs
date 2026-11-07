@@ -769,6 +769,8 @@ pub enum Statement {
     Concurrent(ConcurrentStmt),
     /// A non-tail expression statement (must have type `Unit`).
     Expr(ExprStmt),
+    /// `context app = e`: the call stack's state machine, started from the program state `e`.
+    Context(ContextStmt),
 }
 
 impl Statement {
@@ -782,6 +784,7 @@ impl Statement {
             Statement::While(s) => s.span,
             Statement::Concurrent(s) => s.span,
             Statement::Expr(s) => s.span,
+            Statement::Context(s) => s.span,
         }
     }
 
@@ -795,6 +798,7 @@ impl Statement {
             Statement::While(s) => &s.trivia,
             Statement::Concurrent(s) => &s.trivia,
             Statement::Expr(s) => &s.trivia,
+            Statement::Context(s) => &s.trivia,
         }
     }
 
@@ -808,6 +812,7 @@ impl Statement {
             Statement::While(s) => &mut s.trivia,
             Statement::Concurrent(s) => &mut s.trivia,
             Statement::Expr(s) => &mut s.trivia,
+            Statement::Context(s) => &mut s.trivia,
         }
     }
 }
@@ -825,6 +830,15 @@ pub struct LetStmt {
     pub trivia: Trivia,
     pub binding: LetBinding,
     pub ty: Option<Type>,
+    pub value: Expr,
+}
+
+/// `context_stmt = "context" LOWER_IDENT "=" expr` (contextual: `context` followed by a name and `=`).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct ContextStmt {
+    pub span: Span,
+    pub trivia: Trivia,
+    pub name: Name,
     pub value: Expr,
 }
 

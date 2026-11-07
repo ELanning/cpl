@@ -33,7 +33,7 @@ struct Step<S, C> {
     commands: List<C>
 }
 
-interface Http {
+pub interface Http {
     fn get(url: Text) -> Result<Text, Text>
 }
 
@@ -80,5 +80,37 @@ mutate fn perform(command: Command, using http: Http) -> Event
             Ok(body) => Received(id, body)
             Err(message) => RequestFailed(id, message)
         }
+    }
+}
+
+// The state machine of one download lives here: `fetch` starts it, runs each
+// command after its transition commits, and dispatches the resulting event.
+// `outcome` lower in the call stack receives the same context; nothing below
+// `fetch` can start another state machine.
+pub mutate fn fetch(id: Int, url: Text, using http: Http) -> Text
+    effects { http.get }
+{
+    context app = start()
+    var queue = app.dispatch(Start(id, url))
+    while queue.len > 0 {
+        match queue.get(0) {
+            Some(command) => {
+                queue = queue.drop(1) ++ app.dispatch(perform(command, using http))
+            }
+            None => {
+                queue = []
+            }
+        }
+    }
+    outcome(using app)
+}
+
+fn outcome(using app: Context<App>) -> Text
+    effects { app.state }
+{
+    match app.state().download {
+        Done(body) => body
+        Failed(message) => "failed: " ++ message
+        _ => "pending"
     }
 }

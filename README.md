@@ -32,7 +32,8 @@ an annotated tour whose examples are executable tests.
 - **Concurrency.** Order-preserving `parallel for` expressions,
   [`concurrent` task blocks](spec/concurrency.md) whose effects are checked
   not to interfere, and [application state machines](spec/state-machines.md)
-  with atomic transitions and replay.
+  with atomic transitions and replay: one state machine per call stack,
+  started by a `context` statement and passed down as a handle.
 - **Two engines.** A reference interpreter and a C11 backend, tested
   against each other; [C](spec/cabi.md) and [Python](spec/python.md)
   packages and C libraries as capability implementations.
@@ -185,7 +186,7 @@ lists a command's options.
   - [`examples/reader`](examples/reader): contracts, capabilities, and a
     `.work` file with a semantic patch.
   - [`examples/state_machine`](examples/state_machine/README.md): a
-    scoped application machine with replay.
+    scoped application machine, its call-stack context, and replay.
   - [`examples/parallel`](examples/parallel/README.md): structured parallel
     computation and benchmarks.
   - [`examples/evolution`](examples/evolution/README.md): checked program

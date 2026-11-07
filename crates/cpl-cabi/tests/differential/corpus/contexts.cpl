@@ -1,0 +1,148 @@
+module contexts
+
+// One state machine per call stack (spec/state-machines.md): a function starts the context, passes its handle
+// down, and every transition goes through its program's root machine, which composes a child machine.
+
+pub program Shop {
+    cart: Cart
+    orders: Int
+    log: List<Text>
+}
+
+pub struct Cart {
+    items: List<Int>
+    total: Int
+}
+
+pub enum Event {
+    Add(Int)
+    Remove(Int)
+    Checkout
+    Split(Int)
+}
+
+pub enum Command {
+    Charge(Int)
+    Note(Text)
+}
+
+pub struct Step<S, C> {
+    state: S
+    commands: List<C>
+}
+
+initial fn open(orders: Int) -> Shop {
+    Shop { cart: Cart { items: [], total: 0 }, orders: orders, log: [] }
+}
+
+pure fn without(cart: Cart, index: Int, price: Int) -> Cart {
+    Cart { items: cart.items.take(index) ++ cart.items.drop(index + 1), total: cart.total - price }
+}
+
+// the child machine of the cart, composed by the root machine
+machine cart(state: Cart, event: Event) -> Cart {
+    match event {
+        Add(price) => Cart { items: state.items.push(price), total: state.total + price }
+        Remove(index) => match state.items.get(index) {
+            Some(price) => without(state, index, price)
+            None => state
+        }
+        Checkout => Cart { items: [], total: 0 }
+        Split(n) => Cart { ..state, total: state.total / n }
+    }
+}
+
+machine shop(state: Shop, event: Event) -> Step<Shop, Command> {
+    let next = cart(state.cart, event)
+    match event {
+        Checkout => Step {
+            state: Shop { cart: next, orders: state.orders + 1, log: state.log.push("checkout") },
+            commands: [Charge(state.cart.total), Note("thanks")],
+        }
+        _ => Step { state: Shop { ..state, cart: next }, commands: [] }
+    }
+}
+
+// lower in the stack: receives the context, dispatches through it
+mutate fn add_all(prices: List<Int>, using shop: Context<Shop>) -> Int
+    effects { shop.dispatch, shop.state }
+{
+    var i = 0
+    while i < prices.len {
+        let _ = shop.dispatch(Add(prices.get(i).unwrap_or(0)))
+        i = i + 1
+    }
+    shop.state().cart.total
+}
+
+mutate fn checkout(using shop: Context<Shop>) -> Int
+    effects { shop.dispatch }
+{
+    var charged = 0
+    let commands = shop.dispatch(Checkout)
+    var i = 0
+    while i < commands.len {
+        match commands.get(i) {
+            Some(Charge(amount)) => {
+                charged = charged + amount
+            }
+            _ => {}
+        }
+        i = i + 1
+    }
+    charged
+}
+
+// where the state machine lives
+pub mutate fn buy(prices: List<Int>, removed: Int) -> Int {
+    context shop = open(0)
+    let before = add_all(prices, using shop)
+    let _ = shop.dispatch(Remove(removed))
+    let charged = checkout(using shop)
+    before * 1000000 + charged * 1000 + shop.state().orders * 10 + shop.state().log.len
+}
+
+// a division by zero inside a transition faults the whole call
+pub mutate fn split(prices: List<Int>, n: Int) -> Int {
+    context shop = open(0)
+    let _ = add_all(prices, using shop)
+    let _ = shop.dispatch(Split(n))
+    shop.state().cart.total
+}
+
+// two state machines, one after the other: never two on one stack
+pub mutate fn rounds(prices: List<Int>, k: Int) -> Int {
+    var total = 0
+    var i = 0
+    while i < k {
+        total = total + buy(prices, i)
+        i = i + 1
+    }
+    total
+}
+
+pub program Counter {
+    n: Int
+}
+
+initial fn zero() -> Counter {
+    Counter { n: 0 }
+}
+
+// a machine that returns its state: `dispatch` gives `Unit`
+machine count(state: Counter, event: Event) -> Counter {
+    match event {
+        Add(k) => Counter { n: state.n + k }
+        _ => state
+    }
+}
+
+pub fn tally(xs: List<Int>) -> Int {
+    context c = zero()
+    var i = 0
+    while i < xs.len {
+        c.dispatch(Add(xs.get(i).unwrap_or(0)))
+        i = i + 1
+    }
+    c.state().n
+}

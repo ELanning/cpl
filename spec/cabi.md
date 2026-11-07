@@ -256,7 +256,14 @@ units later without an ABI change).
 - Values are words (`cplrt_w`, Section 2.3). Positional arguments are
   **borrowed**: the callee never releases them and may hand them on as
   borrowed arguments. `using` handles are `const cplrt_capref *`, after
-  the positional arguments, in `FnDef::using` order (semantics S28).
+  the positional arguments, in `FnDef::using` order (semantics S28). A
+  context handle (`Context<S>`) is a `cplrt_w *`: the address of the slot
+  in the frame of the function whose `context` statement started it,
+  holding the current state; `dispatch` stores the machine's new state
+  into it with store semantics. Such a function has no entry trampoline
+  and is never exported (Section 5): the default export set leaves it out
+  without a report, and naming it in `exports` is
+  `project_export_not_function` with `kind: "context"`.
 - `*out` is an **owned** slot of the caller. The callee stores its result
   into it with store semantics: whatever the slot held is released, and
   the slot then holds exactly one reference. Every function returns a
@@ -1320,10 +1327,10 @@ ABI-neutral).
 
 ### 2.7 Every std builtin
 
-The 59 ids of the builtin registry (stdlib.md 10.6; `REGISTRY` in
+The 60 ids of the builtin registry (stdlib.md 10.6; `REGISTRY` in
 `crates/cpl-eval/src/builtins/mod.rs`) are listed in
 `cpl_rtspec::builtins::BUILTINS` with their C entry points (toolchain T70).
-The 13 that are not callable, six types and seven generators, are never
+The 14 that are not callable, seven types and seven generators, are never
 called by a checked program: a builtin type is never called, and a
 generator is `ExprKind::Gen`, drawn by the Rust runner for both engines
 (toolchain T18); a call that names one, which only a hand-built HIR state
@@ -4750,7 +4757,7 @@ typedef struct cplrt_requires_spec {            /* one precondition clause, the 
 } cplrt_requires_spec;
 typedef struct cplrt_builtin_spec {
     const char *id;
-    uint32_t callable;                          /* 0 for the 6 type ids and the 7 generator ids */
+    uint32_t callable;                          /* 0 for the 7 type ids and the 7 generator ids */
     uint32_t nrequires;
     const char *fallback_symbol;                /* the stub's qualified name, for a program that does not declare it */
     const cplrt_requires_spec *requires;        /* the precondition clauses in source order (stdlib.md 10.4) */
